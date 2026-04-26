@@ -37,3 +37,52 @@ Decisions made during Phase 0. Not to be relitigated without good reason.
 - **Implementation:** FastAPI native WebSocket. Endpoint: WS /sessions/{id}/stream. Delivers alert_events and SQI status in real time. Connection manager handles reconnect gracefully.
 - **What was rejected:** HTTP polling — too slow for safety alerts.
 - **Date:** April 2026
+
+cat >> ~/consensai-1a/docs/DECISIONS.md << 'EOF'
+
+## Logging Strategy
+- **Decision:** JSON structured logging via shared logger at capture/logger.py. Every process imports it. Every log line includes: timestamp, process_name, log_level, session_id (nullable), message.
+- **Log file structure:** One file per process per session. Path: logs/{session_id}/{process_name}.log
+- **Retention:** Never auto-delete. Logs are part of the audit trail. Keep for duration of trial plus minimum 2 years.
+- **Date:** April 2026
+
+### Log Levels
+
+**DEBUG**
+- Raw sample counts per interval (throughput verification)
+- Buffer writes and flushes (individual events during DB drop)
+- Clock drift values (remote_clock_offset from LSL)
+
+**INFO**
+- Session start (session_id, participant_id pseudonymous, compound, compound_dose, compound_dose_unit, protocol_arm, site_id, sponsor_id)
+- Session stop (session_id, duration, reason)
+- Process start/stop (forwarder, safety_monitor, sqi_monitor)
+- Device connect/disconnect (stream name, device ID, sample rate)
+- Watermark verified (all streams passed, batch cleared)
+- HUMeN manual inputs (coordinator_id, input_type, content, lsl_timestamp)
+- Config snapshot at session start (full system config as JSONB to audit_events via trigger)
+- Algorithm params loaded on every safety_monitor start/restart (exact thresholds from algorithm_params.yaml)
+- Coordinator acknowledgment of safety alert (coordinator_id, alert_id, timestamp)
+
+**WARNING**
+- Buffer threshold exceeded (DB down longer than configurable threshold)
+- SQI degradation (channel quality below acceptable threshold)
+- Reconnection attempts (forwarder retrying DB connection)
+
+**ERROR**
+- DB write failure (write failed after retry, data buffering locally)
+- LSL stream drop (device stream gone, not just momentary disconnect)
+- XDF write failure (backup reconciliation source failed to write)
+
+**CRITICAL**
+- Safety alert fired (algorithm_name, algorithm_version, threshold breached, measured value)
+- Watchdog restart (forwarder crashed, systemd restarted it)
+- Watermark failed (stream gap detected, batch blocked, coordinator alerted)
+
+### Key Decisions
+- Algorithm params logged on every safety_monitor process start, not just session start. Covers watchdog restart scenarios where thresholds could theoretically change.
+- File locking of algorithm_params.yaml during sessions deferred to 1b. Logging is sufficient for 1a.
+- Config snapshot is one JSONB payload to audit_events at session start. Proves exact system state during any given session.
+- compound_dose and compound_dose_unit added to sessions table. Dose units vary by compound (grams for psilocybin, micrograms for LSD, milligrams for MDMA, mg/kg for ibogaine).
+EOF
+

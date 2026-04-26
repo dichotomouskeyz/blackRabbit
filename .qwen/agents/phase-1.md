@@ -53,7 +53,7 @@ Infrastructure only. No application code. No capture layer. No API routes.
 - 003 — hrv_samples hypertable (rr_interval_ms, beat_quality, heart_rate_bpm, lsl_timestamp, db_insert_time, site_id, sponsor_id)
 - 004 — eda_samples hypertable (value_microsiemens, sample_rate_hz, electrode_placement, signal_quality, lsl_timestamp, db_insert_time, site_id, sponsor_id)
 - 005 — respiration_samples hypertable (value_brpm, rsa_derived flag, lsl_timestamp, db_insert_time, site_id, sponsor_id)
-- 006 — sessions table (session_id, site_id, sponsor_id, participant_id pseudonymous, protocol_arm, compound, therapist_id, status, started_at, closed_at)
+- 006 — sessions table (site_id, sponsor_id, participant_id pseudonymous, protocol_arm, compound, compound_dose, compound_dose_unit, therapist_id, status, started_at, closed_at)
 - 007 — audit_events table append-only (event_id, session_id, event_type, payload JSONB, event_timestamp, db_insert_time)
 - 008 — alert_events table (alert_id, session_id, algorithm_name, algorithm_version, algorithm_parameters JSONB, alert_type, severity, acknowledged_by, acknowledged_at)
 - 009 — humen_events table (event_id, session_id, event_type, actor_id, zone_id, lsl_timestamp, site_id, sponsor_id)
