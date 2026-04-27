@@ -1,0 +1,62 @@
+# Consensai 1a MVP — Local Docker Stack
+# TimescaleDB = Postgres 16 + TimescaleDB extension + pgvector
+# One container handles both hypertables (biosignal time-series)
+# and regular tables (sessions, audit, alerts, HUMeN events).
+# In 1b, biosignal data moves to AWS Timestream and relational
+# data moves to RDS — but the schemas stay identical.
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: consensai-db
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - ts_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: consensai-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "5050:80"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # --- Stubs for Phase 4 ---
+  # Uncomment when you reach Phase 4 (Session Interface).
+  # api:
+  #   build: ./api
+  #   container_name: consensai-api
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@timescaledb:5432/${DB_NAME}
+  #   depends_on:
+  #     timescaledb:
+  #       condition: service_healthy
+
+  # frontend:
+  #   build: ./frontend
+  #   container_name: consensai-frontend
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - api
+
+volumes:
+  ts_data:
