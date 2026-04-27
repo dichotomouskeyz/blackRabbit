@@ -1,0 +1,9 @@
+pylsl
+mne
+neurokit2
+psycopg2-binary
+sqlalchemy
+numpy
+pandas
+pyxdf
+python-dotenv
