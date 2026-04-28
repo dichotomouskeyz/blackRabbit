@@ -25,10 +25,10 @@ WHY ELECTRODE_PLACEMENT AND SAMPLE_RATE_HZ:
   not buried in a JSONB blob, because the batch layer needs them
   for correct processing.
 """
+
 from typing import Sequence, Union
 
 from alembic import op
-
 
 revision: str = "004_eda_samples"
 down_revision: Union[str, None] = "003_hrv_samples"

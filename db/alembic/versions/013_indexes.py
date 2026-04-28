@@ -41,10 +41,10 @@ WHY COMPOSITE INDEXES:
   Column order in composite indexes matters: put the equality filter
   first (session_id = ?), then the range/sort column (lsl_timestamp).
 """
+
 from typing import Sequence, Union
 
 from alembic import op
-
 
 revision: str = "013_indexes"
 down_revision: Union[str, None] = "012_audit_triggers"

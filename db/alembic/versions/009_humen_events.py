@@ -26,10 +26,10 @@ WHY THIS MATTERS SCIENTIFICALLY:
   participant's EDA spiked?" is an answerable question when you
   have time-aligned HUMeN + biosignal data.
 """
+
 from typing import Sequence, Union
 
 from alembic import op
-
 
 revision: str = "009_humen_events"
 down_revision: Union[str, None] = "008_alert_events"

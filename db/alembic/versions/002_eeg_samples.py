@@ -34,10 +34,10 @@ WHY HYPERTABLE:
   partitioning, every query scans the full table. With hypertables,
   queries only touch the relevant time chunk.
 """
+
 from typing import Sequence, Union
 
 from alembic import op
-
 
 revision: str = "002_eeg_samples"
 down_revision: Union[str, None] = "001_extensions"

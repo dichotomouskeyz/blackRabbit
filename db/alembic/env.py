@@ -10,7 +10,6 @@ You should rarely need to edit this file.
 """
 
 import os
-import sys
 from logging.config import fileConfig
 
 from alembic import context

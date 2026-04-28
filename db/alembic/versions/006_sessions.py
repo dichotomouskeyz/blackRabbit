@@ -27,10 +27,10 @@ WHY COMPOUND_DOSE AND COMPOUND_DOSE_UNIT ARE SEPARATE:
   string parsing. compound_dose_unit also distinguishes mg vs µg —
   critical for LSD where typical doses are in micrograms.
 """
+
 from typing import Sequence, Union
 
 from alembic import op
-
 
 revision: str = "006_sessions"
 down_revision: Union[str, None] = "005_respiration_samples"

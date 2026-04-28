@@ -22,10 +22,10 @@ WHY VOICE IS IN 1a AT ALL:
   be rewritten. All voice_segments rows will be NULL/empty in 1a.
   This matches the pgvector pattern: plant now, populate later.
 """
+
 from typing import Sequence, Union
 
 from alembic import op
-
 
 revision: str = "010_voice_segments"
 down_revision: Union[str, None] = "009_humen_events"

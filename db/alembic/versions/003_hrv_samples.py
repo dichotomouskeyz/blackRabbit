@@ -26,10 +26,10 @@ WHY R-R INTERVAL IS PRIMARY:
   and R-R variability is the early warning signal. We need the raw
   intervals, not a rounded BPM.
 """
+
 from typing import Sequence, Union
 
 from alembic import op
-
 
 revision: str = "003_hrv_samples"
 down_revision: Union[str, None] = "002_eeg_samples"

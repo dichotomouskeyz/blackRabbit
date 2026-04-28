@@ -32,10 +32,10 @@ NOTE ON DIMENSION SIZE:
   style embeddings. This will be updated when the actual embedding
   model is chosen in 1b.
 """
+
 from typing import Sequence, Union
 
 from alembic import op
-
 
 revision: str = "011_pgvector_columns"
 down_revision: Union[str, None] = "010_voice_segments"

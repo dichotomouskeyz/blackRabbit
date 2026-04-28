@@ -18,10 +18,10 @@ WHY SOURCE COLUMN MATTERS:
   This is stored as a first-class column, not metadata, because
   it determines how every downstream computation treats the data.
 """
+
 from typing import Sequence, Union
 
 from alembic import op
-
 
 revision: str = "005_respiration_samples"
 down_revision: Union[str, None] = "004_eda_samples"

@@ -34,10 +34,10 @@ WHY TWO TIMESTAMP COLUMNS:
   db_insert_time = when the audit row was written to the database.
   Same logic as biosignal tables — regulatory requirement.
 """
+
 from typing import Sequence, Union
 
 from alembic import op
-
 
 revision: str = "007_audit_events"
 down_revision: Union[str, None] = "006_sessions"

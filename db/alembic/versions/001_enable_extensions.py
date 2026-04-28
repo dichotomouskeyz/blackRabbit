@@ -13,10 +13,10 @@ pgvector adds a vector column type for storing embeddings. We plant
 the extension now but won't populate vectors until 1b when MNE
 feature extraction outputs exist.
 """
+
 from typing import Sequence, Union
 
 from alembic import op
-
 
 revision: str = "001_extensions"
 down_revision: Union[str, None] = None

@@ -325,5 +325,3 @@ Jay is a neuroscience undergraduate building this iteratively while learning sof
 ### Never
 - Assume Jay knows why something works — explain it
 - Generate code without explaining what it does and why it's structured that way
-
-

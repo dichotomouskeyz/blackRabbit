@@ -41,10 +41,10 @@ WHAT NEW.* IS:
   every EEG sample twice would double storage. The audit trail for
   biosignals records THAT a write happened, not the full data.
 """
+
 from typing import Sequence, Union
 
 from alembic import op
-
 
 revision: str = "012_audit_triggers"
 down_revision: Union[str, None] = "011_pgvector_columns"
