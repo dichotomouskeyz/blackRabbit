@@ -1,7 +1,7 @@
-"""011 add pgvector columns and session_feature_vectors table
+"""010 add pgvector columns and session_feature_vectors table
 
-Revision ID: 011_pgvector_columns
-Revises: 010_voice_segments
+Revision ID: 010_pgvector_columns
+Revises: 009_humen_events
 Create Date: 2026-04-26
 
 WHY PLANT VECTOR COLUMNS NOW:

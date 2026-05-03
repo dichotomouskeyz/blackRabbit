@@ -1,7 +1,7 @@
-"""021 create adverse_event_log table
+"""018 create adverse_event_log table
 
-Revision ID: 021_adverse_event_log
-Revises: 020_investigational_product_log
+Revision ID: 018_adverse_event_log
+Revises: 017_investigational_product_log
 Create Date: 2026-04-27
 
 WHY THIS IS DIFFERENT FROM ALERT_EVENTS:
@@ -51,8 +51,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "019_adverse_event_log"
-down_revision: Union[str, None] = "018_investigational_product_log"
+revision: str = "018_adverse_event_log"
+down_revision: Union[str, None] = "017_investigational_product_log"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -102,22 +102,6 @@ def upgrade() -> None:
         );
     """)
 
-    op.execute("""
-        CREATE INDEX idx_ae_session
-        ON adverse_event_log (session_id);
-    """)
-
-    op.execute("""
-        CREATE INDEX idx_ae_tenancy
-        ON adverse_event_log (site_id, sponsor_id);
-    """)
-
-    # Critical query: all unresolved serious AEs requiring reporting
-    op.execute("""
-        CREATE INDEX idx_ae_serious_unreported
-        ON adverse_event_log (site_id, sponsor_id)
-        WHERE is_serious = TRUE AND fda_reported_at IS NULL;
-    """)
 
 
 def downgrade() -> None:

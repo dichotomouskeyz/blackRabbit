@@ -1,7 +1,7 @@
-"""015 add auto-compression policy on all hypertables
+"""013 add auto-compression policy on all hypertables
 
-Revision ID: 015_compression_policy
-Revises: 014_compression
+Revision ID: 013_compression_policy
+Revises: 012_compression
 Create Date: 2026-04-27
 
 WHY A POLICY INSTEAD OF MANUAL COMPRESSION:

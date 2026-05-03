@@ -4,6 +4,29 @@ Revision ID: 002_sessions
 Revises: 001_extensions
 Create Date: 2026-04-26
 
+WHY A POSTGRES ENUM FOR STATUS (NOT A TEXT CHECK CONSTRAINT):
+  A Postgres ENUM is a first-class type. Valid values are stored in the
+  system catalog, visible in schema browsers, and adding a new value is
+  a simple ALTER TYPE ... ADD VALUE — no table rewrite required. A TEXT
+  CHECK constraint requires an ALTER TABLE to change the constraint,
+  which rewrites validation logic for every existing row and doesn't
+  self-document in the schema.
+
+  The tradeoff: ENUM values are harder to remove than to add. For session
+  status, the values are stable and well-understood, so ENUM is correct.
+
+WHY BATCH_PROCESSED_AT:
+  When post-session batch completes (after watermark_verified is written),
+  batch_processed_at is set. NULL = batch has not run. Non-NULL = batch
+  completed at this timestamp. This is both the handoff signal from the
+  streaming phase to the batch phase, and a regulatory requirement: you
+  must be able to prove that post-session processing completed and when.
+
+STATUS FLOW:
+  initializing → active → closing → closed (normal path)
+                        → failed   (error path)
+  closed → batch_processed_at set (batch complete)
+
 WHY THIS IS A REGULAR TABLE (NOT A HYPERTABLE):
   Sessions are low-volume (maybe 5 per day at peak), relationally
   queried (JOIN to biosignal tables), and need full ACID guarantees.
@@ -58,6 +81,8 @@ WHY INDEXES ON sponsor_id, site_id, protocol_arm:
   for efficacy analysis. Indexing these independently also covers
   composite queries via index intersection.
 
+  All sessions indexes are defined in 011_indexes.py, not here.
+
 WHY updated_at TRIGGER:
   updated_at must reflect the actual time of the last change, not
   the time application code thinks it made a change. A database
@@ -80,14 +105,25 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.execute("""
+        CREATE TYPE session_status AS ENUM (
+            'initializing',
+            'active',
+            'paused',
+            'closing',
+            'closed',
+            'failed'
+        );
+    """)
+
+    op.execute("""
         CREATE TABLE sessions (
-            id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-            site_id             UUID        NOT NULL,
-            sponsor_id          UUID        NOT NULL,
-            participant_id      UUID        NOT NULL,
+            id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
+            site_id             UUID            NOT NULL,
+            sponsor_id          UUID            NOT NULL,
+            participant_id      UUID            NOT NULL,
             room_id             UUID,
             protocol_arm        TEXT,
-            compound            TEXT        NOT NULL,
+            compound            TEXT            NOT NULL,
             compound_dose       DOUBLE PRECISION,
             compound_dose_unit  TEXT
                                 CHECK (compound_dose_unit IN (
@@ -95,29 +131,13 @@ def upgrade() -> None:
                                     'mg/kg', 'ug/kg', 'µg/kg'
                                 )),
             therapist_id        TEXT,
-            status              TEXT        NOT NULL DEFAULT 'initializing'
-                                CHECK (status IN (
-                                    'initializing',
-                                    'active',
-                                    'paused',
-                                    'closing',
-                                    'closed',
-                                    'failed'
-                                )),
+            status              session_status  NOT NULL DEFAULT 'initializing',
+            batch_processed_at  TIMESTAMPTZ,
             started_at          TIMESTAMPTZ,
             closed_at           TIMESTAMPTZ,
-            created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            updated_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW()
         );
-
-        -- Fast lookup by sponsor (required on every API query per regulatory rules).
-        CREATE INDEX idx_sessions_sponsor    ON sessions (sponsor_id);
-        -- Fast lookup by site for site-level dashboards and exports.
-        CREATE INDEX idx_sessions_site       ON sessions (site_id);
-        -- Fast grouping by trial arm for efficacy analysis.
-        CREATE INDEX idx_sessions_trial_arm  ON sessions (protocol_arm);
-        -- Composite: most common dashboard query pattern is sponsor + site.
-        CREATE INDEX idx_sessions_sponsor_site ON sessions (sponsor_id, site_id);
 
         -- Trigger function: sets updated_at = NOW() on every UPDATE.
         -- Named generically so it can be reused by other tables in later
@@ -142,4 +162,5 @@ def downgrade() -> None:
         DROP TRIGGER IF EXISTS sessions_set_updated_at ON sessions;
         DROP FUNCTION IF EXISTS set_updated_at();
         DROP TABLE IF EXISTS sessions;
+        DROP TYPE IF EXISTS session_status;
     """)

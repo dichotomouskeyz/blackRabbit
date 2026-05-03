@@ -1,7 +1,7 @@
-"""026 create audit triggers on all tables
+"""023 create audit triggers on all tables
 
-Revision ID: 026_audit_triggers
-Revises: 025_session_signal_metadata
+Revision ID: 023_audit_triggers
+Revises: 022_session_signal_metadata
 Create Date: 2026-05-02
 
 WHY THIS RUNS LAST:
@@ -51,8 +51,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "024_audit_triggers"
-down_revision: Union[str, None] = "023_session_signal_metadata"
+revision: str = "023_audit_triggers"
+down_revision: Union[str, None] = "022_session_signal_metadata"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -1,7 +1,7 @@
-"""024 create system_user_access_log table
+"""021 create system_user_access_log table
 
-Revision ID: 024_system_user_access_log
-Revises: 023_data_access_log
+Revision ID: 021_system_user_access_log
+Revises: 020_data_access_log
 Create Date: 2026-04-27
 
 WHAT THIS TRACKS:
@@ -49,8 +49,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "022_system_user_access_log"
-down_revision: Union[str, None] = "021_data_access_log"
+revision: str = "021_system_user_access_log"
+down_revision: Union[str, None] = "020_data_access_log"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -111,26 +111,6 @@ def upgrade() -> None:
 
     op.execute("REVOKE UPDATE, DELETE ON system_user_access_log FROM PUBLIC;")
 
-    op.execute("""
-        CREATE INDEX idx_users_tenancy
-        ON system_users (site_id, sponsor_id);
-    """)
-
-    op.execute("""
-        CREATE INDEX idx_users_active
-        ON system_users (site_id, sponsor_id)
-        WHERE is_active = TRUE;
-    """)
-
-    op.execute("""
-        CREATE INDEX idx_user_access_log_user
-        ON system_user_access_log (user_id, event_timestamp DESC);
-    """)
-
-    op.execute("""
-        CREATE INDEX idx_user_access_log_tenancy
-        ON system_user_access_log (site_id, sponsor_id, event_timestamp DESC);
-    """)
 
 
 def downgrade() -> None:

@@ -1,7 +1,7 @@
-"""017 add participant consent log
+"""014 add participant consent log
 
-Revision ID: 017_consent_log
-Revises: 016_session_status_enum
+Revision ID: 014_consent_log
+Revises: 013_compression_policy
 Create Date: 2026-04-27
 
 WHY THIS IS A HARD REQUIREMENT BEFORE UCSF:
@@ -45,17 +45,31 @@ WHY PSEUDONYMOUS_ID AND NOT REAL IDENTITY:
   breached, no real participant identity is exposed.
 
 CONSENT_TYPE:
-  'initial'  = first time consent for a protocol
-  'updated'  = re-consent after form revision
-  'reconsent'= re-consent after a protocol amendment
+  'initial'   = first time consent for a protocol
+  'updated'   = re-consent after form revision
+  'reconsent' = re-consent after a protocol amendment
+
+WHY CONSENT_METHOD:
+  The method by which consent was obtained is itself a regulatory data
+  point. FDA guidance distinguishes between consent obtained in person,
+  via electronic signature platform, via video call, or by other means.
+  Each method has different documentation requirements and audit trail
+  implications. A CHECK constraint enforces a closed vocabulary so
+  downstream reporting can group and filter without string normalization.
+
+  Allowed values:
+    electronic_signature — DocuSign or equivalent; has its own audit log
+    in_person            — wet signature obtained at the clinical site
+    video                — remote video call; typically with a recorded link
+    other                — any method not covered above; requires notes field
 """
 
 from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "015_consent_log"
-down_revision: Union[str, None] = "014_session_status_enum"
+revision: str = "014_consent_log"
+down_revision: Union[str, None] = "013_compression_policy"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -78,36 +92,18 @@ def upgrade() -> None:
                                 )),
             consented_at        TIMESTAMPTZ NOT NULL,
             consent_obtained_by TEXT        NOT NULL,
+            consent_method      TEXT        NOT NULL
+                                CHECK (consent_method IN (
+                                    'electronic_signature',
+                                    'in_person',
+                                    'video',
+                                    'other'
+                                )),
             revoked_at          TIMESTAMPTZ,
             revocation_reason   TEXT,
             notes               TEXT,
             db_insert_time      TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
-    """)
-
-    # Indexes for the most common queries:
-    # "Does this participant have valid consent for this protocol?"
-    # "Show me all consents for this site"
-    op.execute("""
-        CREATE INDEX idx_consent_participant_protocol
-        ON participant_consent_log (participant_id, protocol_id);
-    """)
-
-    op.execute("""
-        CREATE INDEX idx_consent_tenancy
-        ON participant_consent_log (site_id, sponsor_id);
-    """)
-
-    # Index for finding active (non-revoked) consents
-    op.execute("""
-        CREATE INDEX idx_consent_active
-        ON participant_consent_log (participant_id, protocol_id)
-        WHERE revoked_at IS NULL;
-    """)
-
-    op.execute("""
-        CREATE INDEX idx_consent_session
-        ON participant_consent_log (session_id);
     """)
 
 

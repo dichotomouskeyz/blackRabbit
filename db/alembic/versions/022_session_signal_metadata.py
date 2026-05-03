@@ -1,7 +1,7 @@
-"""023 create session_signal_metadata table
+"""022 create session_signal_metadata table
 
-Revision ID: 025_session_signal_metadata
-Revises: 024_system_user_access_log
+Revision ID: 022_session_signal_metadata
+Revises: 021_system_user_access_log
 Create Date: 2026-05-02
 
 WHY THIS TABLE EXISTS:
@@ -137,8 +137,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "023_session_signal_metadata"
-down_revision: Union[str, None] = "022_system_user_access_log"
+revision: str = "022_session_signal_metadata"
+down_revision: Union[str, None] = "021_system_user_access_log"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -227,14 +227,6 @@ def upgrade() -> None:
         BEFORE UPDATE ON session_signal_metadata
         FOR EACH ROW
         EXECUTE FUNCTION set_updated_at();
-
-        -- Tenancy index: every API query filters by sponsor.
-        CREATE INDEX idx_session_signal_metadata_tenancy
-        ON session_signal_metadata (sponsor_id, site_id);
-
-        -- Session lookup: retrieve all modality metadata for a session.
-        CREATE INDEX idx_session_signal_metadata_session
-        ON session_signal_metadata (session_id);
     """)
 
 

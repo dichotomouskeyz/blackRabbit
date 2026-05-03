@@ -1,7 +1,7 @@
-"""014 enable columnar compression on all hypertables
+"""012 enable columnar compression on all hypertables
 
-Revision ID: 014_compression
-Revises: 013_indexes
+Revision ID: 012_compression
+Revises: 011_indexes
 Create Date: 2026-04-27
 
 WHY COMPRESSION:

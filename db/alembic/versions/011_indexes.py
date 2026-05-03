@@ -1,7 +1,7 @@
-"""013 create indexes across all tables
+"""011 create indexes across all tables
 
-Revision ID: 013_indexes
-Revises: 012_audit_triggers
+Revision ID: 011_indexes
+Revises: 010_pgvector_columns
 Create Date: 2026-04-26
 
 WHY INDEXES MATTER:
@@ -93,6 +93,22 @@ def upgrade() -> None:
 
     # --- Sessions table ---
     op.execute("""
+        CREATE INDEX idx_sessions_sponsor
+        ON sessions (sponsor_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_sessions_site
+        ON sessions (site_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_sessions_trial_arm
+        ON sessions (protocol_arm);
+    """)
+    op.execute("""
+        CREATE INDEX idx_sessions_sponsor_site
+        ON sessions (sponsor_id, site_id);
+    """)
+    op.execute("""
         CREATE INDEX idx_sessions_tenancy
         ON sessions (site_id, sponsor_id);
     """)
@@ -137,11 +153,181 @@ def upgrade() -> None:
         CREATE INDEX idx_humen_events_actor
         ON humen_events (actor_id);
     """)
+    # HUMeN: look up all events within a proximity zone
+    op.execute("""
+        CREATE INDEX idx_humen_events_zone_label
+        ON humen_events (zone_label);
+    """)
+
+    # --- Regulatory / compliance tables ---
+
+    # audit_events: session timeline reconstruction
+    op.execute("""
+        CREATE INDEX idx_audit_events_session_time
+        ON audit_events (session_id, event_timestamp DESC);
+    """)
+
+    # schema_version_log
+    op.execute("""
+        CREATE INDEX idx_schema_version_session
+        ON schema_version_log (session_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_schema_version_alembic
+        ON schema_version_log (alembic_version);
+    """)
+    op.execute("""
+        CREATE INDEX idx_schema_version_recorded
+        ON schema_version_log (recorded_at DESC);
+    """)
+
+    # electronic_signatures
+    op.execute("""
+        CREATE INDEX idx_esig_session
+        ON electronic_signatures (session_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_esig_record
+        ON electronic_signatures (table_name, record_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_esig_signer
+        ON electronic_signatures (signer_id, signed_at DESC);
+    """)
+    op.execute("""
+        CREATE INDEX idx_esig_tenancy
+        ON electronic_signatures (site_id, sponsor_id);
+    """)
+    # Composite for the most common signature audit query
+    op.execute("""
+        CREATE INDEX idx_esig_session_time
+        ON electronic_signatures (session_id, signed_at DESC);
+    """)
+
+    # investigational_product_log
+    op.execute("""
+        CREATE INDEX idx_ip_log_session
+        ON investigational_product_log (session_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_ip_log_compound_lot
+        ON investigational_product_log (compound, lot_number);
+    """)
+    op.execute("""
+        CREATE INDEX idx_ip_log_tenancy
+        ON investigational_product_log (site_id, sponsor_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_ip_log_time
+        ON investigational_product_log (session_id, event_timestamp DESC);
+    """)
+
+    # adverse_event_log
+    op.execute("""
+        CREATE INDEX idx_ae_session
+        ON adverse_event_log (session_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_ae_tenancy
+        ON adverse_event_log (site_id, sponsor_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_ae_time
+        ON adverse_event_log (session_id, db_insert_time DESC);
+    """)
+    # All unresolved serious AEs requiring FDA reporting
+    op.execute("""
+        CREATE INDEX idx_ae_serious_unreported
+        ON adverse_event_log (site_id, sponsor_id)
+        WHERE is_serious = TRUE AND fda_reported_at IS NULL;
+    """)
+
+    # protocol_deviation_log
+    op.execute("""
+        CREATE INDEX idx_deviation_session
+        ON protocol_deviation_log (session_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_deviation_tenancy
+        ON protocol_deviation_log (site_id, sponsor_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_deviation_time
+        ON protocol_deviation_log (session_id, db_insert_time DESC);
+    """)
+    # Major deviations requiring IRB reporting
+    op.execute("""
+        CREATE INDEX idx_deviation_major_unreported
+        ON protocol_deviation_log (site_id, sponsor_id)
+        WHERE classification = 'major' AND irb_reported_at IS NULL;
+    """)
+
+    # participant_consent_log
+    op.execute("""
+        CREATE INDEX idx_consent_participant_protocol
+        ON participant_consent_log (participant_id, protocol_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_consent_tenancy
+        ON participant_consent_log (site_id, sponsor_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_consent_active
+        ON participant_consent_log (participant_id, protocol_id)
+        WHERE revoked_at IS NULL;
+    """)
+    op.execute("""
+        CREATE INDEX idx_consent_session
+        ON participant_consent_log (session_id);
+    """)
+
+    # data_access_log
+    op.execute("""
+        CREATE INDEX idx_access_log_accessor
+        ON data_access_log (accessor_id, accessed_at DESC);
+    """)
+    op.execute("""
+        CREATE INDEX idx_access_log_session
+        ON data_access_log (session_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_access_log_tenancy
+        ON data_access_log (site_id, sponsor_id, accessed_at DESC);
+    """)
+
+    # system_users and system_user_access_log
+    op.execute("""
+        CREATE INDEX idx_users_tenancy
+        ON system_users (site_id, sponsor_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_users_active
+        ON system_users (site_id, sponsor_id)
+        WHERE is_active = TRUE;
+    """)
+    op.execute("""
+        CREATE INDEX idx_user_access_log_user
+        ON system_user_access_log (user_id, event_timestamp DESC);
+    """)
+    op.execute("""
+        CREATE INDEX idx_user_access_log_tenancy
+        ON system_user_access_log (site_id, sponsor_id, event_timestamp DESC);
+    """)
+
+    # session_signal_metadata
+    op.execute("""
+        CREATE INDEX idx_session_signal_metadata_tenancy
+        ON session_signal_metadata (sponsor_id, site_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_session_signal_metadata_session
+        ON session_signal_metadata (session_id);
+    """)
 
 
 def downgrade() -> None:
-    # Drop all indexes created above
-    # (Tables themselves are not affected — just the indexes)
+    # Drop all indexes created above.
+    # Tables themselves are not affected — just the indexes.
 
     for table in BIOSIGNAL_TABLES:
         op.execute(f"DROP INDEX IF EXISTS idx_{table}_session_time;")
@@ -149,6 +335,10 @@ def downgrade() -> None:
 
     op.execute("DROP INDEX IF EXISTS idx_eeg_session_channel_time;")
 
+    op.execute("DROP INDEX IF EXISTS idx_sessions_sponsor;")
+    op.execute("DROP INDEX IF EXISTS idx_sessions_site;")
+    op.execute("DROP INDEX IF EXISTS idx_sessions_trial_arm;")
+    op.execute("DROP INDEX IF EXISTS idx_sessions_sponsor_site;")
     op.execute("DROP INDEX IF EXISTS idx_sessions_tenancy;")
     op.execute("DROP INDEX IF EXISTS idx_sessions_status;")
     op.execute("DROP INDEX IF EXISTS idx_sessions_compound;")
@@ -161,3 +351,48 @@ def downgrade() -> None:
     op.execute("DROP INDEX IF EXISTS idx_alert_events_unacknowledged;")
     op.execute("DROP INDEX IF EXISTS idx_humen_events_session_time;")
     op.execute("DROP INDEX IF EXISTS idx_humen_events_actor;")
+    op.execute("DROP INDEX IF EXISTS idx_humen_events_zone_label;")
+
+    op.execute("DROP INDEX IF EXISTS idx_audit_events_session_time;")
+
+    op.execute("DROP INDEX IF EXISTS idx_schema_version_session;")
+    op.execute("DROP INDEX IF EXISTS idx_schema_version_alembic;")
+    op.execute("DROP INDEX IF EXISTS idx_schema_version_recorded;")
+
+    op.execute("DROP INDEX IF EXISTS idx_esig_session;")
+    op.execute("DROP INDEX IF EXISTS idx_esig_record;")
+    op.execute("DROP INDEX IF EXISTS idx_esig_signer;")
+    op.execute("DROP INDEX IF EXISTS idx_esig_tenancy;")
+    op.execute("DROP INDEX IF EXISTS idx_esig_session_time;")
+
+    op.execute("DROP INDEX IF EXISTS idx_ip_log_session;")
+    op.execute("DROP INDEX IF EXISTS idx_ip_log_compound_lot;")
+    op.execute("DROP INDEX IF EXISTS idx_ip_log_tenancy;")
+    op.execute("DROP INDEX IF EXISTS idx_ip_log_time;")
+
+    op.execute("DROP INDEX IF EXISTS idx_ae_session;")
+    op.execute("DROP INDEX IF EXISTS idx_ae_tenancy;")
+    op.execute("DROP INDEX IF EXISTS idx_ae_time;")
+    op.execute("DROP INDEX IF EXISTS idx_ae_serious_unreported;")
+
+    op.execute("DROP INDEX IF EXISTS idx_deviation_session;")
+    op.execute("DROP INDEX IF EXISTS idx_deviation_tenancy;")
+    op.execute("DROP INDEX IF EXISTS idx_deviation_time;")
+    op.execute("DROP INDEX IF EXISTS idx_deviation_major_unreported;")
+
+    op.execute("DROP INDEX IF EXISTS idx_consent_participant_protocol;")
+    op.execute("DROP INDEX IF EXISTS idx_consent_tenancy;")
+    op.execute("DROP INDEX IF EXISTS idx_consent_active;")
+    op.execute("DROP INDEX IF EXISTS idx_consent_session;")
+
+    op.execute("DROP INDEX IF EXISTS idx_access_log_accessor;")
+    op.execute("DROP INDEX IF EXISTS idx_access_log_session;")
+    op.execute("DROP INDEX IF EXISTS idx_access_log_tenancy;")
+
+    op.execute("DROP INDEX IF EXISTS idx_users_tenancy;")
+    op.execute("DROP INDEX IF EXISTS idx_users_active;")
+    op.execute("DROP INDEX IF EXISTS idx_user_access_log_user;")
+    op.execute("DROP INDEX IF EXISTS idx_user_access_log_tenancy;")
+
+    op.execute("DROP INDEX IF EXISTS idx_session_signal_metadata_tenancy;")
+    op.execute("DROP INDEX IF EXISTS idx_session_signal_metadata_session;")
