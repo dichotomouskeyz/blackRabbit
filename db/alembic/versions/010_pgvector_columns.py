@@ -37,8 +37,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "011_pgvector_columns"
-down_revision: Union[str, None] = "010_voice_segments"
+revision: str = "010_pgvector_columns"
+down_revision: Union[str, None] = "009_humen_events"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

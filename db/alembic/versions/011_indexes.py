@@ -46,8 +46,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "013_indexes"
-down_revision: Union[str, None] = "012_audit_triggers"
+revision: str = "011_indexes"
+down_revision: Union[str, None] = "010_pgvector_columns"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -64,7 +64,6 @@ BIOSIGNAL_TABLES = [
 EVENT_TABLES = [
     "alert_events",
     "humen_events",
-    "voice_segments",
     "session_feature_vectors",
     "session_notes",
 ]
@@ -89,7 +88,7 @@ def upgrade() -> None:
     # "Show me channel Fz for session X in the last 5 minutes"
     op.execute("""
         CREATE INDEX idx_eeg_session_channel_time
-        ON eeg_samples (session_id, channel_name, lsl_timestamp DESC);
+        ON eeg_samples (session_id, channel_id, lsl_timestamp DESC);
     """)
 
     # --- Sessions table ---
@@ -128,20 +127,15 @@ def upgrade() -> None:
         WHERE acknowledged_at IS NULL;
     """)
 
-    # Audit events: query by session and event type
-    op.execute("""
-        CREATE INDEX idx_audit_events_session
-        ON audit_events (session_id, db_insert_time DESC);
-    """)
-    op.execute("""
-        CREATE INDEX idx_audit_events_table
-        ON audit_events (table_name, db_insert_time DESC);
-    """)
-
     # HUMeN: time-ordered events per session for timeline reconstruction
     op.execute("""
         CREATE INDEX idx_humen_events_session_time
         ON humen_events (session_id, lsl_timestamp);
+    """)
+    # HUMeN: look up all events by a specific actor (therapist/coordinator)
+    op.execute("""
+        CREATE INDEX idx_humen_events_actor
+        ON humen_events (actor_id);
     """)
 
 
@@ -165,6 +159,5 @@ def downgrade() -> None:
 
     op.execute("DROP INDEX IF EXISTS idx_alert_events_severity;")
     op.execute("DROP INDEX IF EXISTS idx_alert_events_unacknowledged;")
-    op.execute("DROP INDEX IF EXISTS idx_audit_events_session;")
-    op.execute("DROP INDEX IF EXISTS idx_audit_events_table;")
     op.execute("DROP INDEX IF EXISTS idx_humen_events_session_time;")
+    op.execute("DROP INDEX IF EXISTS idx_humen_events_actor;")

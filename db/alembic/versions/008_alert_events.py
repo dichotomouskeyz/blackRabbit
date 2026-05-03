@@ -51,7 +51,16 @@ def upgrade() -> None:
             participant_id          TEXT        NOT NULL,
             site_id                 TEXT        NOT NULL,
             sponsor_id              TEXT        NOT NULL,
-            alert_type              TEXT        NOT NULL,
+            alert_type              TEXT        NOT NULL
+                                    CHECK (alert_type IN (
+                                        'cardiac',
+                                        'sqi',
+                                        'respiration',
+                                        'device_loss',
+                                        'threshold_breach'
+                                    )),
+            compound                TEXT        NOT NULL,
+            compound_dose           FLOAT       NOT NULL,
             severity                TEXT        NOT NULL
                                     CHECK (severity IN (
                                         'info', 'warning', 'critical'
@@ -66,6 +75,10 @@ def upgrade() -> None:
             message                 TEXT,
             acknowledged_by         TEXT,
             acknowledged_at         TIMESTAMPTZ,
+            CONSTRAINT acknowledged_pair CHECK (
+                (acknowledged_by IS NULL AND acknowledged_at IS NULL) OR
+                (acknowledged_by IS NOT NULL AND acknowledged_at IS NOT NULL)
+            ),
             lsl_timestamp           DOUBLE PRECISION,
             db_insert_time          TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );

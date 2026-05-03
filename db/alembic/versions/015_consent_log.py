@@ -54,8 +54,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "017_consent_log"
-down_revision: Union[str, None] = "016_session_status_enum"
+revision: str = "015_consent_log"
+down_revision: Union[str, None] = "014_session_status_enum"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -65,6 +65,7 @@ def upgrade() -> None:
         CREATE TABLE participant_consent_log (
             id                  BIGSERIAL   PRIMARY KEY,
             participant_id      TEXT        NOT NULL,
+            session_id          TEXT,
             site_id             TEXT        NOT NULL,
             sponsor_id          TEXT        NOT NULL,
             protocol_id         TEXT        NOT NULL,
@@ -102,6 +103,11 @@ def upgrade() -> None:
         CREATE INDEX idx_consent_active
         ON participant_consent_log (participant_id, protocol_id)
         WHERE revoked_at IS NULL;
+    """)
+
+    op.execute("""
+        CREATE INDEX idx_consent_session
+        ON participant_consent_log (session_id);
     """)
 
 

@@ -42,8 +42,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "018_schema_version_metadata"
-down_revision: Union[str, None] = "017_consent_log"
+revision: str = "016_schema_version_metadata"
+down_revision: Union[str, None] = "015_consent_log"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -70,6 +70,11 @@ def upgrade() -> None:
     op.execute("""
         CREATE INDEX idx_schema_version_alembic
         ON schema_version_log (alembic_version);
+    """)
+
+    op.execute("""
+        CREATE INDEX idx_schema_version_recorded
+        ON schema_version_log (recorded_at DESC);
     """)
 
     # Also add APP_VERSION to .env — document it here as a reminder.

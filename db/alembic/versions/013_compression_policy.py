@@ -45,8 +45,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "015_compression_policy"
-down_revision: Union[str, None] = "014_compression"
+revision: str = "013_compression_policy"
+down_revision: Union[str, None] = "012_compression"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

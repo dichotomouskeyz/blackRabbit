@@ -48,8 +48,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "019_electronic_signatures"
-down_revision: Union[str, None] = "018_schema_version_metadata"
+revision: str = "017_electronic_signatures"
+down_revision: Union[str, None] = "016_schema_version_metadata"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -101,6 +101,11 @@ def upgrade() -> None:
     op.execute("""
         CREATE INDEX idx_esig_signer
         ON electronic_signatures (signer_id, signed_at DESC);
+    """)
+
+    op.execute("""
+        CREATE INDEX idx_esig_tenancy
+        ON electronic_signatures (site_id, sponsor_id);
     """)
 
 

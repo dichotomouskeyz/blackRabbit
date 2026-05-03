@@ -39,8 +39,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "022_protocol_deviation_log"
-down_revision: Union[str, None] = "021_adverse_event_log"
+revision: str = "020_protocol_deviation_log"
+down_revision: Union[str, None] = "019_adverse_event_log"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

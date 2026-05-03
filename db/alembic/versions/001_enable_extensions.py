@@ -35,3 +35,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute("DROP EXTENSION IF EXISTS vector;")
     op.execute("DROP EXTENSION IF EXISTS timescaledb CASCADE;")
+

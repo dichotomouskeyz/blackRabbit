@@ -52,8 +52,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "014_compression"
-down_revision: Union[str, None] = "013_indexes"
+revision: str = "012_compression"
+down_revision: Union[str, None] = "011_indexes"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -64,7 +64,7 @@ def upgrade() -> None:
     op.execute("""
         ALTER TABLE eeg_samples SET (
             timescaledb.compress,
-            timescaledb.compress_segmentby = 'session_id, channel_name',
+            timescaledb.compress_segmentby = 'session_id, channel_id',
             timescaledb.compress_orderby = 'lsl_timestamp DESC'
         );
     """)
@@ -78,20 +78,22 @@ def upgrade() -> None:
         );
     """)
 
-    # EDA: segment by session + electrode placement
+    # EDA: segment by session + device (electrode_placement moved to
+    # session_signal_metadata in migration 025)
     op.execute("""
         ALTER TABLE eda_samples SET (
             timescaledb.compress,
-            timescaledb.compress_segmentby = 'session_id, electrode_placement',
+            timescaledb.compress_segmentby = 'session_id, device_id',
             timescaledb.compress_orderby = 'lsl_timestamp DESC'
         );
     """)
 
-    # Respiration: segment by session + source (belt_direct vs rsa_derived)
+    # Respiration: segment by session + device (source/is_derived moved to
+    # session_signal_metadata in migration 025)
     op.execute("""
         ALTER TABLE respiration_samples SET (
             timescaledb.compress,
-            timescaledb.compress_segmentby = 'session_id, source',
+            timescaledb.compress_segmentby = 'session_id, device_id',
             timescaledb.compress_orderby = 'lsl_timestamp DESC'
         );
     """)

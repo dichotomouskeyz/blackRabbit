@@ -11,13 +11,27 @@ WHAT HUMEN IS:
   presence, participant isolation vs togetherness.
 
   In 1a (MVP), HUMeN is manual: a coordinator taps buttons on a
-  tablet to log zone transitions. These are sent as LSL Marker
-  Stream events with precise timestamps, so they're time-aligned
-  with all biosignal data.
+  tablet to log proximity state transitions. These are sent as LSL
+  Marker Stream events with precise timestamps, so they're
+  time-aligned with all biosignal data. The `source` column is
+  always 'manual_logging' in 1a.
 
-  In 1b, BLE/UWB hardware replaces manual logging with continuous
-  automated proximity tracking. But the table schema stays the same —
-  you're just changing the source of the events.
+  In 1b, IMU inference in hardware will derive proximity events automatically.
+  Those rows will carry source='imu_derived'. The schema is forward-
+  compatible — only the source changes, not the table structure.
+
+  IMU hardware is OUT OF SCOPE for 1a. Do not populate imu_derived
+  rows or build inference logic until 1b is explicitly scoped.
+
+PROXIMITY STATES (zone_label):
+  arms_reach    — actor is within arm's reach of the participant;
+                  coordinator presses button when this is true
+  in_room       — actor is in the room but beyond arm's reach;
+                  the default state when no closer contact is logged
+  leaving_room  — actor is actively in the process of leaving;
+                  pressed as the actor moves toward the exit so the
+                  transition is time-stamped precisely
+  out_of_room   — actor has left the room entirely
 
 WHY THIS MATTERS SCIENTIFICALLY:
   Most psychedelic research treats the session environment as a
@@ -40,25 +54,34 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.execute("""
         CREATE TABLE humen_events (
-            id              BIGSERIAL   PRIMARY KEY,
-            session_id      TEXT        NOT NULL,
-            participant_id  TEXT        NOT NULL,
-            site_id         TEXT        NOT NULL,
-            sponsor_id      TEXT        NOT NULL,
-            event_type      TEXT        NOT NULL
-                            CHECK (event_type IN (
-                                'zone_enter',
-                                'zone_exit',
-                                'manual_marker',
-                                'proximity_change'
-                            )),
-            actor_id        TEXT        NOT NULL,
-            actor_role      TEXT,
-            zone_id         TEXT,
-            zone_label      TEXT,
-            metadata        JSONB       DEFAULT '{}'::jsonb,
-            lsl_timestamp   DOUBLE PRECISION NOT NULL,
-            db_insert_time  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            id               BIGSERIAL        PRIMARY KEY,
+            session_id       TEXT             NOT NULL,
+            participant_id   TEXT             NOT NULL,
+            site_id          TEXT             NOT NULL,
+            sponsor_id       TEXT             NOT NULL,
+            event_type       TEXT             NOT NULL,
+            source           TEXT             NOT NULL
+                             CHECK (source IN (
+                                 'manual_logging',
+                                 'imu_derived'
+                             )),
+            actor_id         TEXT             NOT NULL,
+            actor_role       TEXT,
+            zone_id          TEXT,
+            zone_label       TEXT             NOT NULL
+                             CHECK (zone_label IN (
+                                 'arms_reach',
+                                 'in_room',
+                                 'leaving_room',
+                                 'out_of_room'
+                             )),
+            sample_index     BIGINT,
+            confidence_score FLOAT
+                             CHECK (confidence_score IS NULL OR
+                                    (confidence_score >= 0.0 AND confidence_score <= 1.0)),
+            metadata         JSONB            DEFAULT '{}'::jsonb,
+            lsl_timestamp    DOUBLE PRECISION NOT NULL,
+            db_insert_time   TIMESTAMPTZ      NOT NULL DEFAULT NOW()
         );
     """)
 
