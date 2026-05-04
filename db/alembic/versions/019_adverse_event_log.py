@@ -1,7 +1,7 @@
-"""018 create adverse_event_log table
+"""019 create adverse_event_log table
 
-Revision ID: 018_adverse_event_log
-Revises: 017_investigational_product_log
+Revision ID: 019_adverse_event_log
+Revises: 018_investigational_product_log
 Create Date: 2026-04-27
 
 WHY THIS IS DIFFERENT FROM ALERT_EVENTS:
@@ -51,8 +51,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "018_adverse_event_log"
-down_revision: Union[str, None] = "017_investigational_product_log"
+revision: str = "019_adverse_event_log"
+down_revision: Union[str, None] = "018_investigational_product_log"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -87,10 +87,23 @@ def upgrade() -> None:
                                         'resolving',
                                         'not_resolved',
                                         'resolved_with_sequelae',
+                                        'medical_intervention',
+                                        'hospitalization',
                                         'fatal',
+                                        'other',
                                         'unknown'
                                     )),
-            action_taken            TEXT,
+            action_taken            TEXT
+                                    CHECK (action_taken IN (
+                                        'none',
+                                        'dose_not_changed',
+                                        'dose_reduced',
+                                        'dose_held',
+                                        'drug_discontinued',                                    
+                                        'emergency_services_called',
+                                        'medication_given',
+                                        'other'
+                                    )),
             reported_by             TEXT        NOT NULL,
             reviewed_by             TEXT,
             irb_reported_at         TIMESTAMPTZ,
@@ -100,8 +113,12 @@ def upgrade() -> None:
             db_insert_time          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
-    """)
 
+        CREATE TRIGGER adverse_event_log_set_updated_at
+        BEFORE UPDATE ON adverse_event_log
+        FOR EACH ROW
+        EXECUTE FUNCTION set_updated_at();
+    """)
 
 
 def downgrade() -> None:

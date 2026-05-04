@@ -1,7 +1,7 @@
-"""009 create humen_events table
+"""010 create humen_events table
 
-Revision ID: 009_humen_events
-Revises: 008_alert_events
+Revision ID: 010_humen_events
+Revises: 009_alert_events
 Create Date: 2026-04-26
 
 WHAT HUMEN IS:
@@ -45,8 +45,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "009_humen_events"
-down_revision: Union[str, None] = "008_alert_events"
+revision: str = "010_humen_events"
+down_revision: Union[str, None] = "009_alert_events"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

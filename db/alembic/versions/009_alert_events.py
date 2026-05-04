@@ -1,7 +1,7 @@
-"""008 create alert_events table
+"""009 create alert_events table
 
-Revision ID: 008_alert_events
-Revises: 007_audit_events
+Revision ID: 009_alert_events
+Revises: 008_audit_events
 Create Date: 2026-04-26
 
 WHY SEPARATE FROM AUDIT_EVENTS:
@@ -37,8 +37,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "008_alert_events"
-down_revision: Union[str, None] = "007_audit_events"
+revision: str = "009_alert_events"
+down_revision: Union[str, None] = "008_audit_events"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

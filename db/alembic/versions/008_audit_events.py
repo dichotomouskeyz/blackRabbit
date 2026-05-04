@@ -1,7 +1,7 @@
-"""007 create audit_events table
+"""008 create audit_events table
 
-Revision ID: 007_audit_events
-Revises: 006_respiration_samples
+Revision ID: 008_audit_events
+Revises: 007_respiration_samples
 Create Date: 2026-04-26
 
 WHY APPEND-ONLY:
@@ -39,8 +39,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "007_audit_events"
-down_revision: Union[str, None] = "006_respiration_samples"
+revision: str = "008_audit_events"
+down_revision: Union[str, None] = "007_respiration_samples"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -55,7 +55,7 @@ def upgrade() -> None:
             record_id       TEXT,
             actor_id        TEXT,
             payload         JSONB       NOT NULL DEFAULT '{}'::jsonb,
-            event_timestamp TIMESTAMPTZ,NOT NULL DEFAULT NOW(),
+            event_timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             db_insert_time  TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
 

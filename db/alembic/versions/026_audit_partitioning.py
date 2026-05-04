@@ -1,7 +1,7 @@
-"""025 declarative partitioning on audit_events
+"""026 declarative partitioning on audit_events
 
-Revision ID: 025_audit_partitioning
-Revises: 024_encryption_columns
+Revision ID: 026_audit_partitioning
+Revises: 025_encryption_columns
 Create Date: 2026-05-03
 
 WHY PARTITIONING:
@@ -61,8 +61,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "025_audit_partitioning"
-down_revision: Union[str, None] = "024_encryption_columns"
+revision: str = "026_audit_partitioning"
+down_revision: Union[str, None] = "025_encryption_columns"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

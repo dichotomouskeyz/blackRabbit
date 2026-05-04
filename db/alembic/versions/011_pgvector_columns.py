@@ -1,7 +1,7 @@
-"""010 add pgvector columns and session_feature_vectors table
+"""011 add pgvector columns and session_feature_vectors table
 
-Revision ID: 010_pgvector_columns
-Revises: 009_humen_events
+Revision ID: 011_pgvector_columns
+Revises: 010_humen_events
 Create Date: 2026-04-26
 
 WHY PLANT VECTOR COLUMNS NOW:
@@ -37,8 +37,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "010_pgvector_columns"
-down_revision: Union[str, None] = "009_humen_events"
+revision: str = "011_pgvector_columns"
+down_revision: Union[str, None] = "010_humen_events"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

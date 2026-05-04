@@ -1,7 +1,7 @@
-"""014 add participant consent log
+"""015 add participant consent log
 
-Revision ID: 014_consent_log
-Revises: 013_compression_policy
+Revision ID: 015_consent_log
+Revises: 014_compression_policy
 Create Date: 2026-04-27
 
 WHY THIS IS A HARD REQUIREMENT BEFORE UCSF:
@@ -68,8 +68,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "014_consent_log"
-down_revision: Union[str, None] = "013_compression_policy"
+revision: str = "015_consent_log"
+down_revision: Union[str, None] = "014_compression_policy"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

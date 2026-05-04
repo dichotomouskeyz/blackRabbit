@@ -1,7 +1,7 @@
-"""012 enable columnar compression on all hypertables
+"""013 enable columnar compression on all hypertables
 
-Revision ID: 012_compression
-Revises: 011_indexes
+Revision ID: 013_compression
+Revises: 012_indexes
 Create Date: 2026-04-27
 
 WHY COMPRESSION:
@@ -52,8 +52,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "012_compression"
-down_revision: Union[str, None] = "011_indexes"
+revision: str = "013_compression"
+down_revision: Union[str, None] = "012_indexes"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -79,7 +79,7 @@ def upgrade() -> None:
     """)
 
     # EDA: segment by session + device (electrode_placement moved to
-    # session_signal_metadata in migration 025)
+    # session_signal_metadata in migration 023)
     op.execute("""
         ALTER TABLE eda_samples SET (
             timescaledb.compress,
@@ -89,7 +89,7 @@ def upgrade() -> None:
     """)
 
     # Respiration: segment by session + device (source/is_derived moved to
-    # session_signal_metadata in migration 025)
+    # session_signal_metadata in migration 023)
     op.execute("""
         ALTER TABLE respiration_samples SET (
             timescaledb.compress,

@@ -1,14 +1,14 @@
-"""003 create eeg_samples hypertable
+"""004 create eeg_samples hypertable
 
-Revision ID: 003_eeg_samples
-Revises: 002_sessions
+Revision ID: 004_eeg_samples
+Revises: 003_compound_reference
 Create Date: 2026-04-26
 
 RECORDING-LEVEL METADATA MOVED:
   eeg_reference, sampling_frequency, power_line_frequency,
   software_filters, eeg_channel_count, cap_manufacturer, and
   cap_manufacturer_model_name are now stored in session_signal_metadata
-  (migration 025). Those fields are constant across all samples from a
+  (migration 023). Those fields are constant across all samples from a
   given device in a given session — duplicating them on every row of a
   29-million-row hypertable wastes storage and makes the schema harder
   to reason about. session_signal_metadata holds one row per
@@ -71,8 +71,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "003_eeg_samples"
-down_revision: Union[str, None] = "002_sessions"
+revision: str = "004_eeg_samples"
+down_revision: Union[str, None] = "003_compound_reference"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -81,7 +81,7 @@ def upgrade() -> None:
     op.execute("""
         CREATE TABLE eeg_samples (
             id                          UUID        NOT NULL DEFAULT gen_random_uuid(),
-            session_id                  UUID        NOT NULL DEFAULT gen_random_uuid(),
+            session_id                  UUID        NOT NULL,
             participant_id              TEXT        NOT NULL,
             site_id                     TEXT        NOT NULL,
             sponsor_id                  TEXT        NOT NULL,

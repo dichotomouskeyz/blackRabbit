@@ -1,7 +1,7 @@
-"""020 create data_access_log table
+"""021 create data_access_log table
 
-Revision ID: 020_data_access_log
-Revises: 019_protocol_deviation_log
+Revision ID: 021_data_access_log
+Revises: 020_protocol_deviation_log
 Create Date: 2026-04-27
 
 WHY LOGGING READS, NOT JUST WRITES:
@@ -45,8 +45,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "020_data_access_log"
-down_revision: Union[str, None] = "019_protocol_deviation_log"
+revision: str = "021_data_access_log"
+down_revision: Union[str, None] = "020_protocol_deviation_log"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

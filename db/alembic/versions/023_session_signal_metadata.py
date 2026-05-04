@@ -1,7 +1,7 @@
-"""022 create session_signal_metadata table
+"""023 create session_signal_metadata table
 
-Revision ID: 022_session_signal_metadata
-Revises: 021_system_user_access_log
+Revision ID: 023_session_signal_metadata
+Revises: 022_system_user_access_log
 Create Date: 2026-05-02
 
 WHY THIS TABLE EXISTS:
@@ -137,8 +137,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "022_session_signal_metadata"
-down_revision: Union[str, None] = "021_system_user_access_log"
+revision: str = "023_session_signal_metadata"
+down_revision: Union[str, None] = "022_system_user_access_log"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -229,8 +229,19 @@ def upgrade() -> None:
         EXECUTE FUNCTION set_updated_at();
     """)
 
+    op.execute("""
+        CREATE INDEX idx_session_signal_metadata_tenancy
+        ON session_signal_metadata (sponsor_id, site_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_session_signal_metadata_session
+        ON session_signal_metadata (session_id);
+    """)
+
 
 def downgrade() -> None:
+    op.execute("DROP INDEX IF EXISTS idx_session_signal_metadata_tenancy;")
+    op.execute("DROP INDEX IF EXISTS idx_session_signal_metadata_session;")
     op.execute("""
         DROP TRIGGER IF EXISTS session_signal_metadata_set_updated_at
         ON session_signal_metadata;

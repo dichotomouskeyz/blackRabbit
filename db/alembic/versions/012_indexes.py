@@ -1,7 +1,7 @@
-"""011 create indexes across all tables
+"""012 create indexes across all tables
 
-Revision ID: 011_indexes
-Revises: 010_pgvector_columns
+Revision ID: 012_indexes
+Revises: 011_pgvector_columns
 Create Date: 2026-04-26
 
 WHY INDEXES MATTER:
@@ -46,8 +46,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "011_indexes"
-down_revision: Union[str, None] = "010_pgvector_columns"
+revision: str = "012_indexes"
+down_revision: Union[str, None] = "011_pgvector_columns"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -314,15 +314,8 @@ def upgrade() -> None:
         ON system_user_access_log (site_id, sponsor_id, event_timestamp DESC);
     """)
 
-    # session_signal_metadata
-    op.execute("""
-        CREATE INDEX idx_session_signal_metadata_tenancy
-        ON session_signal_metadata (sponsor_id, site_id);
-    """)
-    op.execute("""
-        CREATE INDEX idx_session_signal_metadata_session
-        ON session_signal_metadata (session_id);
-    """)
+    # session_signal_metadata indexes are created in migration 023,
+    # where that table is defined — it does not exist at this point.
 
 
 def downgrade() -> None:
@@ -394,5 +387,4 @@ def downgrade() -> None:
     op.execute("DROP INDEX IF EXISTS idx_user_access_log_user;")
     op.execute("DROP INDEX IF EXISTS idx_user_access_log_tenancy;")
 
-    op.execute("DROP INDEX IF EXISTS idx_session_signal_metadata_tenancy;")
-    op.execute("DROP INDEX IF EXISTS idx_session_signal_metadata_session;")
+    # session_signal_metadata indexes are dropped in migration 023's downgrade.

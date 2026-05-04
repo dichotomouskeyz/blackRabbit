@@ -1,7 +1,7 @@
-"""021 create system_user_access_log table
+"""022 create system_user_access_log table
 
-Revision ID: 021_system_user_access_log
-Revises: 020_data_access_log
+Revision ID: 022_system_user_access_log
+Revises: 021_data_access_log
 Create Date: 2026-04-27
 
 WHAT THIS TRACKS:
@@ -49,8 +49,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "021_system_user_access_log"
-down_revision: Union[str, None] = "020_data_access_log"
+revision: str = "022_system_user_access_log"
+down_revision: Union[str, None] = "021_data_access_log"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -80,6 +80,11 @@ def upgrade() -> None:
             created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+
+        CREATE TRIGGER system_users_set_updated_at
+        BEFORE UPDATE ON system_users
+        FOR EACH ROW
+        EXECUTE FUNCTION set_updated_at();
     """)
 
     # Access event log — immutable history of every access change

@@ -1,7 +1,7 @@
-"""005 create eda_samples hypertable
+"""006 create eda_samples hypertable
 
-Revision ID: 005_eda_samples
-Revises: 004_hrv_samples
+Revision ID: 006_eda_samples
+Revises: 005_hrv_samples
 Create Date: 2026-04-26
 
 WHY EDA GETS ITS OWN TABLE:
@@ -112,8 +112,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "005_eda_samples"
-down_revision: Union[str, None] = "004_hrv_samples"
+revision: str = "006_eda_samples"
+down_revision: Union[str, None] = "005_hrv_samples"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -122,7 +122,7 @@ def upgrade() -> None:
     op.execute("""
         CREATE TABLE eda_samples (
             id                      UUID        NOT NULL DEFAULT gen_random_uuid(),
-            session_id              UUID        NOT NULL DEFAULT gen_random_uuid(),
+            session_id              UUID        NOT NULL,
             participant_id          TEXT        NOT NULL,
             site_id                 TEXT        NOT NULL,
             sponsor_id              TEXT        NOT NULL,

@@ -1,7 +1,7 @@
-"""016 create electronic_signatures table
+"""017 create electronic_signatures table
 
-Revision ID: 016_electronic_signatures
-Revises: 015_schema_version_metadata
+Revision ID: 017_electronic_signatures
+Revises: 016_schema_version_metadata
 Create Date: 2026-04-27
 
 WHY THIS IS NOT THE SAME AS AUDIT_EVENTS:
@@ -48,8 +48,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "016_electronic_signatures"
-down_revision: Union[str, None] = "015_schema_version_metadata"
+revision: str = "017_electronic_signatures"
+down_revision: Union[str, None] = "016_schema_version_metadata"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

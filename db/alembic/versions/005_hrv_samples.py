@@ -1,13 +1,13 @@
-"""004 create hrv_samples hypertable
+"""005 create hrv_samples hypertable
 
-Revision ID: 004_hrv_samples
-Revises: 003_eeg_samples
+Revision ID: 005_hrv_samples
+Revises: 004_eeg_samples
 Create Date: 2026-04-26
 
 RECORDING-LEVEL METADATA MOVED:
   signal_source, beat_detection_algorithm, beat_detection_version,
   software_filters, and power_line_frequency are now stored in
-  session_signal_metadata (migration 025). These fields describe the
+  session_signal_metadata (migration 023). These fields describe the
   recording setup, not individual R-R intervals. Storing them once per
   (session_id, 'hrv') row is correct; duplicating them across every
   beat sample is not.
@@ -54,8 +54,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "004_hrv_samples"
-down_revision: Union[str, None] = "003_eeg_samples"
+revision: str = "005_hrv_samples"
+down_revision: Union[str, None] = "004_eeg_samples"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -64,7 +64,7 @@ def upgrade() -> None:
     op.execute("""
         CREATE TABLE hrv_samples (
             id                          UUID        NOT NULL DEFAULT gen_random_uuid(),
-            session_id                  UUID        NOT NULL DEFAULT gen_random_uuid(),
+            session_id                  UUID        NOT NULL,
             participant_id              TEXT        NOT NULL,
             site_id                     TEXT        NOT NULL,
             sponsor_id                  TEXT        NOT NULL,
