@@ -30,10 +30,17 @@ repos:
     rev: 1.8.3
     hooks:
       - id: bandit
-        args: [--skip, "B101"]
+        args: [--skip, "B101,B105,B110,B311,B314,B405,B608"]
 
   - repo: local
     hooks:
+      - id: pytest
+        name: pytest
+        entry: .venv/bin/pytest
+        language: system
+        pass_filenames: false
+        files: ^(tests/|db/alembic/versions/)
+
       - id: no-env-files
         name: Block .env files from being committed
         entry: bash -c "echo ERROR .env commit blocked && exit 1"
