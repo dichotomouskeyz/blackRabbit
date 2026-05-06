@@ -1,7 +1,7 @@
-"""019 create adverse_event_log table
+"""018 create adverse_event_log table
 
-Revision ID: 019_adverse_event_log
-Revises: 018_investigational_product_log
+Revision ID: 018_adverse_event_log
+Revises: 017_investigational_product_log
 Create Date: 2026-04-27
 
 WHY THIS IS DIFFERENT FROM ALERT_EVENTS:
@@ -51,8 +51,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "019_adverse_event_log"
-down_revision: Union[str, None] = "018_investigational_product_log"
+revision: str = "018_adverse_event_log"
+down_revision: Union[str, None] = "017_investigational_product_log"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -99,7 +99,7 @@ def upgrade() -> None:
                                         'dose_not_changed',
                                         'dose_reduced',
                                         'dose_held',
-                                        'drug_discontinued',                                    
+                                        'drug_discontinued',
                                         'emergency_services_called',
                                         'medication_given',
                                         'other'

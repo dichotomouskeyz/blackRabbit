@@ -1,7 +1,7 @@
-"""018 create investigational_product_log table
+"""017 create investigational_product_log table
 
-Revision ID: 018_investigational_product_log
-Revises: 017_electronic_signatures
+Revision ID: 017_investigational_product_log
+Revises: 016_electronic_signatures
 Create Date: 2026-04-27
 
 WHY THIS EXISTS — DEA SCHEDULE I ACCOUNTABILITY:
@@ -47,8 +47,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "018_investigational_product_log"
-down_revision: Union[str, None] = "017_electronic_signatures"
+revision: str = "017_investigational_product_log"
+down_revision: Union[str, None] = "016_electronic_signatures"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -88,7 +88,6 @@ def upgrade() -> None:
     """)
 
     op.execute("REVOKE UPDATE, DELETE ON investigational_product_log FROM PUBLIC;")
-
 
 
 def downgrade() -> None:

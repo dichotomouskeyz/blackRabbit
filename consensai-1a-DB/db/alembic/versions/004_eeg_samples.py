@@ -8,7 +8,7 @@ RECORDING-LEVEL METADATA MOVED:
   eeg_reference, sampling_frequency, power_line_frequency,
   software_filters, eeg_channel_count, cap_manufacturer, and
   cap_manufacturer_model_name are now stored in session_signal_metadata
-  (migration 023). Those fields are constant across all samples from a
+  (migration 022). Those fields are constant across all samples from a
   given device in a given session — duplicating them on every row of a
   29-million-row hypertable wastes storage and makes the schema harder
   to reason about. session_signal_metadata holds one row per

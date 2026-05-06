@@ -1,8 +1,16 @@
-"""012 create indexes across all tables
+"""023 create indexes across all tables
 
-Revision ID: 012_indexes
-Revises: 011_pgvector_columns
-Create Date: 2026-04-26
+Revision ID: 023_indexes
+Revises: 022_session_environment_log
+Create Date: 2026-05-04
+
+WHY INDEXES ARE THE LAST MIGRATION:
+  Indexes must be created AFTER the tables they reference exist.
+  Placing this migration last ensures every table in the 1a schema
+  — including regulatory tables (014-019), correction and environment
+  logs (021-022) — is present before any index is created. A single
+  consolidated migration is also easier to audit: one file lists every
+  index in the schema.
 
 WHY INDEXES MATTER:
   Without indexes, every query does a "sequential scan" — Postgres
@@ -40,14 +48,20 @@ WHY COMPOSITE INDEXES:
 
   Column order in composite indexes matters: put the equality filter
   first (session_id = ?), then the range/sort column (lsl_timestamp).
+
+WHY idx_audit_events_session_time IS A STANDARD INDEX:
+  In 1a, audit_events is a regular (non-partitioned) Postgres table.
+  Declarative range partitioning of audit_events by db_insert_time is
+  deferred to 1b when monthly data volumes justify the overhead.
+  The index is created directly on the table here.
 """
 
 from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "012_indexes"
-down_revision: Union[str, None] = "011_pgvector_columns"
+revision: str = "023_indexes"
+down_revision: Union[str, None] = "022_session_environment_log"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -159,15 +173,13 @@ def upgrade() -> None:
         ON humen_events (zone_label);
     """)
 
-    # --- Regulatory / compliance tables ---
-
-    # audit_events: session timeline reconstruction
+    # --- audit_events ---
     op.execute("""
         CREATE INDEX idx_audit_events_session_time
         ON audit_events (session_id, event_timestamp DESC);
     """)
 
-    # schema_version_log
+    # --- schema_version_log ---
     op.execute("""
         CREATE INDEX idx_schema_version_session
         ON schema_version_log (session_id);
@@ -181,7 +193,7 @@ def upgrade() -> None:
         ON schema_version_log (recorded_at DESC);
     """)
 
-    # electronic_signatures
+    # --- electronic_signatures ---
     op.execute("""
         CREATE INDEX idx_esig_session
         ON electronic_signatures (session_id);
@@ -198,13 +210,12 @@ def upgrade() -> None:
         CREATE INDEX idx_esig_tenancy
         ON electronic_signatures (site_id, sponsor_id);
     """)
-    # Composite for the most common signature audit query
     op.execute("""
         CREATE INDEX idx_esig_session_time
         ON electronic_signatures (session_id, signed_at DESC);
     """)
 
-    # investigational_product_log
+    # --- investigational_product_log ---
     op.execute("""
         CREATE INDEX idx_ip_log_session
         ON investigational_product_log (session_id);
@@ -222,7 +233,7 @@ def upgrade() -> None:
         ON investigational_product_log (session_id, event_timestamp DESC);
     """)
 
-    # adverse_event_log
+    # --- adverse_event_log ---
     op.execute("""
         CREATE INDEX idx_ae_session
         ON adverse_event_log (session_id);
@@ -242,27 +253,7 @@ def upgrade() -> None:
         WHERE is_serious = TRUE AND fda_reported_at IS NULL;
     """)
 
-    # protocol_deviation_log
-    op.execute("""
-        CREATE INDEX idx_deviation_session
-        ON protocol_deviation_log (session_id);
-    """)
-    op.execute("""
-        CREATE INDEX idx_deviation_tenancy
-        ON protocol_deviation_log (site_id, sponsor_id);
-    """)
-    op.execute("""
-        CREATE INDEX idx_deviation_time
-        ON protocol_deviation_log (session_id, db_insert_time DESC);
-    """)
-    # Major deviations requiring IRB reporting
-    op.execute("""
-        CREATE INDEX idx_deviation_major_unreported
-        ON protocol_deviation_log (site_id, sponsor_id)
-        WHERE classification = 'major' AND irb_reported_at IS NULL;
-    """)
-
-    # participant_consent_log
+    # --- participant_consent_log ---
     op.execute("""
         CREATE INDEX idx_consent_participant_protocol
         ON participant_consent_log (participant_id, protocol_id);
@@ -281,41 +272,45 @@ def upgrade() -> None:
         ON participant_consent_log (session_id);
     """)
 
-    # data_access_log
+    # --- session_signal_metadata ---
     op.execute("""
-        CREATE INDEX idx_access_log_accessor
-        ON data_access_log (accessor_id, accessed_at DESC);
+        CREATE INDEX idx_session_signal_metadata_tenancy
+        ON session_signal_metadata (sponsor_id, site_id);
     """)
     op.execute("""
-        CREATE INDEX idx_access_log_session
-        ON data_access_log (session_id);
-    """)
-    op.execute("""
-        CREATE INDEX idx_access_log_tenancy
-        ON data_access_log (site_id, sponsor_id, accessed_at DESC);
+        CREATE INDEX idx_session_signal_metadata_session
+        ON session_signal_metadata (session_id);
     """)
 
-    # system_users and system_user_access_log
+    # --- data_correction_amendment_log ---
     op.execute("""
-        CREATE INDEX idx_users_tenancy
-        ON system_users (site_id, sponsor_id);
+        CREATE INDEX idx_correction_session
+        ON data_correction_amendment_log (session_id);
     """)
     op.execute("""
-        CREATE INDEX idx_users_active
-        ON system_users (site_id, sponsor_id)
-        WHERE is_active = TRUE;
+        CREATE INDEX idx_correction_tenancy
+        ON data_correction_amendment_log (site_id, sponsor_id);
     """)
+    # Find all corrections to a specific record in any table
     op.execute("""
-        CREATE INDEX idx_user_access_log_user
-        ON system_user_access_log (user_id, event_timestamp DESC);
-    """)
-    op.execute("""
-        CREATE INDEX idx_user_access_log_tenancy
-        ON system_user_access_log (site_id, sponsor_id, event_timestamp DESC);
+        CREATE INDEX idx_correction_table_record
+        ON data_correction_amendment_log (table_name, record_id);
     """)
 
-    # session_signal_metadata indexes are created in migration 023,
-    # where that table is defined — it does not exist at this point.
+    # --- session_environment_log ---
+    op.execute("""
+        CREATE INDEX idx_env_log_session
+        ON session_environment_log (session_id);
+    """)
+    op.execute("""
+        CREATE INDEX idx_env_log_tenancy
+        ON session_environment_log (site_id, sponsor_id);
+    """)
+    # Time-ordered environment readings within a session
+    op.execute("""
+        CREATE INDEX idx_env_log_session_time
+        ON session_environment_log (session_id, db_insert_time DESC);
+    """)
 
 
 def downgrade() -> None:
@@ -368,23 +363,18 @@ def downgrade() -> None:
     op.execute("DROP INDEX IF EXISTS idx_ae_time;")
     op.execute("DROP INDEX IF EXISTS idx_ae_serious_unreported;")
 
-    op.execute("DROP INDEX IF EXISTS idx_deviation_session;")
-    op.execute("DROP INDEX IF EXISTS idx_deviation_tenancy;")
-    op.execute("DROP INDEX IF EXISTS idx_deviation_time;")
-    op.execute("DROP INDEX IF EXISTS idx_deviation_major_unreported;")
-
     op.execute("DROP INDEX IF EXISTS idx_consent_participant_protocol;")
     op.execute("DROP INDEX IF EXISTS idx_consent_tenancy;")
     op.execute("DROP INDEX IF EXISTS idx_consent_active;")
     op.execute("DROP INDEX IF EXISTS idx_consent_session;")
 
-    op.execute("DROP INDEX IF EXISTS idx_access_log_accessor;")
-    op.execute("DROP INDEX IF EXISTS idx_access_log_session;")
-    op.execute("DROP INDEX IF EXISTS idx_access_log_tenancy;")
+    op.execute("DROP INDEX IF EXISTS idx_session_signal_metadata_tenancy;")
+    op.execute("DROP INDEX IF EXISTS idx_session_signal_metadata_session;")
 
-    op.execute("DROP INDEX IF EXISTS idx_users_tenancy;")
-    op.execute("DROP INDEX IF EXISTS idx_users_active;")
-    op.execute("DROP INDEX IF EXISTS idx_user_access_log_user;")
-    op.execute("DROP INDEX IF EXISTS idx_user_access_log_tenancy;")
+    op.execute("DROP INDEX IF EXISTS idx_correction_session;")
+    op.execute("DROP INDEX IF EXISTS idx_correction_tenancy;")
+    op.execute("DROP INDEX IF EXISTS idx_correction_table_record;")
 
-    # session_signal_metadata indexes are dropped in migration 023's downgrade.
+    op.execute("DROP INDEX IF EXISTS idx_env_log_session;")
+    op.execute("DROP INDEX IF EXISTS idx_env_log_tenancy;")
+    op.execute("DROP INDEX IF EXISTS idx_env_log_session_time;")

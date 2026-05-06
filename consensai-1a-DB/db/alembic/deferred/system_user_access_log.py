@@ -1,11 +1,11 @@
-"""022 create system_user_access_log table
+"""021 create system_user_access_log table
 
-Revision ID: 022_system_user_access_log
-Revises: 021_data_access_log
+Revision ID: 021_system_user_access_log
+Revises: 020_data_access_log
 Create Date: 2026-04-27
 
 WHAT THIS TRACKS:
-  This is not the same as data_access_log (023).
+  This is not the same as data_access_log (020).
 
   data_access_log = who queried what data (read events)
   system_user_access_log = who has access to the system at all,
@@ -49,8 +49,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "022_system_user_access_log"
-down_revision: Union[str, None] = "021_data_access_log"
+revision: str = "021_system_user_access_log"
+down_revision: Union[str, None] = "020_data_access_log"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -115,7 +115,6 @@ def upgrade() -> None:
     """)
 
     op.execute("REVOKE UPDATE, DELETE ON system_user_access_log FROM PUBLIC;")
-
 
 
 def downgrade() -> None:

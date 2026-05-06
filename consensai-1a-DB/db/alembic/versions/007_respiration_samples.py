@@ -7,7 +7,7 @@ Create Date: 2026-04-26
 RECORDING-LEVEL METADATA MOVED:
   respiration_source (formerly 'source'), is_derived, sample_rate_hz,
   and respiration_unit (formerly 'unit') are now stored in
-  session_signal_metadata (migration 023). These are properties of the
+  session_signal_metadata (migration 022). These are properties of the
   recording setup, not of any individual sample.
 
 WHY SOURCE COLUMN MATTERS (now in session_signal_metadata):

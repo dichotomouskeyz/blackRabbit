@@ -1,7 +1,7 @@
-"""025 encryption columns on biosignal hypertables
+"""024 encryption columns on biosignal hypertables
 
-Revision ID: 025_encryption_columns
-Revises: 024_audit_triggers
+Revision ID: 024_encryption_columns
+Revises: 023_audit_triggers
 Create Date: 2026-05-03
 
 WHY ENCRYPTION AT REST:
@@ -47,8 +47,8 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "025_encryption_columns"
-down_revision: Union[str, None] = "024_audit_triggers"
+revision: str = "024_encryption_columns"
+down_revision: Union[str, None] = "023_audit_triggers"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -75,7 +75,9 @@ PLAINTEXT_COLUMNS: dict[str, list[tuple[str, sa.types.TypeEngine]]] = {
 
 def upgrade() -> None:
     for table in PLAINTEXT_COLUMNS:
-        op.add_column(table, sa.Column("channel_value_encrypted", sa.LargeBinary(), nullable=True))
+        op.add_column(
+            table, sa.Column("channel_value_encrypted", sa.LargeBinary(), nullable=True)
+        )
         op.add_column(table, sa.Column("encryption_key_id", sa.Text(), nullable=True))
         op.add_column(table, sa.Column("salt", sa.LargeBinary(), nullable=True))
 

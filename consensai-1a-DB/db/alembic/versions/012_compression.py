@@ -1,7 +1,7 @@
-"""013 enable columnar compression on all hypertables
+"""012 enable columnar compression on all hypertables
 
-Revision ID: 013_compression
-Revises: 012_indexes
+Revision ID: 012_compression
+Revises: 011_pgvector_columns
 Create Date: 2026-04-27
 
 WHY COMPRESSION:
@@ -44,7 +44,7 @@ COMPRESS_SEGMENTBY vs COMPRESS_ORDERBY:
     → Makes "last N minutes" queries fast — they only scan the front
       of each compressed segment.
 
-NOTE: Compression is applied by the policy in Migration 015.
+NOTE: Compression is applied by the policy in Migration 013.
 This migration just enables the compression settings on each table.
 """
 
@@ -52,8 +52,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "013_compression"
-down_revision: Union[str, None] = "012_indexes"
+revision: str = "012_compression"
+down_revision: Union[str, None] = "011_pgvector_columns"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -79,7 +79,7 @@ def upgrade() -> None:
     """)
 
     # EDA: segment by session + device (electrode_placement moved to
-    # session_signal_metadata in migration 023)
+    # session_signal_metadata in migration 022)
     op.execute("""
         ALTER TABLE eda_samples SET (
             timescaledb.compress,
@@ -89,7 +89,7 @@ def upgrade() -> None:
     """)
 
     # Respiration: segment by session + device (source/is_derived moved to
-    # session_signal_metadata in migration 023)
+    # session_signal_metadata in migration 022)
     op.execute("""
         ALTER TABLE respiration_samples SET (
             timescaledb.compress,

@@ -1,7 +1,7 @@
-"""026 declarative partitioning on audit_events
+"""024 declarative partitioning on audit_events
 
-Revision ID: 026_audit_partitioning
-Revises: 025_encryption_columns
+Revision ID: 024_audit_partitioning
+Revises: 023_audit_triggers
 Create Date: 2026-05-03
 
 WHY PARTITIONING:
@@ -55,14 +55,19 @@ APPEND-ONLY ENFORCEMENT:
   privileges from the parent — each partition is its own object with
   its own ACL. Revoking only on the parent leaves direct partition
   access unprotected.
+
+NOTE ON INDEXES:
+  idx_audit_events_session_time is created in migration 034, where all
+  indexes are consolidated. Creating on the parent table at that point
+  propagates automatically to all existing and future partitions.
 """
 
 from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "026_audit_partitioning"
-down_revision: Union[str, None] = "025_encryption_columns"
+revision: str = "024_audit_partitioning"
+down_revision: Union[str, None] = "023_audit_triggers"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -101,13 +106,6 @@ def upgrade() -> None:
 
     # Append-only: revoke on the parent (covers access through the parent table).
     op.execute("REVOKE UPDATE, DELETE ON audit_events FROM PUBLIC;")
-
-    # Recreate the session-time index dropped with the old table.
-    # Creating on the parent propagates to all existing and future partitions.
-    op.execute("""
-        CREATE INDEX idx_audit_events_session_time
-        ON audit_events (session_id, event_timestamp DESC);
-    """)
 
     # Monthly partitions for the 1a operating window.
     for year in PARTITION_YEARS:
@@ -149,7 +147,3 @@ def downgrade() -> None:
         );
     """)
     op.execute("REVOKE UPDATE, DELETE ON audit_events FROM PUBLIC;")
-    op.execute("""
-        CREATE INDEX idx_audit_events_session_time
-        ON audit_events (session_id, event_timestamp DESC);
-    """)

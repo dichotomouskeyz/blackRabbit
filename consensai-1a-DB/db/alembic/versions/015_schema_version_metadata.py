@@ -1,7 +1,7 @@
-"""016 add schema version metadata
+"""015 add schema version metadata
 
-Revision ID: 016_schema_version_metadata
-Revises: 015_consent_log
+Revision ID: 015_schema_version_metadata
+Revises: 014_consent_log
 Create Date: 2026-04-27
 
 WHY SCHEMA VERSION METADATA:
@@ -60,8 +60,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "016_schema_version_metadata"
-down_revision: Union[str, None] = "015_consent_log"
+revision: str = "015_schema_version_metadata"
+down_revision: Union[str, None] = "014_consent_log"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -16,14 +16,17 @@ from alembic import context
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 
-# Load .env from project root (two levels up from db/alembic/)
-load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+# Load .env from project root (three levels up from consensai-1a-DB/db/alembic/)
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env"))
 
 # Alembic Config object — gives access to values in alembic.ini
 config = context.config
 
-# Override the placeholder URL in alembic.ini with the real one from .env
-database_url = os.getenv("DATABASE_URL")
+# Allow -x db_url=... to override for test database
+# Otherwise fall back to DATABASE_URL from .env
+database_url = context.get_x_argument(as_dictionary=True).get("db_url")
+if not database_url:
+    database_url = os.getenv("DATABASE_URL")
 if not database_url:
     raise RuntimeError(
         "DATABASE_URL not set. Copy .env.example to .env and fill in your values."
@@ -36,13 +39,6 @@ if config.config_file_name is not None:
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    This generates SQL scripts without connecting to the database.
-    Useful for reviewing what a migration WOULD do before running it.
-
-    Usage: alembic upgrade head --sql
-    """
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -50,31 +46,20 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
-
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
-
-    This connects to the database and applies migrations directly.
-    This is the normal mode — what happens when you run:
-        alembic upgrade head
-    """
     connectable = create_engine(
         config.get_main_option("sqlalchemy.url"),
-        # Pool pre-ping checks if the connection is alive before using it.
-        # Prevents "connection closed" errors if the DB restarted.
         pool_pre_ping=True,
     )
-
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
             target_metadata=None,
         )
-
         with context.begin_transaction():
             context.run_migrations()
 

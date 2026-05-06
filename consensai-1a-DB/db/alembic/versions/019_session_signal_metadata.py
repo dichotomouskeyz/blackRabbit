@@ -1,7 +1,7 @@
-"""023 create session_signal_metadata table
+"""019 create session_signal_metadata table
 
-Revision ID: 023_session_signal_metadata
-Revises: 022_system_user_access_log
+Revision ID: 019_session_signal_metadata
+Revises: 018_adverse_event_log
 Create Date: 2026-05-02
 
 WHY THIS TABLE EXISTS:
@@ -131,14 +131,19 @@ WHY updated_at TRIGGER:
   Same rationale as sessions (migration 002). Metadata corrections
   (e.g., wrong cap model entered at session start) must be traceable
   via updated_at without application code forgetting to set it.
+
+NOTE ON INDEXES:
+  Indexes for this table (idx_session_signal_metadata_tenancy and
+  idx_session_signal_metadata_session) are defined in migration 023,
+  where all indexes across the schema are consolidated.
 """
 
 from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "023_session_signal_metadata"
-down_revision: Union[str, None] = "022_system_user_access_log"
+revision: str = "019_session_signal_metadata"
+down_revision: Union[str, None] = "018_adverse_event_log"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -229,19 +234,8 @@ def upgrade() -> None:
         EXECUTE FUNCTION set_updated_at();
     """)
 
-    op.execute("""
-        CREATE INDEX idx_session_signal_metadata_tenancy
-        ON session_signal_metadata (sponsor_id, site_id);
-    """)
-    op.execute("""
-        CREATE INDEX idx_session_signal_metadata_session
-        ON session_signal_metadata (session_id);
-    """)
-
 
 def downgrade() -> None:
-    op.execute("DROP INDEX IF EXISTS idx_session_signal_metadata_tenancy;")
-    op.execute("DROP INDEX IF EXISTS idx_session_signal_metadata_session;")
     op.execute("""
         DROP TRIGGER IF EXISTS session_signal_metadata_set_updated_at
         ON session_signal_metadata;

@@ -81,7 +81,7 @@ WHY INDEXES ON sponsor_id, site_id, protocol_arm:
   for efficacy analysis. Indexing these independently also covers
   composite queries via index intersection.
 
-  All sessions indexes are defined in 011_indexes.py, not here.
+  All sessions indexes are defined in 036_indexes.py, not here.
 
 WHY updated_at TRIGGER:
   updated_at must reflect the actual time of the last change, not

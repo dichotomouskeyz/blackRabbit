@@ -1,14 +1,19 @@
-"""024 create audit triggers on all tables
+"""020 create audit triggers on all tables
 
-Revision ID: 024_audit_triggers
-Revises: 023_session_signal_metadata
+Revision ID: 020_audit_triggers
+Revises: 019_session_signal_metadata
 Create Date: 2026-05-02
 
-WHY THIS RUNS LAST:
+WHY THIS RUNS LAST (among table-creation migrations):
   Audit triggers must be attached AFTER the tables they watch exist.
-  This migration runs after every table in the schema has been created,
-  so a single migration can cover the full table set without spreading
-  trigger attachments across individual table migrations.
+  This migration runs after every table in the 1a schema has been
+  created, so a single migration can cover the full table set without
+  spreading trigger attachments across individual table migrations.
+
+  Tables deferred to 1b (protocol_deviation_log, data_access_log,
+  system_users, system_user_access_log, and the compliance log tables)
+  will have their triggers attached in the migration that creates them
+  when they are re-integrated.
 
 HOW TRIGGERS WORK:
   A database trigger is a function that Postgres runs automatically
@@ -37,22 +42,14 @@ WHY TWO TIERS:
     lsl_timestamp, device_id — rather than the full biosignal value.
     This proves each write happened and when, without duplicating
     the signal data that already lives in the hypertable.
-
-WHY session_id IS NULL FOR SYSTEM TABLES:
-  system_users and system_user_access_log are system-level entities —
-  user account management is not scoped to a clinical session.
-  Forcing a session_id on these rows would be misleading. The CASE
-  in audit_trigger_full_func() explicitly returns NULL for these tables
-  so the audit row is still written correctly without referencing a
-  non-existent column.
 """
 
 from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "024_audit_triggers"
-down_revision: Union[str, None] = "023_session_signal_metadata"
+revision: str = "020_audit_triggers"
+down_revision: Union[str, None] = "019_session_signal_metadata"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -65,18 +62,13 @@ FULL_AUDIT_TABLES = [
     "humen_events",
     "session_feature_vectors",
     "session_notes",
-    # Regulatory tables (017-022)
+    # Regulatory tables (014-018)
     "participant_consent_log",
     "schema_version_log",
     "electronic_signatures",
     "investigational_product_log",
     "adverse_event_log",
-    "protocol_deviation_log",
-    # System access tables (023-024)
-    "data_access_log",
-    "system_users",
-    "system_user_access_log",
-    # Recording metadata (025)
+    # Recording metadata (019)
     "session_signal_metadata",
 ]
 
@@ -91,10 +83,23 @@ LIGHTWEIGHT_AUDIT_TABLES = [
 
 def upgrade() -> None:
     # --- Full audit trigger function ---
+    # Uses a PL/pgSQL variable (not a SQL CASE expression) to branch on
+    # table name. SQL CASE evaluates all branch expressions at runtime even
+    # when the condition is false, so NEW.session_id would fail for the
+    # sessions table (which has no session_id column). IF/ELSE in PL/pgSQL
+    # is genuinely lazy and only accesses the field that applies.
     op.execute("""
         CREATE OR REPLACE FUNCTION audit_trigger_full_func()
         RETURNS TRIGGER AS $$
+        DECLARE
+            v_session_id TEXT;
         BEGIN
+            IF TG_TABLE_NAME = 'sessions' THEN
+                v_session_id := NEW.id::TEXT;
+            ELSE
+                v_session_id := NEW.session_id;
+            END IF;
+
             INSERT INTO audit_events (
                 session_id,
                 event_type,
@@ -103,16 +108,7 @@ def upgrade() -> None:
                 payload,
                 event_timestamp
             ) VALUES (
-                CASE
-                    WHEN TG_TABLE_NAME = 'sessions'
-                        THEN NEW.id
-                    WHEN TG_TABLE_NAME IN (
-                        'system_users',
-                        'system_user_access_log'
-                    )
-                        THEN NULL
-                    ELSE NEW.session_id
-                END,
+                v_session_id,
                 TG_OP,
                 TG_TABLE_NAME,
                 NEW.id::TEXT,

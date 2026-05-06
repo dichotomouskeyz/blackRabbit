@@ -9,7 +9,7 @@ WHY APPEND-ONLY:
   trials are tamper-evident. "Append-only" means:
     - Rows can be INSERTed, never UPDATEd or DELETEd.
     - Application code cannot write here directly — only database
-      triggers can (enforced in Migration 012).
+      triggers can (enforced in migration 023).
     - Every write to ANY other table automatically generates an
       audit_events row via trigger.
 
@@ -65,7 +65,6 @@ def upgrade() -> None:
         -- via psql directly, they can't modify or delete audit rows.
         REVOKE UPDATE, DELETE ON audit_events FROM PUBLIC;
     """)
-
 
 
 def downgrade() -> None:

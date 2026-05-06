@@ -128,7 +128,7 @@ def upgrade() -> None:
             sponsor_id              TEXT        NOT NULL,
             device_id               TEXT        NOT NULL,
 
-          
+
             -- Per-sample signal data
             raw_conductance_us      FLOAT       NOT NULL,
             conductance_us          FLOAT       NOT NULL,

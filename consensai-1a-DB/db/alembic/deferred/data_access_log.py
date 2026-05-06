@@ -1,11 +1,11 @@
-"""021 create data_access_log table
+"""020 create data_access_log table
 
-Revision ID: 021_data_access_log
-Revises: 020_protocol_deviation_log
+Revision ID: 020_data_access_log
+Revises: 019_protocol_deviation_log
 Create Date: 2026-04-27
 
 WHY LOGGING READS, NOT JUST WRITES:
-  Migration 012 added triggers that log every INSERT across all
+  Migration 023 added triggers that log every INSERT across all
   tables. That covers the write side of the audit trail.
 
   21 CFR Part 11 also requires logging READ access to regulated
@@ -30,7 +30,7 @@ HOW THIS GETS POPULATED:
 
   Direct database connections (psql, pgAdmin) are restricted to
   admins only, and admin access itself is logged separately in
-  system_user_access_log (Migration 024).
+  system_user_access_log (Migration 021).
 
 WHY QUERY_DESCRIPTION AND NOT THE FULL QUERY:
   Logging the full SQL query would expose participant data in the
@@ -45,8 +45,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "021_data_access_log"
-down_revision: Union[str, None] = "020_protocol_deviation_log"
+revision: str = "020_data_access_log"
+down_revision: Union[str, None] = "019_protocol_deviation_log"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -77,7 +77,6 @@ def upgrade() -> None:
     """)
 
     op.execute("REVOKE UPDATE, DELETE ON data_access_log FROM PUBLIC;")
-
 
 
 def downgrade() -> None:

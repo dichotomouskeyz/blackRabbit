@@ -1,11 +1,11 @@
-"""014 add auto-compression policy on all hypertables
+"""013 add auto-compression policy on all hypertables
 
-Revision ID: 014_compression_policy
-Revises: 013_compression
+Revision ID: 013_compression_policy
+Revises: 012_compression
 Create Date: 2026-04-27
 
 WHY A POLICY INSTEAD OF MANUAL COMPRESSION:
-  Migration 013 enabled compression settings on each table.
+  Migration 012 enabled compression settings on each table.
   But compression doesn't happen automatically — you need a policy
   that tells TimescaleDB WHEN to compress.
 
@@ -31,10 +31,10 @@ WHY COMPRESS_AFTER = 1 DAY:
   For UCSF demos: a session runs, closes, and within 24 hours
   storage is reduced by ~80%. No manual intervention required.
 
-WHY THIS IS A SEPARATE MIGRATION FROM 013:
+WHY THIS IS A SEPARATE MIGRATION FROM 012:
   Conceptually separate concerns:
-    013 = "here is HOW to compress this table"
-    014 = "here is WHEN to compress this table"
+    012 = "here is HOW to compress this table"
+    013 = "here is WHEN to compress this table"
 
   Keeping them separate makes it easier to change the policy
   (e.g., compress after 7 days instead of 1 day) without
@@ -45,8 +45,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "014_compression_policy"
-down_revision: Union[str, None] = "013_compression"
+revision: str = "013_compression_policy"
+down_revision: Union[str, None] = "012_compression"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

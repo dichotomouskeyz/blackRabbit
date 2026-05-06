@@ -7,7 +7,7 @@ Create Date: 2026-04-26
 RECORDING-LEVEL METADATA MOVED:
   signal_source, beat_detection_algorithm, beat_detection_version,
   software_filters, and power_line_frequency are now stored in
-  session_signal_metadata (migration 023). These fields describe the
+  session_signal_metadata (migration 022). These fields describe the
   recording setup, not individual R-R intervals. Storing them once per
   (session_id, 'hrv') row is correct; duplicating them across every
   beat sample is not.
