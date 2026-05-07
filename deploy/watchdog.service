@@ -1,0 +1,45 @@
+[Unit]
+Description=Consensai Process Watchdog
+Documentation=https://github.com/dichotomouskeyz/consensai-1a
+After=network.target docker.service
+Wants=docker.service
+
+# The watchdog manages lsl_forwarder internally as a subprocess.
+# Do NOT run lsl_forwarder.service at the same time as this unit.
+
+[Service]
+Type=simple
+User=consensai
+Group=consensai
+WorkingDirectory=/opt/consensai-1a
+
+EnvironmentFile=/opt/consensai-1a/.env
+EnvironmentFile=/run/consensai/session.env
+
+ExecStart=/opt/consensai-1a/.venv/bin/python -m capture.watchdog \
+    --session-id     ${SESSION_ID} \
+    --participant-id ${PARTICIPANT_ID} \
+    --site-id        ${SITE_ID} \
+    --sponsor-id     ${SPONSOR_ID}
+
+# Restart the watchdog itself if it crashes (distinct from forwarder restarts
+# which the watchdog handles internally). OnFailure only — a clean exit means
+# the session ended normally or max restarts were exceeded.
+Restart=on-failure
+RestartSec=10
+
+TimeoutStopSec=40
+KillSignal=SIGTERM
+KillMode=mixed
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=consensai-watchdog
+
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/consensai-1a/data /opt/consensai-1a/logs
+
+[Install]
+WantedBy=multi-user.target

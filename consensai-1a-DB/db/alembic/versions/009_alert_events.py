@@ -57,7 +57,8 @@ def upgrade() -> None:
                                         'sqi',
                                         'respiration',
                                         'device_loss',
-                                        'threshold_breach'
+                                        'threshold_breach',
+                                        'process_restart'
                                     )),
             compound                TEXT        NOT NULL,
             compound_dose           FLOAT       NOT NULL,

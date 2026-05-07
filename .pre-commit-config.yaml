@@ -30,7 +30,7 @@ repos:
     rev: 1.8.3
     hooks:
       - id: bandit
-        args: [--skip, "B101,B105,B110,B311,B314,B405,B608"]
+        args: [--skip, "B101,B105,B110,B311,B314,B404,B405,B608"]
 
   - repo: local
     hooks:
