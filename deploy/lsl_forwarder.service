@@ -1,0 +1,52 @@
+[Unit]
+Description=Consensai LSL Forwarder
+Documentation=https://github.com/dichotomouskeyz/consensai-1a
+# Wait for network (DB connection) and Docker (TimescaleDB container)
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=consensai
+Group=consensai
+WorkingDirectory=/opt/consensai-1a
+
+# DATABASE_URL and all other runtime config live here
+EnvironmentFile=/opt/consensai-1a/.env
+
+# Session-specific parameters — written by the coordinator before
+# calling `systemctl start lsl_forwarder` for each new session.
+# Required keys: SESSION_ID, PARTICIPANT_ID, SITE_ID, SPONSOR_ID
+EnvironmentFile=/run/consensai/session.env
+
+ExecStart=/opt/consensai-1a/.venv/bin/python -m capture.lsl_forwarder \
+    --session-id     ${SESSION_ID} \
+    --participant-id ${PARTICIPANT_ID} \
+    --site-id        ${SITE_ID} \
+    --sponsor-id     ${SPONSOR_ID}
+
+# Do NOT auto-restart. Session IDs are single-use UUIDs.
+# A mid-session crash requires coordinator intervention — the operator
+# must decide whether to resume (XDF backfill will recover lost rows)
+# or abort. Blind auto-restart would create a new session record and
+# break audit continuity.
+Restart=no
+
+# Give all four modality threads time to flush buffers and close the
+# XDF file cleanly before the kernel sends SIGKILL.
+TimeoutStopSec=30
+KillSignal=SIGTERM
+KillMode=mixed
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lsl_forwarder
+
+# Harden the process — it only needs to write to DB and local XDF dir
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/consensai-1a/data /opt/consensai-1a/logs
+
+[Install]
+WantedBy=multi-user.target
