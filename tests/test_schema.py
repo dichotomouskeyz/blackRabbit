@@ -81,6 +81,9 @@ class TestTablesExist:
         "session_signal_metadata",
         "data_correction_amendment_log",
         "session_environment_log",
+        # Feature and notes tables
+        "session_feature_vectors",
+        "session_notes",
     ]
 
     @pytest.mark.parametrize("table_name", EXPECTED_TABLES)
@@ -154,6 +157,31 @@ class TestAuditTriggers:
         assert (
             cursor.fetchone()[0] >= 1
         ), "Audit trigger did not fire on humen_events INSERT"
+
+    def test_watchdog_process_restart_triggers_audit(self, cursor, db_conn):
+        cursor.execute("""
+            INSERT INTO alert_events (
+                session_id, participant_id, site_id, sponsor_id,
+                alert_type, compound, compound_dose, severity,
+                algorithm_name, algorithm_version, algorithm_parameters,
+                message
+            ) VALUES (
+                'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14', 'P01', 'SITE01', 'SPONSOR01',
+                'process_restart', 'psilocybin', 25.0, 'warning',
+                'watchdog', '1.0.0',
+                '{"exit_code": 1, "restart_count": 1, "uptime_s": 42.0}'::jsonb,
+                'lsl_forwarder exited with code 1, restarting (attempt 1/5)'
+            );
+        """)
+        db_conn.commit()
+        cursor.execute("""
+            SELECT COUNT(*) FROM audit_events
+            WHERE session_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14'
+              AND table_name = 'alert_events';
+        """)
+        assert (
+            cursor.fetchone()[0] >= 1
+        ), "Audit trigger did not fire on watchdog process_restart INSERT"
 
 
 class TestAppendOnly:
