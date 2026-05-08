@@ -131,6 +131,15 @@ def upgrade() -> None:
             );
     """)
 
+    # sessions is created in 002 before compound_reference exists, so the FK
+    # must be added here after the reference table and its seed data are in place.
+    op.execute("""
+        ALTER TABLE sessions
+        ADD CONSTRAINT fk_sessions_compound
+        FOREIGN KEY (compound) REFERENCES compound_reference(compound_id);
+    """)
+
 
 def downgrade() -> None:
+    op.execute("ALTER TABLE sessions DROP CONSTRAINT IF EXISTS fk_sessions_compound;")
     op.execute("DROP TABLE IF EXISTS compound_reference;")

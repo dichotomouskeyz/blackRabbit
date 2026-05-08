@@ -82,10 +82,10 @@ def upgrade() -> None:
         CREATE TABLE eeg_samples (
             id                          UUID        NOT NULL DEFAULT gen_random_uuid(),
             session_id                  UUID        NOT NULL,
-            participant_id              TEXT        NOT NULL,
-            site_id                     TEXT        NOT NULL,
-            sponsor_id                  TEXT        NOT NULL,
-            device_id                   TEXT        NOT NULL,
+            participant_id              UUID        NOT NULL,
+            site_id                     UUID        NOT NULL,
+            sponsor_id                  UUID        NOT NULL,
+            device_id                   UUID        NOT NULL,
 
             -- Per-sample signal data
             channel_id                  TEXT        NOT NULL,

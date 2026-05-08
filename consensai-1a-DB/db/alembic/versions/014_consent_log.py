@@ -78,10 +78,10 @@ def upgrade() -> None:
     op.execute("""
         CREATE TABLE participant_consent_log (
             id                  BIGSERIAL   PRIMARY KEY,
-            participant_id      TEXT        NOT NULL,
-            session_id          TEXT,
-            site_id             TEXT        NOT NULL,
-            sponsor_id          TEXT        NOT NULL,
+            participant_id      UUID        NOT NULL,
+            session_id          UUID,
+            site_id             UUID        NOT NULL,
+            sponsor_id          UUID        NOT NULL,
             protocol_id         TEXT        NOT NULL,
             consent_version     TEXT        NOT NULL,
             consent_type        TEXT        NOT NULL

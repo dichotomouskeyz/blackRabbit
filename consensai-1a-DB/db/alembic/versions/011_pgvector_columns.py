@@ -54,9 +54,9 @@ def upgrade() -> None:
     op.execute("""
         CREATE TABLE session_feature_vectors (
             id              BIGSERIAL   PRIMARY KEY,
-            session_id      TEXT        NOT NULL,
-            site_id         TEXT        NOT NULL,
-            sponsor_id      TEXT        NOT NULL,
+            session_id      UUID        NOT NULL,
+            site_id         UUID        NOT NULL,
+            sponsor_id      UUID        NOT NULL,
             feature_type    TEXT        NOT NULL,
             feature_version TEXT        NOT NULL,
             feature_values  JSONB       NOT NULL DEFAULT '{}'::jsonb,
@@ -69,9 +69,9 @@ def upgrade() -> None:
     op.execute("""
         CREATE TABLE session_notes (
             id              BIGSERIAL   PRIMARY KEY,
-            session_id      TEXT        NOT NULL,
-            site_id         TEXT        NOT NULL,
-            sponsor_id      TEXT        NOT NULL,
+            session_id      UUID        NOT NULL,
+            site_id         UUID        NOT NULL,
+            sponsor_id      UUID        NOT NULL,
             author_id       TEXT        NOT NULL,
             note_type       TEXT        NOT NULL DEFAULT 'observation',
             content         TEXT        NOT NULL,

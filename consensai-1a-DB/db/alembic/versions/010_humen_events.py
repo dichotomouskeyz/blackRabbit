@@ -55,10 +55,10 @@ def upgrade() -> None:
     op.execute("""
         CREATE TABLE humen_events (
             id               BIGSERIAL        PRIMARY KEY,
-            session_id       TEXT             NOT NULL,
-            participant_id   TEXT             NOT NULL,
-            site_id          TEXT             NOT NULL,
-            sponsor_id       TEXT             NOT NULL,
+            session_id       UUID             NOT NULL,
+            participant_id   UUID             NOT NULL,
+            site_id          UUID             NOT NULL,
+            sponsor_id       UUID             NOT NULL,
             event_type       TEXT             NOT NULL,
             source           TEXT             NOT NULL
                              CHECK (source IN (

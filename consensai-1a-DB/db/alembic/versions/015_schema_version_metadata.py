@@ -70,9 +70,9 @@ def upgrade() -> None:
     op.execute("""
         CREATE TABLE schema_version_log (
             id                   BIGSERIAL   PRIMARY KEY,
-            session_id           TEXT        NOT NULL,
-            site_id              TEXT        NOT NULL,
-            sponsor_id           TEXT        NOT NULL,
+            session_id           UUID        NOT NULL,
+            site_id              UUID        NOT NULL,
+            sponsor_id           UUID        NOT NULL,
             alembic_version      TEXT        NOT NULL,
             app_version          TEXT        NOT NULL,
             python_version       TEXT,

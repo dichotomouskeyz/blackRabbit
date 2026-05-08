@@ -58,9 +58,9 @@ def upgrade() -> None:
     op.execute("""
         CREATE TABLE electronic_signatures (
             id                  BIGSERIAL   PRIMARY KEY,
-            session_id          TEXT,
-            site_id             TEXT        NOT NULL,
-            sponsor_id          TEXT        NOT NULL,
+            session_id          UUID,
+            site_id             UUID        NOT NULL,
+            sponsor_id          UUID        NOT NULL,
             signer_id           TEXT        NOT NULL,
             signer_printed_name TEXT        NOT NULL,
             signer_role         TEXT        NOT NULL,

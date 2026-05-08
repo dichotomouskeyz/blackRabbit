@@ -59,9 +59,9 @@ def upgrade() -> None:
     op.execute("""
         CREATE TABLE data_correction_amendment_log (
             id                  BIGSERIAL   PRIMARY KEY,
-            session_id          TEXT        NOT NULL,
-            site_id             TEXT        NOT NULL,
-            sponsor_id          TEXT        NOT NULL,
+            session_id          UUID        NOT NULL,
+            site_id             UUID        NOT NULL,
+            sponsor_id          UUID        NOT NULL,
             table_name          TEXT        NOT NULL,
             record_id           TEXT        NOT NULL,
             column_name         TEXT        NOT NULL,

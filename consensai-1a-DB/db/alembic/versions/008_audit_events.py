@@ -49,7 +49,7 @@ def upgrade() -> None:
     op.execute("""
         CREATE TABLE audit_events (
             id              BIGSERIAL   PRIMARY KEY,
-            session_id      TEXT,
+            session_id      UUID,
             event_type      TEXT        NOT NULL,
             table_name      TEXT,
             record_id       TEXT,

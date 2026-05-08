@@ -58,7 +58,7 @@ def xdf_file(tmp_path, monkeypatch):
     )
     w.close()
 
-    expected = {"EEG": 50, "HRV": 10, "EDA": 20, "Respiration": 15}
+    expected = {"EEG": 50, "HRV": 10, "EDA": 20, "Respiration": 15, "HUMeN": 0}
     return w.path, expected
 
 
@@ -279,7 +279,7 @@ _REC_SESSION = "eeee0000-0000-0000-0000-000000000002"
 _REC_PARTICIPANT = "eeee0000-aaaa-4444-0000-000000000002"
 _REC_SITE = "eeee0001-0000-4444-0000-000000000002"
 _REC_SPONSOR = "eeee0002-0000-4444-0000-000000000002"
-_REC_DEVICE = "reconcile-test-device"
+_REC_DEVICE = "eeee0003-0000-4444-0000-000000000002"
 _REC_LSL = 99999.123456
 
 
@@ -563,7 +563,7 @@ _BF_SESSION = "cccc3333-bbbb-4444-aaaa-000000000099"
 _BF_PARTICIPANT = "ffffffff-aaaa-4444-bbbb-000000000001"
 _BF_SITE = "cccc3333-1111-4444-aaaa-000000000099"
 _BF_SPONSOR = "cccc3333-2222-4444-aaaa-000000000099"
-_BF_DEVICE = "backfill-test-device"
+_BF_DEVICE = "cccc3333-3333-4444-aaaa-000000000099"
 
 
 @pytest.mark.integration

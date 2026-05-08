@@ -128,7 +128,7 @@ class TestFileStructure:
         stream_header_count = sum(
             1 for t, _ in _iter_chunks(raw) if t == _TAG_STREAM_HEADER
         )
-        assert stream_header_count == 4
+        assert stream_header_count == 5
 
     def test_stream_header_ids_are_correct(self, writer):
         writer.close()
@@ -161,7 +161,7 @@ class TestFileStructure:
         writer.close()
         raw = writer.path.read_bytes()
         footer_count = sum(1 for t, _ in _iter_chunks(raw) if t == _TAG_STREAM_FOOTER)
-        assert footer_count == 4
+        assert footer_count == 5
 
     def test_file_grows_after_write_samples(self, writer):
         size_before = writer.path.stat().st_size

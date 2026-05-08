@@ -60,9 +60,9 @@ def upgrade() -> None:
     op.execute("""
         CREATE TABLE session_environment_log (
             id                  BIGSERIAL   PRIMARY KEY,
-            session_id          TEXT        NOT NULL,
-            site_id             TEXT        NOT NULL,
-            sponsor_id          TEXT        NOT NULL,
+            session_id          UUID        NOT NULL,
+            site_id             UUID        NOT NULL,
+            sponsor_id          UUID        NOT NULL,
             temperature_c       FLOAT,
             humidity_percent    FLOAT
                                 CHECK (humidity_percent IS NULL OR

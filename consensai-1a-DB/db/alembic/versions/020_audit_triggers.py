@@ -92,10 +92,10 @@ def upgrade() -> None:
         CREATE OR REPLACE FUNCTION audit_trigger_full_func()
         RETURNS TRIGGER AS $$
         DECLARE
-            v_session_id TEXT;
+            v_session_id UUID;
         BEGIN
             IF TG_TABLE_NAME = 'sessions' THEN
-                v_session_id := NEW.id::TEXT;
+                v_session_id := NEW.id;
             ELSE
                 v_session_id := NEW.session_id;
             END IF;

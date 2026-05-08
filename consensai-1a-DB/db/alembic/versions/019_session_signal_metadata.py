@@ -152,11 +152,11 @@ def upgrade() -> None:
     op.execute("""
         CREATE TABLE session_signal_metadata (
             id                          UUID        NOT NULL DEFAULT gen_random_uuid(),
-            session_id                  TEXT        NOT NULL,
-            site_id                     TEXT        NOT NULL,
-            sponsor_id                  TEXT        NOT NULL,
-            participant_id              TEXT        NOT NULL,
-            device_id                   TEXT        NOT NULL,
+            session_id                  UUID        NOT NULL,
+            site_id                     UUID        NOT NULL,
+            sponsor_id                  UUID        NOT NULL,
+            participant_id              UUID        NOT NULL,
+            device_id                   UUID        NOT NULL,
             modality                    TEXT        NOT NULL
                                         CHECK (modality IN (
                                             'eeg', 'hrv', 'eda', 'respiration'

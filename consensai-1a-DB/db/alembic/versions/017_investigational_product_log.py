@@ -57,10 +57,11 @@ def upgrade() -> None:
     op.execute("""
         CREATE TABLE investigational_product_log (
             id                  BIGSERIAL   PRIMARY KEY,
-            session_id          TEXT,
-            site_id             TEXT        NOT NULL,
-            sponsor_id          TEXT        NOT NULL,
-            compound            TEXT        NOT NULL,
+            session_id          UUID,
+            site_id             UUID        NOT NULL,
+            sponsor_id          UUID        NOT NULL,
+            compound            TEXT        NOT NULL
+                                REFERENCES compound_reference(compound_id),
             lot_number          TEXT        NOT NULL,
             coa_reference       TEXT,
             event_type          TEXT        NOT NULL

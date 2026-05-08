@@ -11,6 +11,7 @@ To add a new setting:
 """
 
 import os
+import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -30,6 +31,12 @@ def _require(key: str) -> str:
 
 def _get(key: str, default: str) -> str:
     return os.getenv(key, default)
+
+
+def _get_optional(key: str) -> str | None:
+    """Return the env var value, or None if unset or empty."""
+    value = os.getenv(key)
+    return value if value else None
 
 
 def validate() -> None:
@@ -62,6 +69,24 @@ def validate() -> None:
     for name, (value, lo, hi) in numeric_checks.items():
         if not (lo <= value <= hi):
             errors.append(f"{name} = {value!r} (must be between {lo} and {hi})")
+
+    try:
+        uuid.UUID(DEVICE_ID)
+    except ValueError:
+        errors.append(f"DEVICE_ID = {DEVICE_ID!r} (must be a valid UUID)")
+
+    if HRV_SIGNAL_SOURCE not in ("ecg", "pcg", "ppg"):
+        errors.append(
+            f"HRV_SIGNAL_SOURCE = {HRV_SIGNAL_SOURCE!r} (must be ecg | pcg | ppg)"
+        )
+    if EDA_SIGNAL_SOURCE not in ("combined", "scl", "scr"):
+        errors.append(
+            f"EDA_SIGNAL_SOURCE = {EDA_SIGNAL_SOURCE!r} (must be combined | scl | scr)"
+        )
+    if RESPIRATION_SOURCE not in ("belt_direct", "rsa_derived"):
+        errors.append(
+            f"RESPIRATION_SOURCE = {RESPIRATION_SOURCE!r} (must be belt_direct | rsa_derived)"
+        )
 
     if errors:
         lines = "\n  ".join(errors)
@@ -129,7 +154,7 @@ EEG_CHANNEL_COUNT: int = int(_get("EEG_CHANNEL_COUNT", "8"))
 # ---------------------------------------------------------------------------
 # Device
 # ---------------------------------------------------------------------------
-DEVICE_ID: str = _get("DEVICE_ID", "consensai-dev-001")
+DEVICE_ID: str = _get("DEVICE_ID", "00000000-0000-0000-0000-000000000001")
 
 # ---------------------------------------------------------------------------
 # Simulation
@@ -174,3 +199,30 @@ SAFETY_MONITOR_POLL_INTERVAL: float = float(_get("SAFETY_MONITOR_POLL_INTERVAL",
 # SQI monitor (signal quality index)
 # ---------------------------------------------------------------------------
 SQI_MONITOR_POLL_INTERVAL: float = float(_get("SQI_MONITOR_POLL_INTERVAL", "5.0"))
+
+# ---------------------------------------------------------------------------
+# Recording metadata — written to session_signal_metadata at session start
+# One row per modality; these are constants for the hardware/software setup.
+# ---------------------------------------------------------------------------
+
+# EEG
+EEG_REFERENCE: str = _get("EEG_REFERENCE", "average")
+POWER_LINE_FREQUENCY: float = float(_get("POWER_LINE_FREQUENCY", "60.0"))
+CAP_MANUFACTURER: str | None = _get_optional("CAP_MANUFACTURER")
+CAP_MANUFACTURER_MODEL_NAME: str | None = _get_optional("CAP_MANUFACTURER_MODEL_NAME")
+
+# HRV — hrv_signal_source must match DB CHECK: ecg | pcg | ppg
+HRV_SIGNAL_SOURCE: str = _get("HRV_SIGNAL_SOURCE", "ecg")
+BEAT_DETECTION_ALGORITHM: str | None = _get_optional("BEAT_DETECTION_ALGORITHM")
+BEAT_DETECTION_VERSION: str | None = _get_optional("BEAT_DETECTION_VERSION")
+
+# EDA — eda_signal_source must match DB CHECK: combined | scl | scr
+EDA_SIGNAL_SOURCE: str = _get("EDA_SIGNAL_SOURCE", "combined")
+_eda_min = os.getenv("EDA_RANGE_MIN_US")
+EDA_RANGE_MIN_US: float | None = float(_eda_min) if _eda_min else None
+_eda_max = os.getenv("EDA_RANGE_MAX_US")
+EDA_RANGE_MAX_US: float | None = float(_eda_max) if _eda_max else None
+
+# Respiration — respiration_source must match DB CHECK: belt_direct | rsa_derived
+RESPIRATION_SOURCE: str = _get("RESPIRATION_SOURCE", "belt_direct")
+RESPIRATION_UNIT: str | None = _get_optional("RESPIRATION_UNIT")

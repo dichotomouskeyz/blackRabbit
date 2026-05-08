@@ -39,6 +39,12 @@ _STREAM_IDS: dict[str, int] = {
     "HRV": 2,
     "EDA": 3,
     "Respiration": 4,
+    "HUMeN": 5,
+}
+
+# Biosignal streams only — HUMeN uses a separate string encoding path
+_BIOSIGNAL_STREAM_IDS: dict[str, int] = {
+    k: v for k, v in _STREAM_IDS.items() if k != "HUMeN"
 }
 
 _CHANNEL_COUNTS: dict[str, int] = {
@@ -46,6 +52,7 @@ _CHANNEL_COUNTS: dict[str, int] = {
     "HRV": 1,
     "EDA": 1,
     "Respiration": 1,
+    "HUMeN": 1,
 }
 
 _SAMPLE_RATES: dict[str, float] = {
@@ -53,6 +60,7 @@ _SAMPLE_RATES: dict[str, float] = {
     "HRV": float(settings.SAMPLE_RATE_HRV),
     "EDA": float(settings.SAMPLE_RATE_EDA),
     "Respiration": float(settings.SAMPLE_RATE_RESPIRATION),
+    "HUMeN": 0.0,  # irregular — event-driven
 }
 
 
@@ -86,13 +94,15 @@ def _stream_header_xml(
 ) -> str:
     n_ch = _CHANNEL_COUNTS[stream_name]
     rate = _SAMPLE_RATES[stream_name]
+    fmt = "string" if stream_name == "HUMeN" else "float32"
+    stream_type = "Markers" if stream_name == "HUMeN" else stream_name
     return (
         '<?xml version="1.0"?><info>'
         f"<name>{stream_name}</name>"
-        f"<type>{stream_name}</type>"
+        f"<type>{stream_type}</type>"
         f"<channel_count>{n_ch}</channel_count>"
         f"<nominal_srate>{rate}</nominal_srate>"
-        "<channel_format>float32</channel_format>"
+        f"<channel_format>{fmt}</channel_format>"
         f"<source_id>consensai-{stream_name.lower()}</source_id>"
         f"<session_id>{session_id}</session_id>"
         f"<site_id>{site_id}</site_id>"
@@ -136,7 +146,7 @@ class XDFWriter:
         self._path = xdf_dir / f"session_{session_id}_{ts_str}.xdf"
         self._f: IO[bytes] = open(self._path, "wb")
 
-        # Write file header + stream headers
+        # Write file header + all stream headers (biosignals + HUMeN markers)
         self._f.write(_XDF_MAGIC)
         _write_chunk(
             self._f,
@@ -161,6 +171,44 @@ class XDFWriter:
     # Public interface
     # ------------------------------------------------------------------
 
+    def write_marker(self, marker: str, lsl_timestamp: float) -> None:
+        """Write one HUMeN proximity marker to the XDF marker stream.
+
+        Called before the DB write attempt — if the DB is down this record
+        is still preserved in XDF for reconciliation.
+        Silently no-ops if already closed. Logs and continues on I/O error.
+        """
+        if self._closed:
+            return
+
+        stream_id = _STREAM_IDS["HUMeN"]
+        marker_bytes = marker.encode("utf-8")
+        buf = bytearray()
+        buf += struct.pack("<I", stream_id)
+        buf += struct.pack("<d", time.time())  # collection time
+        buf += _encode_varlen(1)  # one sample
+        buf += struct.pack("<d", lsl_timestamp)
+        buf += _encode_varlen(len(marker_bytes))
+        buf += marker_bytes
+
+        with self._lock:
+            if self._closed:
+                return
+            try:
+                _write_chunk(self._f, _TAG_SAMPLES, bytes(buf))
+                self._f.flush()
+            except OSError as exc:
+                log.error(
+                    "XDF marker write failed",
+                    extra={"marker": marker[:100], "error": str(exc)},
+                )
+                return
+
+            self._sample_counts["HUMeN"] += 1
+            if self._first_ts["HUMeN"] is None:
+                self._first_ts["HUMeN"] = lsl_timestamp
+            self._last_ts["HUMeN"] = lsl_timestamp
+
     def write_samples(
         self,
         stream_name: str,
@@ -178,7 +226,7 @@ class XDFWriter:
         if not samples or self._closed:
             return
 
-        stream_id = _STREAM_IDS[stream_name]
+        stream_id = _BIOSIGNAL_STREAM_IDS[stream_name]
         n_samples = len(timestamps)
         collection = time.time()
 

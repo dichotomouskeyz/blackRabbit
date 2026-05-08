@@ -10,8 +10,8 @@ Usage:
     python -m capture.lsl_forwarder \\
         --session-id  <uuid> \\
         --participant-id <pseudonymous-token> \\
-        --site-id     <site-code> \\
-        --sponsor-id  <sponsor-code>
+        --site-id     <uuid> \\
+        --sponsor-id  <uuid>
 
 One thread per modality runs independently. Ctrl+C sets the stop event,
 all threads flush their buffers, and the process exits cleanly.
@@ -19,14 +19,17 @@ all threads flush their buffers, and the process exits cleanly.
 
 import argparse
 import collections
+import signal
 import threading
 import time
+import uuid
 from dataclasses import dataclass
 
 import psycopg2
 import psycopg2.extras
 import pylsl
 
+from capture.humen_handler import HUMeNThread
 from capture.logger import get_logger, set_session_id
 from capture.xdf_writer import XDFWriter
 from config import settings
@@ -57,12 +60,23 @@ _LOG_EVERY_N_CHUNKS = 50
 # ---------------------------------------------------------------------------
 # Session config — immutable for the lifetime of one recording
 # ---------------------------------------------------------------------------
+def _validate_uuid(value: str, field: str) -> str:
+    try:
+        return str(uuid.UUID(value))
+    except ValueError:
+        raise ValueError(f"{field} is not a valid UUID: {value!r}")
+
+
 @dataclass(frozen=True)
 class SessionConfig:
     session_id: str
     participant_id: str
     site_id: str
     sponsor_id: str
+
+    def __post_init__(self) -> None:
+        for field in ("session_id", "participant_id", "site_id", "sponsor_id"):
+            _validate_uuid(getattr(self, field), f"SessionConfig.{field}")
 
 
 # ---------------------------------------------------------------------------
@@ -209,6 +223,18 @@ _RESPIRATION_INSERT = """
          %(lsl_timestamp)s, %(sample_index)s)
 """
 
+_CLOCK_DRIFT_INSERT = """
+    INSERT INTO clock_drift_log (
+        session_id, participant_id, site_id, sponsor_id, device_id,
+        stream_type, remote_clock_offset_s, exceeds_threshold, threshold_s,
+        lsl_timestamp
+    ) VALUES (
+        %(session_id)s, %(participant_id)s, %(site_id)s, %(sponsor_id)s, %(device_id)s,
+        %(stream_type)s, %(remote_clock_offset_s)s, %(exceeds_threshold)s, %(threshold_s)s,
+        %(lsl_timestamp)s
+    )
+"""
+
 
 # ---------------------------------------------------------------------------
 # Stream thread
@@ -235,7 +261,7 @@ class _StreamThread(threading.Thread):
         self._row_builder = row_builder
         self._insert_sql = insert_sql
         self._cfg = cfg
-        self._stop = stop_event
+        self._stop_event = stop_event
         self._xdf = xdf_writer
         self._buffer: collections.deque[list[dict]] = collections.deque(
             maxlen=BUFFER_MAX_CHUNKS
@@ -259,8 +285,8 @@ class _StreamThread(threading.Thread):
             )
             return
 
-        while not self._stop.is_set():
-            self._maybe_record_drift(inlet)
+        while not self._stop_event.is_set():
+            self._maybe_record_drift(inlet, conn)
 
             samples, timestamps = inlet.pull_chunk(
                 timeout=1.0,
@@ -363,7 +389,7 @@ class _StreamThread(threading.Thread):
     def _connect_db(self) -> psycopg2.extensions.connection | None:
         """Connect with exponential backoff. Blocks until connected or stop is set."""
         backoff = 1.0
-        while not self._stop.is_set():
+        while not self._stop_event.is_set():
             try:
                 conn = psycopg2.connect(settings.DATABASE_URL)
                 conn.autocommit = False
@@ -374,7 +400,7 @@ class _StreamThread(threading.Thread):
                     f"{self._stream_type} DB connection failed — retrying",
                     extra={"retry_in_s": backoff, "error": str(exc)},
                 )
-                self._stop.wait(backoff)
+                self._stop_event.wait(backoff)
                 backoff = min(backoff * 2, 30.0)
         return None
 
@@ -448,14 +474,20 @@ class _StreamThread(threading.Thread):
             )
         return conn
 
-    def _maybe_record_drift(self, inlet: pylsl.StreamInlet) -> None:
+    def _maybe_record_drift(
+        self,
+        inlet: pylsl.StreamInlet,
+        conn: psycopg2.extensions.connection | None,
+    ) -> None:
         now = time.monotonic()
         if now - self._last_drift_time < settings.CLOCK_DRIFT_RECORD_INTERVAL:
             return
         self._last_drift_time = now
         try:
             offset_s = inlet.time_correction()
-            if abs(offset_s) > DRIFT_WARN_THRESHOLD_S:
+            exceeds = abs(offset_s) > DRIFT_WARN_THRESHOLD_S
+
+            if exceeds:
                 log.warning(
                     f"{self._stream_type} clock drift exceeds threshold",
                     extra={
@@ -476,6 +508,36 @@ class _StreamThread(threading.Thread):
                         "device_id": settings.DEVICE_ID,
                     },
                 )
+
+            if conn is not None:
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            _CLOCK_DRIFT_INSERT,
+                            {
+                                "session_id": self._cfg.session_id,
+                                "participant_id": self._cfg.participant_id,
+                                "site_id": self._cfg.site_id,
+                                "sponsor_id": self._cfg.sponsor_id,
+                                "device_id": settings.DEVICE_ID,
+                                "stream_type": self._stream_type,
+                                "remote_clock_offset_s": round(offset_s, 6),
+                                "exceeds_threshold": exceeds,
+                                "threshold_s": DRIFT_WARN_THRESHOLD_S,
+                                "lsl_timestamp": pylsl.local_clock(),
+                            },
+                        )
+                    conn.commit()
+                except Exception as db_exc:
+                    log.error(
+                        f"{self._stream_type} clock drift DB write failed",
+                        extra={"error": str(db_exc)},
+                    )
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+
         except Exception as exc:
             log.warning(
                 f"{self._stream_type} clock correction unavailable",
@@ -501,18 +563,86 @@ class _StreamThread(threading.Thread):
 
 
 # ---------------------------------------------------------------------------
+# Pre-flight check
+# ---------------------------------------------------------------------------
+
+_REQUIRED_MODALITIES = frozenset({"eeg", "hrv", "eda", "respiration"})
+
+
+def _verify_session_ready(cfg: SessionConfig) -> None:
+    """Confirm the session is valid before any biosignal data is written.
+
+    Raises RuntimeError (non-zero exit, watchdog logs it) if:
+      - the sessions row is missing — session_init was never run
+      - status != 'active' — session is closed, failed, or still initializing
+      - any of the 4 session_signal_metadata rows are absent — session_init
+        transaction was interrupted or metadata was manually deleted
+
+    Opens its own short-lived connection so the check is independent of the
+    per-thread connections that start later.
+    """
+    conn = psycopg2.connect(settings.DATABASE_URL)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT status FROM sessions WHERE id = %s",
+                (cfg.session_id,),
+            )
+            row = cur.fetchone()
+
+        if row is None:
+            raise RuntimeError(
+                f"Session {cfg.session_id!r} not found — "
+                "run session_init before starting the forwarder"
+            )
+
+        status = str(row[0])
+        if status != "active":
+            raise RuntimeError(
+                f"Session {cfg.session_id!r} has status {status!r}, expected 'active' — "
+                "session is not ready to receive samples"
+            )
+
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT modality FROM session_signal_metadata WHERE session_id = %s",
+                (cfg.session_id,),
+            )
+            present = {r[0] for r in cur.fetchall()}
+
+        missing = _REQUIRED_MODALITIES - present
+        if missing:
+            raise RuntimeError(
+                f"Session {cfg.session_id!r} is missing signal metadata for: "
+                f"{sorted(missing)} — re-run session_init to rebuild metadata rows"
+            )
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
 
+def _parse_uuid(value: str) -> str:
+    try:
+        return str(uuid.UUID(value))
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"'{value}' is not a valid UUID")
+
+
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Consensai LSL forwarder")
-    p.add_argument("--session-id", required=True, help="Session UUID")
+    p.add_argument("--session-id", required=True, type=_parse_uuid, help="Session UUID")
     p.add_argument(
-        "--participant-id", required=True, help="Pseudonymous participant token"
+        "--participant-id",
+        required=True,
+        type=_parse_uuid,
+        help="Pseudonymous participant UUID",
     )
-    p.add_argument("--site-id", required=True, help="Site code")
-    p.add_argument("--sponsor-id", required=True, help="Sponsor code")
+    p.add_argument("--site-id", required=True, type=_parse_uuid, help="Site UUID")
+    p.add_argument("--sponsor-id", required=True, type=_parse_uuid, help="Sponsor UUID")
     return p.parse_args()
 
 
@@ -526,6 +656,7 @@ def main() -> None:
     )
 
     set_session_id(cfg.session_id)
+    _verify_session_ready(cfg)
 
     log.info(
         "forwarder starting",
@@ -547,6 +678,7 @@ def main() -> None:
     )
 
     stop = threading.Event()
+    signal.signal(signal.SIGTERM, lambda sig, frame: stop.set())
 
     threads = [
         _StreamThread(
@@ -591,18 +723,22 @@ def main() -> None:
         ),
     ]
 
+    humen_thread = HUMeNThread(cfg=cfg, stop_event=stop, xdf_writer=xdf)
+    threads.append(humen_thread)
+
     for t in threads:
         t.start()
 
     log.info("all forwarder threads started — press Ctrl+C to stop")
 
     try:
-        while True:
+        while not stop.is_set():
             time.sleep(1)
     except KeyboardInterrupt:
         log.info("shutdown requested — flushing buffers")
         stop.set()
 
+    # All threads share the XDF writer — join all before closing it.
     for t in threads:
         t.join(timeout=10.0)
 

@@ -47,10 +47,10 @@ def upgrade() -> None:
     op.execute("""
         CREATE TABLE alert_events (
             id                      BIGSERIAL   PRIMARY KEY,
-            session_id              TEXT        NOT NULL,
-            participant_id          TEXT        NOT NULL,
-            site_id                 TEXT        NOT NULL,
-            sponsor_id              TEXT        NOT NULL,
+            session_id              UUID        NOT NULL,
+            participant_id          UUID        NOT NULL,
+            site_id                 UUID        NOT NULL,
+            sponsor_id              UUID        NOT NULL,
             alert_type              TEXT        NOT NULL
                                     CHECK (alert_type IN (
                                         'cardiac',
@@ -60,7 +60,8 @@ def upgrade() -> None:
                                         'threshold_breach',
                                         'process_restart'
                                     )),
-            compound                TEXT        NOT NULL,
+            compound                TEXT        NOT NULL
+                                    REFERENCES compound_reference(compound_id),
             compound_dose           FLOAT       NOT NULL,
             severity                TEXT        NOT NULL
                                     CHECK (severity IN (

@@ -146,7 +146,10 @@ class TestAuditTriggers:
             INSERT INTO humen_events
                 (session_id, participant_id, site_id, sponsor_id, event_type,
                  source, actor_id, zone_label, lsl_timestamp)
-            VALUES ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12', 'P01', 'SITE01', 'SPONSOR01',
+            VALUES ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12',
+                    'aaaa0000-0000-0000-0000-000000000001',
+                    'bbbb0000-0000-0000-0000-000000000001',
+                    'cccc0000-0000-0000-0000-000000000001',
                     'zone_enter', 'manual_logging', 'C01', 'in_room', 1234567890.0);
         """)
         db_conn.commit()
@@ -166,7 +169,10 @@ class TestAuditTriggers:
                 algorithm_name, algorithm_version, algorithm_parameters,
                 message
             ) VALUES (
-                'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14', 'P01', 'SITE01', 'SPONSOR01',
+                'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14',
+                'aaaa0000-0000-0000-0000-000000000001',
+                'bbbb0000-0000-0000-0000-000000000001',
+                'cccc0000-0000-0000-0000-000000000001',
                 'process_restart', 'psilocybin', 25.0, 'warning',
                 'watchdog', '1.0.0',
                 '{"exit_code": 1, "restart_count": 1, "uptime_s": 42.0}'::jsonb,
@@ -209,13 +215,17 @@ class TestAppendOnly:
             INSERT INTO electronic_signatures
                 (session_id, site_id, sponsor_id, signer_id, signer_printed_name,
                  signer_role, signature_meaning, table_name, record_id, signature_hash)
-            VALUES ('test-session-004', 'SITE01', 'SPONSOR01', 'USER01', 'Jay Ahlon',
-                    'coordinator', 'session_closed', 'sessions', 'test-session-004', 'abc123');
+            VALUES ('a0eebc99-0000-0000-0000-000000000004',
+                    'bbbb0000-0000-0000-0000-000000000001',
+                    'cccc0000-0000-0000-0000-000000000001',
+                    'USER01', 'Jay Ahlon',
+                    'coordinator', 'session_closed', 'sessions', 'rec-004', 'abc123');
         """)
         restricted_conn.commit()
         with pytest.raises(psycopg2.errors.InsufficientPrivilege):
             restricted_cursor.execute(
-                "UPDATE electronic_signatures SET signature_hash = 'tampered' WHERE session_id = 'test-session-004';"
+                "UPDATE electronic_signatures SET signature_hash = 'tampered' "
+                "WHERE session_id = 'a0eebc99-0000-0000-0000-000000000004';"
             )
 
 
@@ -224,7 +234,13 @@ class TestCheckConstraints:
         with pytest.raises(psycopg2.errors.InvalidTextRepresentation):
             cursor.execute("""
                 INSERT INTO sessions (id, site_id, sponsor_id, participant_id, compound, status)
-                VALUES ('bad-status', 'SITE01', 'SPONSOR01', 'P01', 'psilocybin', 'not_valid');
+                VALUES (
+                    'a0eebc99-0000-0000-ffff-000000000001',
+                    'bbbb0000-0000-0000-0000-000000000001',
+                    'cccc0000-0000-0000-0000-000000000001',
+                    'aaaa0000-0000-0000-0000-000000000001',
+                    'psilocybin', 'not_valid'
+                );
             """)
 
     def test_alert_events_rejects_invalid_severity(self, cursor):
@@ -233,8 +249,13 @@ class TestCheckConstraints:
                 INSERT INTO alert_events
                     (session_id, participant_id, site_id, sponsor_id, alert_type,
                      compound, compound_dose, severity, algorithm_name, algorithm_version)
-                VALUES ('s', 'p', 'SITE01', 'SPONSOR01', 'cardiac',
-                        'psilocybin', 0.0, 'extreme', 'algo', '1.0');
+                VALUES (
+                    'a0eebc99-0000-0000-0000-000000000099',
+                    'aaaa0000-0000-0000-0000-000000000001',
+                    'bbbb0000-0000-0000-0000-000000000001',
+                    'cccc0000-0000-0000-0000-000000000001',
+                    'cardiac', 'psilocybin', 0.0, 'extreme', 'algo', '1.0'
+                );
             """)
 
     def test_adverse_event_rejects_invalid_grade(self, cursor):
@@ -243,8 +264,13 @@ class TestCheckConstraints:
                 INSERT INTO adverse_event_log
                     (session_id, participant_id, site_id, sponsor_id, compound,
                      ae_term, ae_description, ctcae_grade, relatedness, onset_timestamp, reported_by)
-                VALUES ('s', 'p', 'SITE01', 'SPONSOR01', 'psilocybin',
-                        'ae', 'desc', 6, 'possible', NOW(), 'USER01');
+                VALUES (
+                    'a0eebc99-0000-0000-0000-000000000099',
+                    'aaaa0000-0000-0000-0000-000000000001',
+                    'bbbb0000-0000-0000-0000-000000000001',
+                    'cccc0000-0000-0000-0000-000000000001',
+                    'psilocybin', 'ae', 'desc', 6, 'possible', NOW(), 'USER01'
+                );
             """)
 
 
@@ -253,10 +279,10 @@ class TestCheckConstraints:
 # ---------------------------------------------------------------------------
 
 _TS_SESSION = "ffff0000-0000-0000-0000-000000000001"
-_TS_PARTICIPANT = "test-participant-ts"
-_TS_SITE = "SITE-TS-01"
-_TS_SPONSOR = "SPONSOR-TS-01"
-_TS_DEVICE = "test-device-ts"
+_TS_PARTICIPANT = "ffff0001-0000-0000-0000-000000000001"
+_TS_SITE = "ffff0002-0000-0000-0000-000000000001"
+_TS_SPONSOR = "ffff0003-0000-0000-0000-000000000001"
+_TS_DEVICE = "ffff0004-0000-0000-0000-000000000001"
 _TS_LSL = 12345.678901  # LSL clock space — never equals Unix epoch (~1.7 B)
 
 
