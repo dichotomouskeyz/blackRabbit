@@ -32,6 +32,9 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 pytest_plugins = ["tests.reconcile_test._support"]
 
+_RESTRICTED_ROLE = "pytest_restricted"
+_RESTRICTED_PASSWORD = "pytest-restricted"
+
 
 @pytest.fixture(scope="session")
 def db_url():
@@ -49,6 +52,48 @@ def db_url():
     return url
 
 
+def _connect_from_url(url: str):
+    url = url.replace("postgresql://", "")
+    user_pass, rest = url.split("@")
+    user, password = user_pass.split(":")
+    host_port, dbname = rest.split("/")
+    host, port = host_port.split(":")
+    return {
+        "host": host,
+        "port": int(port),
+        "dbname": dbname,
+        "user": user,
+        "password": password,
+    }
+
+
+@pytest.fixture(scope="session", autouse=True)
+def restricted_role(db_url):
+    """Create the low-privilege role used by append-only schema tests."""
+    conn = psycopg2.connect(**_connect_from_url(db_url))
+    conn.autocommit = True
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM pg_roles WHERE rolname = %s",
+                (_RESTRICTED_ROLE,),
+            )
+            if cur.fetchone() is None:
+                cur.execute(
+                    f'CREATE ROLE "{_RESTRICTED_ROLE}" LOGIN PASSWORD %s',
+                    (_RESTRICTED_PASSWORD,),
+                )
+            cur.execute(f'GRANT USAGE ON SCHEMA public TO "{_RESTRICTED_ROLE}"')
+            cur.execute(
+                f'GRANT INSERT, SELECT ON ALL TABLES IN SCHEMA public TO "{_RESTRICTED_ROLE}"'
+            )
+            cur.execute(
+                f'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "{_RESTRICTED_ROLE}"'
+            )
+    finally:
+        conn.close()
+
+
 @pytest.fixture(scope="function")
 def db_conn(db_url):
     """Open a database connection for a single test, then close it.
@@ -64,19 +109,7 @@ def db_conn(db_url):
       fire, does the constraint reject invalid data?
       psycopg2 is the direct Postgres driver with no abstraction.
     """
-    url = db_url.replace("postgresql://", "")
-    user_pass, rest = url.split("@")
-    user, password = user_pass.split(":")
-    host_port, dbname = rest.split("/")
-    host, port = host_port.split(":")
-
-    conn = psycopg2.connect(
-        host=host,
-        port=int(port),
-        dbname=dbname,
-        user=user,
-        password=password,
-    )
+    conn = psycopg2.connect(**_connect_from_url(db_url))
     conn.autocommit = False
 
     yield conn
@@ -93,5 +126,28 @@ def cursor(db_conn):
     The connection is the channel; the cursor is the pen.
     """
     cur = db_conn.cursor()
+    yield cur
+    cur.close()
+
+
+@pytest.fixture(scope="function")
+def restricted_conn(db_url):
+    """Open a restricted-privilege connection for append-only permission tests."""
+    conn = psycopg2.connect(
+        **{
+            **_connect_from_url(db_url),
+            "user": _RESTRICTED_ROLE,
+            "password": _RESTRICTED_PASSWORD,
+        }
+    )
+    conn.autocommit = False
+    yield conn
+    conn.rollback()
+    conn.close()
+
+
+@pytest.fixture(scope="function")
+def restricted_cursor(restricted_conn):
+    cur = restricted_conn.cursor()
     yield cur
     cur.close()
