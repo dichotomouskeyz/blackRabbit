@@ -1,4 +1,4 @@
-"""Consensai 1a — Session initializer.
+"""untitledplatform_1a — Session initializer.
 
 Creates a row in the sessions table, transitions status to 'active', then
 writes exactly four rows to session_signal_metadata (one per modality in
@@ -84,7 +84,7 @@ def _parse_uuid(value: str) -> str:
 
 
 def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Initialize a Consensai recording session")
+    p = argparse.ArgumentParser(description="Initialize a untitledplatform_1a recording session")
     p.add_argument("--compound", required=True, choices=VALID_COMPOUNDS)
     p.add_argument("--site-id", required=True, type=_parse_uuid, help="Site UUID")
     p.add_argument("--sponsor-id", required=True, type=_parse_uuid, help="Sponsor UUID")

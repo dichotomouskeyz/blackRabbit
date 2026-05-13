@@ -135,9 +135,7 @@ def get_logger(process_name: str) -> logging.Logger:
     stdout_handler = logging.StreamHandler(sys.stderr)
     stdout_handler.setFormatter(formatter)
     logger.addHandler(stdout_handler)
-
-    # rotating file handler — one file per process under LOG_DIR.
-    # Skipped if LOG_DIR is unavailable (e.g. DATABASE_URL not set in test env).
+    
     try:
         log_dir: Path = settings.LOG_DIR
         log_dir.mkdir(parents=True, exist_ok=True)

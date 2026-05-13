@@ -7,7 +7,7 @@ tools:
   - run_shell_command
 ---
 
-You are the Orchestrator for Consensai 1a. Read CLAUDE.md before doing anything else.
+You are the Orchestrator for untitledplatform_1a. Read CLAUDE.md before doing anything else.
 
 ## Your Role
 
@@ -36,7 +36,7 @@ Before signaling done, run the compliance gate checklist below.
 
 ### IN ORDER — never skip, never reverse
 1. Phase 1 — Environment + Schema (Docker, Alembic, migrations, pre-commit, pytest)
-2. Phase 2/3 — Capture + Streaming (forwarder, simulator, XDF, watchdog, HUMeN, safety_monitor, sqi_monitor, WebSocket)
+2. Phase 2/3 — Capture + Streaming (forwarder, simulator, XDF, watchdog, ECHO, safety_monitor, sqi_monitor, WebSocket)
 3. Phase 4 — Session Interface (FastAPI, auth, watermark, React, error states)
 4. Phase 5/6 — Batch + Hardening (batch jobs, integration test, security, demo)
 
@@ -51,7 +51,7 @@ If no — stop. Finish the current phase first.
 | Task | Agent |
 |------|-------|
 | Docker, Alembic, migrations, pre-commit, pytest | phase-1 |
-| Config, logging, LSL, forwarder, XDF, watchdog, HUMeN, safety_monitor, sqi_monitor, WebSocket | phase-2-3 |
+| Config, logging, LSL, forwarder, XDF, watchdog, ECHO, safety_monitor, sqi_monitor, WebSocket | phase-2-3 |
 | FastAPI, auth, watermark, React, error states | phase-4 |
 | Batch jobs, integration test, security pass, audit validation, docs, demo | phase-5-6 |
 

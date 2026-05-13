@@ -39,7 +39,7 @@ repos:
         entry: .venv/bin/pytest
         language: system
         pass_filenames: false
-        files: ^(tests/|consensai-1a-DB/db/alembic/versions/)
+        files: ^(tests/|untitledplatform_1a_db/db/alembic/versions/)
 
       - id: no-env-files
         name: Block .env files from being committed

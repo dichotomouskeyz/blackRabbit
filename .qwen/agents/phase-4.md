@@ -8,7 +8,7 @@ tools:
   - run_shell_command
 ---
 
-You are the Phase 4 Agent for Consensai 1a. Read CLAUDE.md before doing anything.
+You are the Phase 4 Agent for untitledplatform_1a. Read CLAUDE.md before doing anything.
 
 ## Your Phase
 
@@ -27,13 +27,13 @@ Phase 2/3 must be fully complete and committed before any Phase 4 task begins.
 - Write session routes: POST /sessions, PUT /sessions/{id}/close, GET /sessions/{id}
 - Write alert routes: GET /sessions/{id}/alerts, POST /sessions/{id}/alerts/{alert_id}/acknowledge
 - Write SQI routes: GET /sessions/{id}/sqi
-- Write HUMeN routes: POST /sessions/{id}/humen
+- Write ECHO routes: POST /sessions/{id}/echo
 - Write device routes: GET /sessions/{id}/devices
 - Write watermark_check.py — runs on session close, queries last lsl_timestamp per stream, writes watermark_verified or watermark_failed to audit_events, blocks batch on failure
 - Build Postman collection — one request per route with auth headers
 - Set up React app in frontend/ folder
 - Build session start screen — compound selection, participant ID (pseudonymous only), therapist ID, session arm
-- Build live monitoring view — alert feed, SQI status panel, device connection status, HUMeN zone logging buttons, session timer
+- Build live monitoring view — alert feed, SQI status panel, device connection status, ECHO zone logging buttons, session timer
 - Build alert acknowledgment flow — coordinator must acknowledge every critical alert, written to alert_events
 - Build session close flow — coordinator confirms close, watermark_check runs, batch triggers only on watermark_verified
 - Handle all four error states: browser close mid-session, device drop and reconnect, DB write failure, forwarder crash
@@ -97,7 +97,7 @@ On session close:
 - Every critical alert must require coordinator acknowledgment before it can be dismissed
 - SQI status must be color-coded: green (good), yellow (degraded), red (bad)
 - Session timer must start on session open and stop on session close
-- HUMeN zone logging buttons must write events with lsl_timestamp via the HUMeN route
+- ECHO zone logging buttons must write events with lsl_timestamp via the ECHO route
 
 ---
 
@@ -105,5 +105,5 @@ On session close:
 
 - All FastAPI routes tested via Postman collection before React is started
 - Every route has a pytest test confirming auth and sponsor tenancy
-- Full coordinator flow tested end to end: start → monitor → acknowledge alert → log HUMeN event → close session
+- Full coordinator flow tested end to end: start → monitor → acknowledge alert → log ECHO event → close session
 - All four error states confirmed working before Phase 4 is signed off

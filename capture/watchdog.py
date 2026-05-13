@@ -1,4 +1,4 @@
-"""Consensai process watchdog.
+"""untitledplatform_1a process watchdog.
 
 Spawns lsl_forwarder as a subprocess, monitors it, and restarts it on
 unexpected exit. Every restart is written to alert_events — the audit
@@ -38,6 +38,7 @@ Usage (matches lsl_forwarder args exactly):
 
 import argparse
 import json
+import os
 import signal
 import subprocess
 import sys
@@ -46,6 +47,7 @@ import uuid
 
 import psycopg2
 
+from capture.control import clear_stop_request, request_stop
 from capture.logger import get_logger, set_session_id
 from config import settings
 
@@ -60,6 +62,8 @@ WATCHDOG_ALGORITHM_VERSION = "1.0.0"
 MAX_RESTARTS = 5
 RESTART_DELAY_BASE_S = 5.0
 RESTART_DELAY_MAX_S = 60.0
+GRACEFUL_SHUTDOWN_TIMEOUT_S = 30.0
+PROCESS_POLL_INTERVAL_S = 0.25
 
 
 def _parse_uuid(value: str) -> str:
@@ -70,7 +74,7 @@ def _parse_uuid(value: str) -> str:
 
 
 def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Consensai process watchdog")
+    p = argparse.ArgumentParser(description="untitledplatform_1a process watchdog")
     p.add_argument("--session-id", required=True, type=_parse_uuid, help="Session UUID")
     p.add_argument(
         "--participant-id",
@@ -230,6 +234,66 @@ def _mark_session_failed(session_id: str) -> None:
         )
 
 
+def _start_forwarder(forwarder_cmd: list[str]) -> subprocess.Popen:
+    creationflags = 0
+    if os.name == "nt":
+        creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    return subprocess.Popen(forwarder_cmd, creationflags=creationflags)  # nosec B603
+
+
+def _stop_forwarder(process: subprocess.Popen, session_id: str) -> None:
+    if process.poll() is not None:
+        return
+
+    stop_path = request_stop(session_id)
+    log.info(
+        "forwarder stop requested",
+        extra={"session_id": session_id, "stop_request_path": str(stop_path)},
+    )
+    try:
+        process.wait(timeout=GRACEFUL_SHUTDOWN_TIMEOUT_S)
+        clear_stop_request(session_id)
+        return
+    except subprocess.TimeoutExpired:
+        log.warning(
+            "forwarder did not stop from stop request; sending OS signal",
+            extra={"timeout_s": GRACEFUL_SHUTDOWN_TIMEOUT_S, "pid": process.pid},
+        )
+
+    if os.name == "nt":
+        ctrl_break = getattr(signal, "CTRL_BREAK_EVENT", None)
+        if ctrl_break is not None:
+            try:
+                os.kill(process.pid, ctrl_break)
+            except OSError as exc:
+                log.warning(
+                    "failed to send CTRL_BREAK_EVENT to forwarder",
+                    extra={"error": str(exc), "pid": process.pid},
+                )
+        else:
+            process.terminate()
+    else:
+        process.terminate()
+
+    try:
+        process.wait(timeout=GRACEFUL_SHUTDOWN_TIMEOUT_S)
+        clear_stop_request(session_id)
+    except subprocess.TimeoutExpired:
+        log.error(
+            "forwarder did not stop gracefully; killing process",
+            extra={"timeout_s": GRACEFUL_SHUTDOWN_TIMEOUT_S, "pid": process.pid},
+        )
+        process.kill()
+        process.wait()
+        clear_stop_request(session_id)
+
+
+def _wait_for_forwarder(process: subprocess.Popen) -> int:
+    while process.poll() is None:
+        time.sleep(PROCESS_POLL_INTERVAL_S)
+    return int(process.returncode or 0)
+
+
 def main() -> None:
     args = _parse_args()
     set_session_id(args.session_id)
@@ -256,9 +320,11 @@ def main() -> None:
         clean_shutdown = True
         if process and process.poll() is None:
             log.info("SIGTERM received — stopping forwarder")
-            process.terminate()
+            _stop_forwarder(process, args.session_id)
 
     signal.signal(signal.SIGTERM, _handle_sigterm)
+    if hasattr(signal, "SIGBREAK"):
+        signal.signal(signal.SIGBREAK, _handle_sigterm)
 
     process = None
 
@@ -268,8 +334,8 @@ def main() -> None:
             extra={"restart_count": restart_count},
         )
         start_time = time.monotonic()
-        process = subprocess.Popen(forwarder_cmd)  # nosec B603
-        process.wait()
+        process = _start_forwarder(forwarder_cmd)
+        exit_code = _wait_for_forwarder(process)
         uptime_s = time.monotonic() - start_time
 
         if clean_shutdown:
@@ -285,7 +351,6 @@ def main() -> None:
             )
             break
 
-        exit_code = process.returncode
         log.warning(
             "lsl_forwarder exited unexpectedly",
             extra={"exit_code": exit_code, "uptime_s": round(uptime_s, 2)},

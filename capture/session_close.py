@@ -1,4 +1,4 @@
-"""Consensai 1a — Session close CLI.
+"""untitledplatform_1a — Session close CLI.
 
 Runs end-of-session reconciliation and transitions the session to 'closed'
 (watermark_verified) or 'failed' (watermark_failed).
@@ -72,7 +72,7 @@ _VALID_ENTRY_STATES = frozenset({"active", "closing"})
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Close a Consensai session and gate post-session batch."
+        description="Close a untitledplatform_1a session and gate post-session batch."
     )
     parser.add_argument("--session-id", required=True, help="Session UUID")
     parser.add_argument(

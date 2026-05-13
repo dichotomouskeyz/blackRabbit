@@ -1,4 +1,4 @@
-"""Consensai 1a runtime configuration.
+"""untitledplatform_1a runtime configuration.
 
 All values load from environment variables (.env at repo root).
 Required variables raise RuntimeError immediately on import if missing —
@@ -65,6 +65,11 @@ def validate() -> None:
         "WATCHDOG_TIMEOUT_EDA": (WATCHDOG_TIMEOUT_EDA, 0.1, 300.0),
         "WATCHDOG_TIMEOUT_RESPIRATION": (WATCHDOG_TIMEOUT_RESPIRATION, 0.1, 300.0),
         "CLOCK_DRIFT_RECORD_INTERVAL": (CLOCK_DRIFT_RECORD_INTERVAL, 1.0, 3600.0),
+        "SIMULATED_ECHO_MARKER_INTERVAL": (
+            SIMULATED_ECHO_MARKER_INTERVAL,
+            0.5,
+            3600.0,
+        ),
     }
     for name, (value, lo, hi) in numeric_checks.items():
         if not (lo <= value <= hi):
@@ -91,7 +96,7 @@ def validate() -> None:
     if errors:
         lines = "\n  ".join(errors)
         raise RuntimeError(
-            f"Consensai config validation failed — fix these in .env before starting:\n  {lines}"
+            f"untitledplatform_1a config validation failed — fix these in .env before starting:\n  {lines}"
         )
 
 
@@ -118,7 +123,7 @@ LSL_STREAM_EEG: str = _get("LSL_STREAM_EEG", "EEG")
 LSL_STREAM_HRV: str = _get("LSL_STREAM_HRV", "HRV")
 LSL_STREAM_EDA: str = _get("LSL_STREAM_EDA", "EDA")
 LSL_STREAM_RESPIRATION: str = _get("LSL_STREAM_RESPIRATION", "Respiration")
-LSL_STREAM_MARKER: str = _get("LSL_STREAM_MARKER", "ConsensaiMarkers")
+LSL_STREAM_MARKER: str = _get("LSL_STREAM_MARKER", "ECHOMarkers")
 
 # Seconds to wait for each stream to appear during inlet resolve at startup
 LSL_RESOLVE_TIMEOUT: float = float(_get("LSL_RESOLVE_TIMEOUT", "5.0"))
@@ -162,6 +167,9 @@ DEVICE_ID: str = _get("DEVICE_ID", "00000000-0000-0000-0000-000000000001")
 # startup so audit records clearly distinguish simulated from real sessions.
 # ---------------------------------------------------------------------------
 SIMULATION_MODE: bool = _get("SIMULATION_MODE", "false").lower() == "true"
+SIMULATED_ECHO_MARKER_INTERVAL: float = float(
+    _get("SIMULATED_ECHO_MARKER_INTERVAL", "5.0")
+)
 
 # ---------------------------------------------------------------------------
 # Watchdog — stream health monitoring

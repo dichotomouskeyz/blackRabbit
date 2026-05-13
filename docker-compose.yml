@@ -1,14 +1,14 @@
-# Consensai 1a MVP — Local Docker Stack
+# Untitled Platform 1a MVP - Local Docker Stack
 # TimescaleDB = Postgres 16 + TimescaleDB extension + pgvector
 # One container handles both hypertables (biosignal time-series)
-# and regular tables (sessions, audit, alerts, HUMeN events).
+# and regular tables (sessions, audit, alerts, ECHO events).
 # In 1b, biosignal data moves to AWS Timestream and relational
-# data moves to RDS — but the schemas stay identical.
+# data moves to RDS - but the schemas stay identical.
 
 services:
   timescaledb:
     image: timescale/timescaledb:latest-pg16
-    container_name: consensai-db
+    container_name: untitledproject-db
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
@@ -26,7 +26,7 @@ services:
 
   pgadmin:
     image: dpage/pgadmin4:latest
-    container_name: consensai-pgadmin
+    container_name: untitledproject-pgadmin
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
@@ -38,10 +38,10 @@ services:
     restart: unless-stopped
 
   # --- Stubs for Phase 4 ---
-  # Uncomment when you reach Phase 4 (Session Interface).
+  # Uncomment when in Phase 4 (Session Interface).
   # api:
   #   build: ./api
-  #   container_name: consensai-api
+  #   container_name: untitledproject-api
   #   ports:
   #     - "8000:8000"
   #   environment:
@@ -52,7 +52,7 @@ services:
 
   # frontend:
   #   build: ./frontend
-  #   container_name: consensai-frontend
+  #   container_name: untitledproject-frontend
   #   ports:
   #     - "3000:3000"
   #   depends_on:

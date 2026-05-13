@@ -8,3 +8,10 @@ dist/
 build/
 .DS_Store
 *.log
+logs/
+context.db
+
+# Deferred schema notes/prototypes are planning-only. They must not be
+# committed, imported, packaged, or treated as runnable migrations.
+untitledplatform_1a_db/db/alembic/deferred/
+consensai-1a-DB/db/alembic/deferred/

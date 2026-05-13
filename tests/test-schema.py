@@ -1,4 +1,4 @@
-"""Consensai 1a - Schema validation tests.
+"""Untitled Platform 1a - Schema validation tests.
 
 WHAT THESE TESTS PROVE:
   1. Every table exists with expected columns
@@ -91,7 +91,7 @@ class TestTablesExist:
         "sessions",
         "audit_events",
         "alert_events",
-        "humen_events",
+        "echo_events",
         "voice_segments",
         "session_feature_vectors",
         "session_notes",
@@ -188,9 +188,9 @@ class TestAuditTriggers:
         count = cursor.fetchone()[0]
         assert count >= 1, "Audit trigger did not fire on sessions INSERT"
 
-    def test_humen_event_insert_triggers_audit(self, cursor, db_conn):
+    def test_echo_event_insert_triggers_audit(self, cursor, db_conn):
         cursor.execute("""
-            INSERT INTO humen_events (
+            INSERT INTO echo_events (
                 session_id, participant_id, site_id, sponsor_id,
                 event_type, actor_id, lsl_timestamp
             ) VALUES (
@@ -203,10 +203,10 @@ class TestAuditTriggers:
         cursor.execute("""
             SELECT COUNT(*) FROM audit_events
             WHERE session_id = 'test-session-002'
-            AND table_name = 'humen_events';
+            AND table_name = 'echo_events';
         """)
         count = cursor.fetchone()[0]
-        assert count >= 1, "Audit trigger did not fire on humen_events INSERT"
+        assert count >= 1, "Audit trigger did not fire on echo_events INSERT"
 
 
 class TestAppendOnly:

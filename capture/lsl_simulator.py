@@ -10,6 +10,8 @@ Streams published:
   EDA          1 channel  (µS), 4 Hz — tonic baseline + phasic SCR events
   Respiration  1 channel  (normalized -1..1), 4 Hz — 0.25 Hz respiratory cycle
 
+  ECHO markers manual proximity state transitions for capture/ARC testing
+
 Usage:
     python -m capture.lsl_simulator
     python capture/lsl_simulator.py
@@ -17,6 +19,7 @@ Usage:
 
 import math
 import random
+import signal
 import threading
 import time
 
@@ -32,12 +35,29 @@ set_session_id(None)  # no session during simulation
 
 _stop = threading.Event()
 
+
+def _handle_stop(signum, frame) -> None:
+    log.info("shutdown requested", extra={"signal": signum})
+    _stop.set()
+
 # Simulator hardware rates — these represent the device, not the app config.
 # EEG uses 256 Hz (2^8) matching common research headsets (OpenBCI, Enobio).
 _EEG_RATE = 256
 _HRV_RATE = 1  # samples/sec; interval varies to simulate RR jitter
 _EDA_RATE = 4  # Hz — clinical floor; device can push up to 32 Hz
 _RESP_RATE = 4  # Hz sample rate; waveform oscillates at ~0.25 Hz
+
+_ECHO_PROXIMITY_SEQUENCE = (
+    ("therapist_01", "therapist", "in_room"),
+    ("therapist_01", "therapist", "arms_reach"),
+    ("therapist_01", "therapist", "in_room"),
+    ("therapist_01", "therapist", "leaving_room"),
+    ("therapist_01", "therapist", "out_of_room"),
+)
+
+
+def _build_echo_marker(actor_id: str, actor_role: str, zone_label: str) -> str:
+    return f"ECHO|proximity_state_change|{actor_id}|{actor_role}|{zone_label}"
 
 
 # ---------------------------------------------------------------------------
@@ -53,7 +73,7 @@ def _run_eeg() -> None:
         channel_count=settings.EEG_CHANNEL_COUNT,
         nominal_srate=_EEG_RATE,
         channel_format=pylsl.cf_float32,
-        source_id="consensai_sim_eeg",
+        source_id="untitledplatform_1a_sim_eeg",
     )
     outlet = pylsl.StreamOutlet(info)
     log.info(
@@ -103,7 +123,7 @@ def _run_hrv() -> None:
         channel_count=1,
         nominal_srate=_HRV_RATE,
         channel_format=pylsl.cf_float32,
-        source_id="consensai_sim_hrv",
+        source_id="untitledplatform_1a_sim_hrv",
     )
     outlet = pylsl.StreamOutlet(info)
     log.info("HRV stream open", extra={"rate_hz": _HRV_RATE})
@@ -137,7 +157,7 @@ def _run_eda() -> None:
         channel_count=1,
         nominal_srate=_EDA_RATE,
         channel_format=pylsl.cf_float32,
-        source_id="consensai_sim_eda",
+        source_id="untitledplatform_1a_sim_eda",
     )
     outlet = pylsl.StreamOutlet(info)
     log.info("EDA stream open", extra={"rate_hz": _EDA_RATE})
@@ -186,7 +206,7 @@ def _run_respiration() -> None:
         channel_count=1,
         nominal_srate=_RESP_RATE,
         channel_format=pylsl.cf_float32,
-        source_id="consensai_sim_respiration",
+        source_id="untitledplatform_1a_sim_respiration",
     )
     outlet = pylsl.StreamOutlet(info)
     log.info(
@@ -213,13 +233,56 @@ def _run_respiration() -> None:
 
 
 # ---------------------------------------------------------------------------
+# ECHO marker stream
+# Publishes deterministic manual-style proximity transitions. These markers
+# become event anchors for later ARC event-window tests.
+# ---------------------------------------------------------------------------
+def _run_echo_markers() -> None:
+    info = pylsl.StreamInfo(
+        name=settings.LSL_STREAM_MARKER,
+        type="Markers",
+        channel_count=1,
+        nominal_srate=0,
+        channel_format=pylsl.cf_string,
+        source_id="untitledplatform_1a_sim_echo_markers",
+    )
+    outlet = pylsl.StreamOutlet(info)
+    log.info(
+        "ECHO marker stream open",
+        extra={
+            "stream_name": settings.LSL_STREAM_MARKER,
+            "interval_s": settings.SIMULATED_ECHO_MARKER_INTERVAL,
+        },
+    )
+
+    event_index = 0
+    while not _stop.wait(settings.SIMULATED_ECHO_MARKER_INTERVAL):
+        actor_id, actor_role, zone_label = _ECHO_PROXIMITY_SEQUENCE[
+            event_index % len(_ECHO_PROXIMITY_SEQUENCE)
+        ]
+        marker = _build_echo_marker(actor_id, actor_role, zone_label)
+        outlet.push_sample([marker])
+        log.info(
+            "ECHO marker emitted",
+            extra={
+                "event_index": event_index,
+                "actor_id": actor_id,
+                "actor_role": actor_role,
+                "zone_label": zone_label,
+            },
+        )
+        event_index += 1
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 def main() -> None:
     log.info(
         "simulator starting",
         extra={
-            "streams": ["EEG", "HRV", "EDA", "Respiration"],
+            "streams": ["EEG", "HRV", "EDA", "Respiration", "ECHO"],
+            "echo_marker_stream": settings.LSL_STREAM_MARKER,
             "eeg_hz": _EEG_RATE,
             "hrv_hz": _HRV_RATE,
             "eda_hz": _EDA_RATE,
@@ -232,22 +295,24 @@ def main() -> None:
         threading.Thread(target=_run_hrv, name="sim_hrv", daemon=True),
         threading.Thread(target=_run_eda, name="sim_eda", daemon=True),
         threading.Thread(target=_run_respiration, name="sim_resp", daemon=True),
+        threading.Thread(target=_run_echo_markers, name="sim_echo", daemon=True),
     ]
+
+    signal.signal(signal.SIGTERM, _handle_stop)
+    signal.signal(signal.SIGINT, _handle_stop)
+    if hasattr(signal, "SIGBREAK"):
+        signal.signal(signal.SIGBREAK, _handle_stop)
 
     for t in threads:
         t.start()
 
     log.info("all streams live — press Ctrl+C to stop")
 
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        log.info("shutdown requested")
-        _stop.set()
-        for t in threads:
-            t.join(timeout=3.0)
-        log.info("simulator stopped")
+    _stop.wait()
+
+    for t in threads:
+        t.join(timeout=3.0)
+    log.info("simulator stopped")
 
 
 if __name__ == "__main__":

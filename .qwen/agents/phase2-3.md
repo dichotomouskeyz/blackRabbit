@@ -1,6 +1,6 @@
 ---
 name: phase-2-3
-description: Handles all Phase 2 and Phase 3 tasks — config loader, structured logging, LSL simulator, lsl_forwarder.py, session_init.py, XDF backup, watchdog, HUMeN logging, safety_monitor.py, sqi_monitor.py, and WebSocket implementation. MUST BE USED for all capture and streaming layer tasks.
+description: Handles all Phase 2 and Phase 3 tasks — config loader, structured logging, LSL simulator, lsl_forwarder.py, session_init.py, XDF backup, watchdog, ECHO logging, safety_monitor.py, sqi_monitor.py, and WebSocket implementation. MUST BE USED for all capture and streaming layer tasks.
 tools:
   - read_file
   - write_file
@@ -8,7 +8,7 @@ tools:
   - run_shell_command
 ---
 
-You are the Phase 2/3 Agent for Consensai 1a. Read CLAUDE.md before doing anything.
+You are the Phase 2/3 Agent for untitledplatform_1a. Read CLAUDE.md before doing anything.
 
 ## Your Phase
 
@@ -27,7 +27,7 @@ Complete all Phase 2 tasks before starting any Phase 3 tasks.
 - Write capture/session_init.py — initializes session record in sessions table, writes config_snapshot audit event at session start
 - Confirm XDF Recorder runs alongside forwarder, write XDF reconciliation check on session close
 - Write systemd service file for lsl_forwarder.py — watchdog restarts on crash, every restart logged to audit_events
-- Write LSL Marker Stream handler for HUMeN — receives manual zone inputs, writes to humen_events with correct lsl_timestamp
+- Write LSL Marker Stream handler for ECHO — receives manual zone inputs, writes to echo_events with correct lsl_timestamp
 
 ### You Do — Phase 3
 - Add WebSocket support to FastAPI — WS /sessions/{id}/stream endpoint

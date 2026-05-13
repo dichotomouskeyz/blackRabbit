@@ -58,6 +58,7 @@ def _make_thread(
     stop_event: threading.Event | None = None,
     xdf_writer=None,
     stream_type: str = "EEG",
+    cfg: SessionConfig = _CFG,
 ) -> _StreamThread:
     if stop_event is None:
         stop_event = threading.Event()
@@ -69,9 +70,12 @@ def _make_thread(
         chunk_size=25,
         row_builder=_build_eeg_rows,
         insert_sql=_EEG_INSERT,
-        cfg=_CFG,
+        cfg=cfg,
         stop_event=stop_event,
         xdf_writer=xdf_writer,
+        table_name="eeg_samples",
+        hash_fields=("sample_index", "channel_id", "voltage"),
+        hash_sort_keys=("sample_index", "channel_id"),
     )
 
 
@@ -336,16 +340,7 @@ class TestStreamThreadLifecycle:
         stop = threading.Event()
         xdf = MagicMock()
 
-        t = _StreamThread(
-            stream_name="TestEEG",
-            stream_type="EEG",
-            chunk_size=25,
-            row_builder=_build_eeg_rows,
-            insert_sql=_EEG_INSERT,
-            cfg=cfg,
-            stop_event=stop,
-            xdf_writer=xdf,
-        )
+        t = _make_thread(stop_event=stop, xdf_writer=xdf, cfg=cfg)
 
         sample_q: queue.Queue = queue.Queue()
         t._resolve_inlet = lambda: _FakeInlet(sample_q)
@@ -378,16 +373,7 @@ class TestStreamThreadLifecycle:
         stop = threading.Event()
         xdf = MagicMock()
 
-        t = _StreamThread(
-            stream_name="TestEEG",
-            stream_type="EEG",
-            chunk_size=25,
-            row_builder=_build_eeg_rows,
-            insert_sql=_EEG_INSERT,
-            cfg=cfg,
-            stop_event=stop,
-            xdf_writer=xdf,
-        )
+        t = _make_thread(stop_event=stop, xdf_writer=xdf, cfg=cfg)
 
         n_chunks = 2
         samples_per_chunk = 3  # 3 LSL samples × 8 channels = 24 DB rows
@@ -451,16 +437,7 @@ class TestStreamThreadLifecycle:
 
         sample_q.put(list(_EEG_SAMPLE))
 
-        t = _StreamThread(
-            stream_name="TestEEG",
-            stream_type="EEG",
-            chunk_size=25,
-            row_builder=_build_eeg_rows,
-            insert_sql=_EEG_INSERT,
-            cfg=cfg,
-            stop_event=stop,
-            xdf_writer=xdf,
-        )
+        t = _make_thread(stop_event=stop, xdf_writer=xdf, cfg=cfg)
 
         original_write_rows = t._write_rows
 
@@ -507,16 +484,7 @@ class TestStreamThreadLifecycle:
         stop = threading.Event()
         xdf = MagicMock()
 
-        t = _StreamThread(
-            stream_name="TestEEG",
-            stream_type="EEG",
-            chunk_size=25,
-            row_builder=_build_eeg_rows,
-            insert_sql=_EEG_INSERT,
-            cfg=cfg,
-            stop_event=stop,
-            xdf_writer=xdf,
-        )
+        t = _make_thread(stop_event=stop, xdf_writer=xdf, cfg=cfg)
 
         sample_q: queue.Queue = queue.Queue()
         done = threading.Event()
@@ -575,16 +543,7 @@ class TestStreamThreadLifecycle:
         stop = threading.Event()
         xdf = MagicMock()
 
-        t = _StreamThread(
-            stream_name="TestEEG",
-            stream_type="EEG",
-            chunk_size=25,
-            row_builder=_build_eeg_rows,
-            insert_sql=_EEG_INSERT,
-            cfg=cfg,
-            stop_event=stop,
-            xdf_writer=xdf,
-        )
+        t = _make_thread(stop_event=stop, xdf_writer=xdf, cfg=cfg)
 
         sample_q: queue.Queue = queue.Queue()
         done = threading.Event()

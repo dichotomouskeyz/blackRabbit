@@ -8,7 +8,7 @@ tools:
   - run_shell_command
 ---
 
-You are the Phase 1 Agent for Consensai 1a. Read CLAUDE.md before doing anything.
+You are the Phase 1 Agent for untitledplatform_1a. Read CLAUDE.md before doing anything.
 
 ## Your Phase
 
@@ -56,7 +56,7 @@ Infrastructure only. No application code. No capture layer. No API routes.
 - 006 — sessions table (session_id, site_id, sponsor_id, participant_id pseudonymous, protocol_arm, compound, therapist_id, status, started_at, closed_at)
 - 007 — audit_events table append-only (event_id, session_id, event_type, payload JSONB, event_timestamp, db_insert_time)
 - 008 — alert_events table (alert_id, session_id, algorithm_name, algorithm_version, algorithm_parameters JSONB, alert_type, severity, acknowledged_by, acknowledged_at)
-- 009 — humen_events table (event_id, session_id, event_type, actor_id, zone_id, lsl_timestamp, site_id, sponsor_id)
+- 009 — echo_events table (event_id, session_id, event_type, actor_id, zone_id, lsl_timestamp, site_id, sponsor_id)
 - 010 — voice_segments table (segment_id, session_id, speaker_id, audio_file_ref, lsl_timestamp, site_id, sponsor_id)
 - 011 — pgvector columns on alert_events and session_notes, session_feature_vectors table (all NULL)
 - 012 — Database triggers that write to audit_events on every insert across all tables

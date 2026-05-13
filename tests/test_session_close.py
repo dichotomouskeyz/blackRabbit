@@ -9,7 +9,7 @@ real hardware: XDF file reads and raw DB count queries.  They verify:
 Requirements:
   TEST_DATABASE_URL set in .env
   Migrations through 024_watermark_trigger applied to test DB
-  Run: alembic upgrade head  (from consensai-1a-DB/db/)
+  Run: alembic upgrade head  (from untitledplatform_1a_db/db/)
 
 Run these tests:
     pytest tests/test_session_close.py -m integration -v

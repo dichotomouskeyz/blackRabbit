@@ -1,4 +1,4 @@
-"""Three regulatory-property tests for the Consensai forwarder pipeline.
+"""Three regulatory-property tests for the untitledplatform_1a forwarder pipeline.
 
   1. Separate timestamps (lsl_timestamp vs db_insert_time)
      — Unit: none of the 4 biosignal row builders set db_insert_time.
@@ -292,7 +292,7 @@ class TestSeparateTimestampsDB:
             ),
         )
         cursor.execute(
-            """INSERT INTO humen_events
+            """INSERT INTO echo_events
                (session_id, participant_id, site_id, sponsor_id,
                 event_type, source, actor_id, actor_role, zone_label, lsl_timestamp)
                VALUES (%s, %s, %s, %s,
@@ -382,20 +382,20 @@ class TestSeparateTimestampsDB:
         assert stored is not None
         assert isinstance(stored, datetime.datetime)
 
-    def test_humen_lsl_timestamp_stored_correctly(self, cursor):
+    def test_echo_lsl_timestamp_stored_correctly(self, cursor):
         _insert_session_row(cursor, _INT_SESSION, _INT_SITE, _INT_SPONSOR, _INT_PART)
         self._insert_one_sample_each(cursor)
         cursor.execute(
-            "SELECT lsl_timestamp FROM humen_events WHERE session_id = %s",
+            "SELECT lsl_timestamp FROM echo_events WHERE session_id = %s",
             (_INT_SESSION,),
         )
         assert cursor.fetchone()[0] == pytest.approx(_INT_LSL_TS)
 
-    def test_humen_db_insert_time_is_datetime(self, cursor):
+    def test_echo_db_insert_time_is_datetime(self, cursor):
         _insert_session_row(cursor, _INT_SESSION, _INT_SITE, _INT_SPONSOR, _INT_PART)
         self._insert_one_sample_each(cursor)
         cursor.execute(
-            "SELECT db_insert_time FROM humen_events WHERE session_id = %s",
+            "SELECT db_insert_time FROM echo_events WHERE session_id = %s",
             (_INT_SESSION,),
         )
         stored = cursor.fetchone()[0]
@@ -406,7 +406,7 @@ class TestSeparateTimestampsDB:
 # ---------------------------------------------------------------------------
 # Section 3 — No plaintext patient data (DB integration)
 #
-# 21 CFR Part 11 and Consensai's data tenancy rules require that real
+# 21 CFR Part 11 and untitledplatform_1a's data tenancy rules require that real
 # participant identity never reaches any biosignal or event table.
 # participant_id must always be a pseudonymous opaque token.
 #
@@ -440,10 +440,10 @@ _PII_SCAN_QUERIES: dict[str, str] = {
         SELECT participant_id, site_id, sponsor_id, device_id
         FROM respiration_samples WHERE session_id = %s
     """,
-    "humen_events": """
+    "echo_events": """
         SELECT participant_id, site_id, sponsor_id, event_type, source,
                actor_id, actor_role, zone_label
-        FROM humen_events WHERE session_id = %s
+        FROM echo_events WHERE session_id = %s
     """,
 }
 
@@ -511,7 +511,7 @@ class TestNoPlaintextPatientData:
             ),
         )
         cursor.execute(
-            """INSERT INTO humen_events
+            """INSERT INTO echo_events
                (session_id, participant_id, site_id, sponsor_id,
                 event_type, source, actor_id, actor_role, zone_label, lsl_timestamp)
                VALUES (%s, %s, %s, %s,
@@ -552,10 +552,10 @@ class TestNoPlaintextPatientData:
         )
         assert cursor.fetchone()[0] == _INT_PART
 
-    def test_humen_participant_id_is_pseudonymous_token(self, cursor):
+    def test_echo_participant_id_is_pseudonymous_token(self, cursor):
         self._insert_minimal_session(cursor)
         cursor.execute(
-            "SELECT participant_id FROM humen_events WHERE session_id = %s",
+            "SELECT participant_id FROM echo_events WHERE session_id = %s",
             (_INT_SESSION,),
         )
         assert cursor.fetchone()[0] == _INT_PART

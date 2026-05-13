@@ -70,7 +70,7 @@ class TestTablesExist:
         "compound_reference",
         "audit_events",
         "alert_events",
-        "humen_events",
+        "echo_events",
         # Regulatory tables
         "participant_consent_log",
         "schema_version_log",
@@ -81,6 +81,8 @@ class TestTablesExist:
         "session_signal_metadata",
         "data_correction_amendment_log",
         "session_environment_log",
+        "session_baselines",
+        "event_composite_profiles",
         # Feature and notes tables
         "session_feature_vectors",
         "session_notes",
@@ -141,9 +143,9 @@ class TestAuditTriggers:
             cursor.fetchone()[0] >= 1
         ), "Audit trigger did not fire on sessions INSERT"
 
-    def test_humen_event_insert_triggers_audit(self, cursor, db_conn):
+    def test_echo_event_insert_triggers_audit(self, cursor, db_conn):
         cursor.execute("""
-            INSERT INTO humen_events
+            INSERT INTO echo_events
                 (session_id, participant_id, site_id, sponsor_id, event_type,
                  source, actor_id, zone_label, lsl_timestamp)
             VALUES ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12',
@@ -155,11 +157,11 @@ class TestAuditTriggers:
         db_conn.commit()
         cursor.execute("""
             SELECT COUNT(*) FROM audit_events
-            WHERE session_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12' AND table_name = 'humen_events';
+            WHERE session_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12' AND table_name = 'echo_events';
         """)
         assert (
             cursor.fetchone()[0] >= 1
-        ), "Audit trigger did not fire on humen_events INSERT"
+        ), "Audit trigger did not fire on echo_events INSERT"
 
     def test_watchdog_process_restart_triggers_audit(self, cursor, db_conn):
         cursor.execute("""
@@ -190,7 +192,229 @@ class TestAuditTriggers:
         ), "Audit trigger did not fire on watchdog process_restart INSERT"
 
 
+class TestARCSchema:
+    SESSION_BASELINE_COLUMNS = [
+        "session_id",
+        "participant_id",
+        "site_id",
+        "sponsor_id",
+        "modality",
+        "signal_component",
+        "baseline_mean",
+        "baseline_std",
+        "baseline_window_start",
+        "baseline_window_end",
+        "sample_count",
+        "created_at",
+    ]
+
+    EVENT_COMPOSITE_PROFILE_COLUMNS = [
+        "id",
+        "session_id",
+        "participant_id",
+        "site_id",
+        "sponsor_id",
+        "echo_event_id",
+        "w1_convergence_density",
+        "w2_convergence_density",
+        "w3_convergence_density",
+        "w1_participating_signals",
+        "w2_participating_signals",
+        "w3_participating_signals",
+        "deviation_metrics",
+        "null_threshold",
+        "fdr_q_value",
+        "passed_fdr",
+        "temporal_alignment_score",
+        "sap_available_signals",
+        "sap_participating_signals",
+        "arc_config_version",
+        "created_at",
+    ]
+
+    @pytest.mark.parametrize("column_name", SESSION_BASELINE_COLUMNS)
+    def test_session_baselines_columns_exist(self, cursor, column_name):
+        assert column_exists(
+            cursor, "session_baselines", column_name
+        ), f"session_baselines missing {column_name}"
+
+    @pytest.mark.parametrize("column_name", EVENT_COMPOSITE_PROFILE_COLUMNS)
+    def test_event_composite_profiles_columns_exist(self, cursor, column_name):
+        assert column_exists(
+            cursor, "event_composite_profiles", column_name
+        ), f"event_composite_profiles missing {column_name}"
+
+    def test_deviation_metrics_is_jsonb(self, cursor):
+        cursor.execute(
+            """
+            SELECT data_type, udt_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'event_composite_profiles'
+              AND column_name = 'deviation_metrics';
+            """
+        )
+        data_type, udt_name = cursor.fetchone()
+        assert data_type == "jsonb"
+        assert udt_name == "jsonb"
+
+    def test_event_composite_profiles_rejects_failed_fdr(self, cursor):
+        cursor.execute(
+            """
+            INSERT INTO echo_events
+                (session_id, participant_id, site_id, sponsor_id, event_type,
+                 source, actor_id, zone_label, lsl_timestamp)
+            VALUES ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a17',
+                    'aaaa0000-0000-0000-0000-000000000001',
+                    'bbbb0000-0000-0000-0000-000000000001',
+                    'cccc0000-0000-0000-0000-000000000001',
+                    'zone_enter', 'manual_logging', 'C01', 'in_room', 1234567890.0)
+            RETURNING id;
+            """
+        )
+        echo_event_id = cursor.fetchone()[0]
+
+        with pytest.raises(psycopg2.errors.CheckViolation):
+            cursor.execute(
+                """
+                INSERT INTO event_composite_profiles (
+                    session_id, participant_id, site_id, sponsor_id, echo_event_id,
+                    w1_convergence_density, w2_convergence_density, w3_convergence_density,
+                    deviation_metrics, null_threshold, fdr_q_value, passed_fdr,
+                    temporal_alignment_score, arc_config_version
+                )
+                VALUES (
+                    'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a17',
+                    'aaaa0000-0000-0000-0000-000000000001',
+                    'bbbb0000-0000-0000-0000-000000000001',
+                    'cccc0000-0000-0000-0000-000000000001',
+                    %s,
+                    0.33, 0.50, 0.66,
+                    '{"w1": {"hrv_rmssd": {"z_score": 0.5, "p_value": 0.50}}}'::jsonb,
+                    0.95, 0.50, FALSE, 0.12,
+                    'arc_watchdog_config.toml@demo-001'
+                );
+                """,
+                (echo_event_id,),
+            )
+
+    def test_event_composite_profile_insert_triggers_audit(self, cursor, db_conn):
+        session_id = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a15"
+        cursor.execute(
+            """
+            INSERT INTO echo_events
+                (session_id, participant_id, site_id, sponsor_id, event_type,
+                 source, actor_id, zone_label, lsl_timestamp)
+            VALUES (%s,
+                    'aaaa0000-0000-0000-0000-000000000001',
+                    'bbbb0000-0000-0000-0000-000000000001',
+                    'cccc0000-0000-0000-0000-000000000001',
+                    'zone_enter', 'manual_logging', 'C01', 'in_room', 1234567890.0)
+            RETURNING id;
+            """,
+            (session_id,),
+        )
+        echo_event_id = cursor.fetchone()[0]
+
+        cursor.execute(
+            """
+            INSERT INTO event_composite_profiles (
+                session_id, participant_id, site_id, sponsor_id, echo_event_id,
+                w1_convergence_density, w2_convergence_density, w3_convergence_density,
+                w1_participating_signals, w2_participating_signals, w3_participating_signals,
+                deviation_metrics, null_threshold, fdr_q_value, passed_fdr,
+                temporal_alignment_score, sap_available_signals, sap_participating_signals,
+                arc_config_version
+            )
+            VALUES (
+                %s,
+                'aaaa0000-0000-0000-0000-000000000001',
+                'bbbb0000-0000-0000-0000-000000000001',
+                'cccc0000-0000-0000-0000-000000000001',
+                %s,
+                0.33, 0.50, 0.66,
+                '["hrv_rmssd"]'::jsonb,
+                '["hrv_rmssd", "eda_mean"]'::jsonb,
+                '["hrv_rmssd", "eda_mean", "eeg_alpha_power"]'::jsonb,
+                '{"w1": {"hrv_rmssd": {"z_score": 2.4, "p_value": 0.002}}}'::jsonb,
+                0.95, 0.004, TRUE, 0.88,
+                '["hrv_rmssd", "eda_mean", "eeg_alpha_power"]'::jsonb,
+                '["hrv_rmssd", "eda_mean"]'::jsonb,
+                'arc_watchdog_config.toml@demo-001'
+            );
+            """,
+            (session_id, echo_event_id),
+        )
+        db_conn.commit()
+
+        cursor.execute(
+            """
+            SELECT COUNT(*)
+            FROM audit_events
+            WHERE session_id = %s
+              AND table_name = 'event_composite_profiles';
+            """,
+            (session_id,),
+        )
+        assert (
+            cursor.fetchone()[0] >= 1
+        ), "Audit trigger did not fire on event_composite_profiles INSERT"
+
+
 class TestAppendOnly:
+    def test_event_composite_profiles_rejects_update(
+        self, cursor, db_conn, restricted_cursor
+    ):
+        session_id = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a16"
+        cursor.execute(
+            """
+            INSERT INTO echo_events
+                (session_id, participant_id, site_id, sponsor_id, event_type,
+                 source, actor_id, zone_label, lsl_timestamp)
+            VALUES (%s,
+                    'aaaa0000-0000-0000-0000-000000000001',
+                    'bbbb0000-0000-0000-0000-000000000001',
+                    'cccc0000-0000-0000-0000-000000000001',
+                    'zone_enter', 'manual_logging', 'C01', 'in_room', 1234567890.0)
+            RETURNING id;
+            """,
+            (session_id,),
+        )
+        echo_event_id = cursor.fetchone()[0]
+        cursor.execute(
+            """
+            INSERT INTO event_composite_profiles (
+                session_id, participant_id, site_id, sponsor_id, echo_event_id,
+                w1_convergence_density, w2_convergence_density, w3_convergence_density,
+                deviation_metrics, null_threshold, fdr_q_value, passed_fdr,
+                temporal_alignment_score, arc_config_version
+            )
+            VALUES (
+                %s,
+                'aaaa0000-0000-0000-0000-000000000001',
+                'bbbb0000-0000-0000-0000-000000000001',
+                'cccc0000-0000-0000-0000-000000000001',
+                %s,
+                0.33, 0.50, 0.66,
+                '{"w1": {"hrv_rmssd": {"z_score": 2.4, "p_value": 0.002}}}'::jsonb,
+                0.95, 0.004, TRUE, 0.88,
+                'arc_watchdog_config.toml@demo-001'
+            );
+            """,
+            (session_id, echo_event_id),
+        )
+        db_conn.commit()
+
+        with pytest.raises(psycopg2.errors.InsufficientPrivilege):
+            restricted_cursor.execute(
+                """
+                UPDATE event_composite_profiles
+                SET passed_fdr = FALSE
+                WHERE session_id = %s;
+                """,
+                (session_id,),
+            )
+
     def test_audit_events_rejects_delete(self, cursor, db_conn, restricted_cursor):
         cursor.execute("""
             INSERT INTO sessions (id, site_id, sponsor_id, participant_id, compound, status)

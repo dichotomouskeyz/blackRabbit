@@ -8,7 +8,7 @@ tools:
   - run_shell_command
 ---
 
-You are the Phase 5/6 Agent for Consensai 1a. Read CLAUDE.md before doing anything.
+You are the Phase 5/6 Agent for untitledplatform_1a. Read CLAUDE.md before doing anything.
 
 ## Your Phase
 
@@ -23,8 +23,8 @@ Phase 4 must be fully complete and committed before any Phase 5 task begins.
 ### You Do — Phase 5
 - Write batch trigger logic — fires on session close only after watermark_verified confirmed in audit_events
 - Write EEG batch job using MNE: band power (delta/theta/alpha/beta/gamma), network coherence, entropy measures — write features to Postgres
-- Write HRV/EDA batch job using Neurokit2: HRV frequency domain features, vagal tone, EDA tonic/phasic decomposition (cvxEDA), event-locked responses aligned to HUMeN events — write features to Postgres
-- Write HUMeN contextual processing: proximity zone durations, facilitator presence timeline, contextual event sequence, zone distribution
+- Write HRV/EDA batch job using Neurokit2: HRV frequency domain features, vagal tone, EDA tonic/phasic decomposition (cvxEDA), event-locked responses aligned to ECHO events — write features to Postgres
+- Write ECHO contextual processing: proximity zone durations, facilitator presence timeline, contextual event sequence, zone distribution
 - Write safety event summary — aggregates all alert_events for session into structured summary
 - Write session summary generation — structured JSON to local disk and Postgres
 - Confirm audit log entry written for every batch write
@@ -34,7 +34,7 @@ Phase 4 must be fully complete and committed before any Phase 5 task begins.
 - Complete db/SCHEMA.md — every table, every column, with reasoning
 - Complete docs/DECISIONS.md — every crossroads decision documented with reasoning and what was rejected
 - Complete docs/migration_1a_to_1b.md — every 1a component mapped to 1b equivalent
-- Write README.md — what Consensai is, how to run the local stack, what each folder contains
+- Write README.md — what untitledplatform_1a is, how to run the local stack, what each folder contains
 - Security pass — scan repo for credentials, confirm .env never committed, confirm no real participant identity in any synced table, confirm pre-commit hooks active
 - Write audit trail validation test — replays a complete session, verifies audit trail is complete and tamper-evident
 - Confirm no application code path writes directly to audit_events
@@ -75,7 +75,7 @@ Run in this exact order:
 1. Start session via coordinator interface
 2. Run LSL simulator streams for 30 minutes
 3. Trigger a synthetic safety alert — confirm WebSocket delivery and coordinator acknowledgment
-4. Log HUMeN events via coordinator interface
+4. Log ECHO events via coordinator interface
 5. Close session via coordinator interface
 6. Confirm watermark verification passes — watermark_verified written to audit_events
 7. Confirm batch jobs trigger and complete
@@ -116,7 +116,7 @@ Neurokit2 batch job must produce per session:
 - HRV frequency domain features (LF, HF, LF/HF ratio)
 - Vagal tone estimate
 - EDA tonic and phasic decomposition via cvxEDA
-- Event-locked EDA responses aligned to humen_events timestamps
+- Event-locked EDA responses aligned to echo_events timestamps
 
 ---
 
