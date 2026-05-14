@@ -14,29 +14,41 @@ repos:
       - id: check-added-large-files
         args: [--maxkb=500]
 
-  - repo: https://github.com/psf/black
-    rev: 26.3.1
-    hooks:
-      - id: black
-        language_version: python3
-
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.11.6
     hooks:
       - id: ruff
         args: [--fix]
+      - id: ruff-format
 
   - repo: https://github.com/PyCQA/bandit
     rev: 1.8.3
     hooks:
       - id: bandit
-        args: [--skip, "B101,B105,B110,B311,B314,B404,B405,B608"]
+        pass_filenames: false
+        # add streaming/ api/ to args once those modules exist
+        args: [-r, "capture/", --skip, "B101,B105,B110,B311,B314,B404,B405,B608"]
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+        exclude: uv\.lock
 
   - repo: local
     hooks:
+      - id: pyright
+        name: pyright
+        entry: uv run pyright
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [manual]
+
       - id: pytest
         name: pytest
-        entry: .venv/bin/pytest
+        entry: uv run pytest -x --timeout=30
         language: system
         pass_filenames: false
         files: ^(tests/|untitledplatform_1a_db/db/alembic/versions/)
