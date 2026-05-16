@@ -251,10 +251,10 @@ When activating an agent, load CLAUDE.md first, then state which agent you are i
 - React for frontend — Phase 4 only, not before
 
 ### Dependencies
-- Poetry only — pyproject.toml is source of truth
+- uv only — pyproject.toml + uv.lock are source of truth
 - Never use pip install directly
-- To add a package: poetry add [package]
-- To add a dev package: poetry add --group dev [package]
+- To add a package: uv add [package]
+- To add a dev package: uv add --dev [package]
 
 ### Formatting
 - Python: Ruff (formatOnSave is on)

@@ -30,8 +30,6 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-pytest_plugins = ["tests.reconcile_test._support"]
-
 _RESTRICTED_ROLE = "pytest_restricted"
 _RESTRICTED_PASSWORD = "pytest-restricted"
 

@@ -15,3 +15,8 @@ context.db
 # committed, imported, packaged, or treated as runnable migrations.
 untitledplatform_1a_db/db/alembic/deferred/
 consensai-1a-DB/db/alembic/deferred/
+.aider*
+
+brainflow_streamer_*.txt
+.claude/settings.local.json
+CLAUDE.local.md

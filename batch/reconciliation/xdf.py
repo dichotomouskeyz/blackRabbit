@@ -23,9 +23,7 @@ def _read_chunk_length(f) -> int | None:
         return None
     num_bytes = nb[0]
     if num_bytes not in (1, 2, 4, 8):
-        raise XDFReadError(
-            f"invalid NumLengthBytes={num_bytes} at offset {f.tell() - 1}"
-        )
+        raise XDFReadError(f"invalid NumLengthBytes={num_bytes} at offset {f.tell() - 1}")
     raw = f.read(num_bytes)
     if len(raw) < num_bytes:
         return None
@@ -46,9 +44,7 @@ def read_xdf_counts(xdf_path: Path) -> dict[str, int]:
         with open(xdf_path, "rb") as f:
             magic = f.read(4)
             if magic != _XDF_MAGIC:
-                raise XDFReadError(
-                    f"not an XDF file - magic={magic!r}, path={xdf_path}"
-                )
+                raise XDFReadError(f"not an XDF file - magic={magic!r}, path={xdf_path}")
 
             while True:
                 length = _read_chunk_length(f)

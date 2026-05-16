@@ -7,11 +7,11 @@ temporal windows, FDR policy, and signal availability rules.
 
 from __future__ import annotations
 
+import tomllib
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
-import tomllib
 
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("arc_watchdog_config.toml")
 REQUIRED_WINDOWS = ("w1", "w2", "w3")
@@ -62,9 +62,7 @@ def _validate_config(config: dict[str, Any]) -> None:
     for modality in REQUIRED_MODALITIES:
         count = min_sample_count.get(modality)
         if not isinstance(count, int) or count <= 0:
-            raise ValueError(
-                f"baseline.min_sample_count.{modality} must be a positive integer"
-            )
+            raise ValueError(f"baseline.min_sample_count.{modality} must be a positive integer")
 
     windows = _require_mapping(config, "windows")
     previous_end = -1.0
@@ -104,9 +102,7 @@ def _validate_config(config: dict[str, Any]) -> None:
 
     sap = _require_mapping(config, "signal_availability_profile")
     min_modalities = sap.get("min_modalities_required")
-    if not isinstance(min_modalities, int) or not (
-        1 <= min_modalities <= len(REQUIRED_MODALITIES)
-    ):
+    if not isinstance(min_modalities, int) or not (1 <= min_modalities <= len(REQUIRED_MODALITIES)):
         raise ValueError(
             "signal_availability_profile.min_modalities_required must be between 1 and 4"
         )
@@ -114,8 +110,7 @@ def _validate_config(config: dict[str, Any]) -> None:
         raise ValueError("signal_availability_profile.require_echo_event must be true")
     if sap.get("missing_signal_policy") != "record_available_only":
         raise ValueError(
-            "signal_availability_profile.missing_signal_policy must be "
-            "'record_available_only'"
+            "signal_availability_profile.missing_signal_policy must be 'record_available_only'"
         )
 
 

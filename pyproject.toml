@@ -1,31 +1,38 @@
 [project]
-name = "untitledplatform_1a"
+name = "untitled_biometric_platform_1a"
 version = "0.1.0"
 description = ""
 authors = [
-    {name = "dichotomouskeyz",email = "jakisnotbuddha@gmail.com"}
+    {name = "dichotomouskeyz", email = "jakisnotbuddha@gmail.com"}
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "alembic (>=1.18.4,<2.0.0)",
-    "sqlalchemy (>=2.0.49,<3.0.0)",
-    "psycopg2-binary (>=2.9.12,<3.0.0)",
-    "python-dotenv (>=1.2.2,<2.0.0)",
-    "pylsl (>=1.18.2,<2.0.0)",
-    "pyyaml (>=6.0.3,<7.0.0)"
+    "alembic>=1.18.4,<2.0.0",
+    "sqlalchemy>=2.0.49,<3.0.0",
+    "psycopg2-binary>=2.9.12,<3.0.0",
+    "python-dotenv>=1.2.2,<2.0.0",
+    "pylsl>=1.18.2,<2.0.0",
+    "pyyaml>=6.0.3,<7.0.0",
+    "brainflow>=5.22.0",
+    "litellm>=1.84.0",
 ]
 
-
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/untitled_biometric_platform_1a"]
 
 [dependency-groups]
 dev = [
-    "pre-commit (>=4.6.0,<5.0.0)",
-    "black (>=26.3.1,<27.0.0)",
-    "pytest (>=9.0.3,<10.0.0)",
-    "pytest-asyncio (>=1.3.0,<2.0.0)"
+    "pre-commit>=4.6.0,<5.0.0",
+    "pytest>=9.0.3,<10.0.0",
+    "pytest-asyncio>=1.3.0,<2.0.0",
+    "pytest-cov>=6.0.0,<7.0.0",
+    "pytest-timeout>=2.3.0,<3.0.0",
+    "ruff>=0.11.0",
+    "pyright>=1.1.0",
 ]
 
 [tool.pytest.ini_options]
@@ -33,3 +40,12 @@ pythonpath = ["."]
 markers = [
     "integration: tests that require a running database (TEST_DATABASE_URL must be set)",
 ]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"untitledplatform_1a_db/db/alembic/versions/*.py" = ["E501"]

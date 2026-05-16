@@ -21,7 +21,7 @@ Captures EEG, HRV, EDA, and respiration via Lab Streaming Layer (LSL), writes to
 # 1. Clone and install dependencies
 git clone <repo>
 cd untitledplatform_1a
-poetry install
+uv sync
 
 # 2. Copy env template and fill in your values
 cp .env.example .env
@@ -56,21 +56,23 @@ the same stream names as real hardware. The forwarder cannot tell the difference
 ```bash
 # In .env:  SIMULATION_MODE=true
 
-# Terminal 1 — start streams
-python -m capture.lsl_simulator
+# Terminal 1 — start streams (BrainFlow synthetic board by default)
+python -m capture.synthetic_board
+# or with real hardware:
+python -m capture.synthetic_board --board ganglion --serial-port /dev/cu.usbserial-...
 
 # Terminal 2 — start forwarder (same command as real hardware)
 python -m capture.lsl_forwarder
 ```
 
-The simulator outputs:
+The synthetic board outputs:
 
-| Stream      | Channels | Rate   | Signal                                      |
-|-------------|----------|--------|---------------------------------------------|
-| EEG         | 8        | 256 Hz | Delta/theta/alpha/beta/gamma mix + noise    |
-| HRV         | 1        | ~1 Hz  | RR intervals with RSA + Mayer wave modulation |
-| EDA         | 1        | 4 Hz   | Tonic baseline + probabilistic SCR events   |
-| Respiration | 1        | 4 Hz   | 0.25 Hz respiratory cycle (15 breaths/min) |
+| Stream      | Channels | Rate    | Signal                                         |
+|-------------|----------|---------|------------------------------------------------|
+| EEG         | 8        | 250 Hz  | BrainFlow SYNTHETIC_BOARD EEG channels         |
+| HRV         | 1        | ~1 Hz   | ECG-derived RR intervals; RSA+Mayer fallback   |
+| EDA         | 1        | 4 Hz    | Board EDA channel if available; tonic/SCR fallback |
+| Respiration | 1        | 4 Hz    | Accel Z-axis proxy; ~0.3 Hz sine fallback      |
 
 `SIMULATION_MODE=true` is logged at forwarder startup so audit records clearly
 distinguish simulated sessions from sessions with real devices.

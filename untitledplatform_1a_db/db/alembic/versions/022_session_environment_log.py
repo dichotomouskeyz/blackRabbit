@@ -95,7 +95,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute(
-        "DROP TRIGGER IF EXISTS session_environment_log_audit_trigger "
-        "ON session_environment_log;"
+        "DROP TRIGGER IF EXISTS session_environment_log_audit_trigger ON session_environment_log;"
     )
     op.execute("DROP TABLE IF EXISTS session_environment_log;")

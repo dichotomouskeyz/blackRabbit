@@ -81,13 +81,9 @@ def validate() -> None:
         errors.append(f"DEVICE_ID = {DEVICE_ID!r} (must be a valid UUID)")
 
     if HRV_SIGNAL_SOURCE not in ("ecg", "pcg", "ppg"):
-        errors.append(
-            f"HRV_SIGNAL_SOURCE = {HRV_SIGNAL_SOURCE!r} (must be ecg | pcg | ppg)"
-        )
+        errors.append(f"HRV_SIGNAL_SOURCE = {HRV_SIGNAL_SOURCE!r} (must be ecg | pcg | ppg)")
     if EDA_SIGNAL_SOURCE not in ("combined", "scl", "scr"):
-        errors.append(
-            f"EDA_SIGNAL_SOURCE = {EDA_SIGNAL_SOURCE!r} (must be combined | scl | scr)"
-        )
+        errors.append(f"EDA_SIGNAL_SOURCE = {EDA_SIGNAL_SOURCE!r} (must be combined | scl | scr)")
     if RESPIRATION_SOURCE not in ("belt_direct", "rsa_derived"):
         errors.append(
             f"RESPIRATION_SOURCE = {RESPIRATION_SOURCE!r} (must be belt_direct | rsa_derived)"
@@ -96,7 +92,8 @@ def validate() -> None:
     if errors:
         lines = "\n  ".join(errors)
         raise RuntimeError(
-            f"untitledplatform_1a config validation failed — fix these in .env before starting:\n  {lines}"
+            "untitledplatform_1a config validation failed — fix these in .env before starting:"
+            f"\n  {lines}"
         )
 
 
@@ -167,9 +164,7 @@ DEVICE_ID: str = _get("DEVICE_ID", "00000000-0000-0000-0000-000000000001")
 # startup so audit records clearly distinguish simulated from real sessions.
 # ---------------------------------------------------------------------------
 SIMULATION_MODE: bool = _get("SIMULATION_MODE", "false").lower() == "true"
-SIMULATED_ECHO_MARKER_INTERVAL: float = float(
-    _get("SIMULATED_ECHO_MARKER_INTERVAL", "5.0")
-)
+SIMULATED_ECHO_MARKER_INTERVAL: float = float(_get("SIMULATED_ECHO_MARKER_INTERVAL", "5.0"))
 
 # ---------------------------------------------------------------------------
 # Watchdog — stream health monitoring
@@ -184,9 +179,7 @@ SIMULATED_ECHO_MARKER_INTERVAL: float = float(
 WATCHDOG_TIMEOUT_EEG: float = float(_get("WATCHDOG_TIMEOUT_EEG", "3.0"))
 WATCHDOG_TIMEOUT_HRV: float = float(_get("WATCHDOG_TIMEOUT_HRV", "10.0"))
 WATCHDOG_TIMEOUT_EDA: float = float(_get("WATCHDOG_TIMEOUT_EDA", "10.0"))
-WATCHDOG_TIMEOUT_RESPIRATION: float = float(
-    _get("WATCHDOG_TIMEOUT_RESPIRATION", "10.0")
-)
+WATCHDOG_TIMEOUT_RESPIRATION: float = float(_get("WATCHDOG_TIMEOUT_RESPIRATION", "10.0"))
 
 # How often the watchdog check loop runs (seconds)
 WATCHDOG_POLL_INTERVAL: float = float(_get("WATCHDOG_POLL_INTERVAL", "1.0"))

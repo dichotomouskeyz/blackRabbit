@@ -90,9 +90,7 @@ class _JsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         payload: dict = {
-            "timestamp": datetime.fromtimestamp(
-                record.created, tz=timezone.utc
-            ).isoformat(),
+            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
             "process_name": self._process_name,
             "level": record.levelname,
             "session_id": _session_id,
@@ -135,7 +133,7 @@ def get_logger(process_name: str) -> logging.Logger:
     stdout_handler = logging.StreamHandler(sys.stderr)
     stdout_handler.setFormatter(formatter)
     logger.addHandler(stdout_handler)
-    
+
     try:
         log_dir: Path = settings.LOG_DIR
         log_dir.mkdir(parents=True, exist_ok=True)

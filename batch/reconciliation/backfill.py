@@ -10,12 +10,12 @@ from batch.reconciliation.db import (
     fetch_existing_sample_indices,
 )
 from batch.reconciliation.models import (
-    BACKFILL_CHUNK_SIZE_ROWS,
-    ReconciliationReport,
-    SessionMeta,
     _BACKFILL_LOG_EVERY_N_COMMITS,
     _ECHO_STREAM_NAME,
     _STREAM_TABLES,
+    BACKFILL_CHUNK_SIZE_ROWS,
+    ReconciliationReport,
+    SessionMeta,
 )
 from batch.reconciliation.xdf import stream_xdf_markers, stream_xdf_samples
 from capture.echo_handler import parse_echo_marker
@@ -107,8 +107,7 @@ def _build_backfill_rows(
 
     if stream_name == "EEG":
         return [
-            {**base, "channel_id": f"ch_{ch}", "voltage": float(v)}
-            for ch, v in enumerate(vals)
+            {**base, "channel_id": f"ch_{ch}", "voltage": float(v)} for ch, v in enumerate(vals)
         ]
 
     if stream_name == "HRV":
@@ -241,9 +240,7 @@ def backfill_stream(
             continue
 
         pending.extend(
-            _build_backfill_rows(
-                stream_name, session_id, sample_index, lsl_ts, vals, meta
-            )
+            _build_backfill_rows(stream_name, session_id, sample_index, lsl_ts, vals, meta)
         )
 
         if len(pending) >= chunk_size:

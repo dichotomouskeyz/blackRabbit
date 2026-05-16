@@ -6,17 +6,15 @@ from pathlib import Path
 import psycopg2
 
 from batch.reconciliation.models import (
+    _ECHO_STREAM_NAME,
+    _STREAM_TABLES,
     ReconciliationReport,
     SessionMeta,
     StreamResult,
-    _ECHO_STREAM_NAME,
-    _STREAM_TABLES,
 )
 
 
-def query_db_counts(
-    conn: psycopg2.extensions.connection, session_id: str
-) -> dict[str, int]:
+def query_db_counts(conn: psycopg2.extensions.connection, session_id: str) -> dict[str, int]:
     """Return {stream_name: distinct_sample_count} from TimescaleDB/Postgres."""
     counts: dict[str, int] = {}
     cur = conn.cursor()
@@ -41,9 +39,7 @@ def build_report(
     db_counts: dict[str, int],
 ) -> ReconciliationReport:
     """Compare counts and build a ReconciliationReport."""
-    all_streams = (
-        set(xdf_counts) | set(db_counts) | set(_STREAM_TABLES) | {_ECHO_STREAM_NAME}
-    )
+    all_streams = set(xdf_counts) | set(db_counts) | set(_STREAM_TABLES) | {_ECHO_STREAM_NAME}
     streams: dict[str, StreamResult] = {}
 
     for name in sorted(all_streams):
@@ -76,9 +72,7 @@ def close_session(
     cur.close()
 
 
-def fetch_session_meta(
-    conn: psycopg2.extensions.connection, session_id: str
-) -> SessionMeta:
+def fetch_session_meta(conn: psycopg2.extensions.connection, session_id: str) -> SessionMeta:
     """Query sessions metadata needed to reconstruct DB rows from XDF."""
     cur = conn.cursor()
     cur.execute(

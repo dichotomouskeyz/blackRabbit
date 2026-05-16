@@ -14,8 +14,6 @@ need to know about the internal module split.
     reconciliation = the organized implementation package
 """
 
-
-
 import argparse
 import sys
 from pathlib import Path
@@ -37,15 +35,15 @@ from batch.reconciliation.db import (
     query_db_counts,
 )
 from batch.reconciliation.models import (
+    _ECHO_STREAM_NAME,
+    _STREAM_TABLES,
+    _XDF_MAGIC,
     BACKFILL_CHUNK_SIZE_ROWS,
     ReconciliationReport,
     SessionMeta,
     StreamResult,
     XDFReadError,
     XDFTruncatedError,
-    _ECHO_STREAM_NAME,
-    _STREAM_TABLES,
-    _XDF_MAGIC,
 )
 from batch.reconciliation.xdf import (
     _read_chunk_length,
@@ -145,15 +143,11 @@ def main() -> None:
 
         if args.backfill and not report.is_reconciled:
             meta = fetch_session_meta(conn, args.session_id)
-            backfill_results = run_backfill(
-                conn, report, meta, chunk_size=args.chunk_size
-            )
+            backfill_results = run_backfill(conn, report, meta, chunk_size=args.chunk_size)
             log.info("backfill finished", extra={"rows_by_stream": backfill_results})
 
             db_counts_after = query_db_counts(conn, args.session_id)
-            report = build_report(
-                args.session_id, args.xdf_path, xdf_counts, db_counts_after
-            )
+            report = build_report(args.session_id, args.xdf_path, xdf_counts, db_counts_after)
 
         close_session(conn, args.session_id, report.is_reconciled)
     finally:
@@ -162,9 +156,7 @@ def main() -> None:
     if report.is_reconciled:
         log.info("reconciliation PASSED", extra=report.as_dict())
     else:
-        gaps = {
-            name: result.gap for name, result in report.streams.items() if result.gap
-        }
+        gaps = {name: result.gap for name, result in report.streams.items() if result.gap}
         log.error(
             "reconciliation FAILED - sample gaps detected",
             extra={**report.as_dict(), "streams_with_gaps": gaps},

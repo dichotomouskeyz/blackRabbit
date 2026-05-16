@@ -28,9 +28,7 @@ database_url = context.get_x_argument(as_dictionary=True).get("db_url")
 if not database_url:
     database_url = os.getenv("DATABASE_URL")
 if not database_url:
-    raise RuntimeError(
-        "DATABASE_URL not set. Copy .env.example to .env and fill in your values."
-    )
+    raise RuntimeError("DATABASE_URL not set. Copy .env.example to .env and fill in your values.")
 config.set_main_option("sqlalchemy.url", database_url)
 
 # Set up Python logging from alembic.ini
