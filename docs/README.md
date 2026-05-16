@@ -2,7 +2,10 @@
 
 Regulatory-grade neuro-behavioral data infrastructure for psychedelic clinical trials.
 
-Captures EEG, HRV, EDA, and respiration via Lab Streaming Layer (LSL), writes to TimescaleDB with a tamper-evident audit trail, and produces a simultaneous XDF backup for reconciliation. Designed for 21 CFR Part 11 compliance.
+Captures EEG, HRV, EDA, and respiration via Lab Streaming Layer (LSL), 
+writes to TimescaleDB with a tamper-evident audit trail, and produces a 
+simultaneous XDF backup for reconciliation. Designed for 21 CFR Part 11 compliance 
+contribution extensions.
 
 ---
 
@@ -10,7 +13,7 @@ Captures EEG, HRV, EDA, and respiration via Lab Streaming Layer (LSL), writes to
 
 - Docker Desktop (runs TimescaleDB + pgAdmin)
 - Python 3.11+
-- Poetry (dependency management)
+- uv 
 - WSL2 (Windows only)
 
 ---
