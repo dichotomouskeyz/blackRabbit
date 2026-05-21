@@ -15,17 +15,12 @@ WHY A POSTGRES ENUM FOR STATUS (NOT A TEXT CHECK CONSTRAINT):
   The tradeoff: ENUM values are harder to remove than to add. For session
   status, the values are stable and well-understood, so ENUM is correct.
 
-WHY BATCH_PROCESSED_AT:
-  When post-session batch completes (after watermark_verified is written),
-  batch_processed_at is set. NULL = batch has not run. Non-NULL = batch
-  completed at this timestamp. This is both the handoff signal from the
-  streaming phase to the batch phase, and a regulatory requirement: you
-  must be able to prove that post-session processing completed and when.
-
 STATUS FLOW:
   initializing → active → closing → closed (normal path)
                         → failed   (error path)
-  closed → batch_processed_at set (batch complete)
+
+  ARC/post-session processing is deferred in the open-source 1a MVP. The
+  session lifecycle only records capture closure and watermark status.
 
 WHY THIS IS A REGULAR TABLE (NOT A HYPERTABLE):
   Sessions are low-volume (maybe 5 per day at peak), relationally
@@ -74,8 +69,8 @@ WHY room_id:
   only meaningful within a given site_id).
 
 WHY INDEXES ON sponsor_id, site_id, protocol_arm:
-  Every API query filters by sponsor_id (regulatory requirement —
-  no cross-sponsor data leakage). site_id is the next most common
+  Every API query filters by sponsor_id to avoid cross-sponsor data
+  leakage. site_id is the next most common
   filter for site-level dashboards. protocol_arm (the trial arm, e.g.
   'high_dose_psilocybin', 'placebo') is the primary grouping variable
   for efficacy analysis. Indexing these independently also covers
@@ -108,7 +103,6 @@ def upgrade() -> None:
         CREATE TYPE session_status AS ENUM (
             'initializing',
             'active',
-            'paused',
             'closing',
             'closed',
             'failed'
@@ -132,7 +126,6 @@ def upgrade() -> None:
                                 )),
             therapist_id        TEXT,
             status              session_status  NOT NULL DEFAULT 'initializing',
-            batch_processed_at  TIMESTAMPTZ,
             started_at          TIMESTAMPTZ,
             closed_at           TIMESTAMPTZ,
             created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),

@@ -11,7 +11,7 @@ from batch.reconcile import (
     read_xdf_counts,
     run_backfill,
 )
-from capture.xdf import XDFWriter
+from capture.xdf.writer import XDFWriter
 from tests.capture_tests.reconciliation.support import (
     _BF_DEVICE,
     _BF_PARTICIPANT,
@@ -111,13 +111,14 @@ class TestXDFBackfillSimulation:
         monkeypatch.setattr(s, "XDF_BACKUP_DIR", tmp_path)
         monkeypatch.setattr(s, "DEVICE_ID", _BF_DEVICE)
 
-        w = XDFWriter(_BF_SESSION, _BF_SITE, _BF_SPONSOR)
+        w = XDFWriter(_BF_SESSION, _BF_PARTICIPANT, _BF_SITE, _BF_SPONSOR)
         w.write_samples("EEG", [[float(i)] * 8 for i in range(50)], list(range(50)))
         w.write_samples("HRV", [[800.0 + i] for i in range(10)], list(range(10)))
         w.write_samples("EDA", [[5.0 + i * 0.1] for i in range(20)], list(range(20)))
         w.write_samples("Respiration", [[0.5 + i * 0.01] for i in range(15)], list(range(15)))
-        w.write_marker("ECHO|proximity_state_change|therapist_01|therapist|in_room", 100.0)
-        w.write_marker("ECHO|proximity_state_change|therapist_01|therapist|arms_reach", 105.0)
+        w.write_marker("ECHO|zone_enter|therapist_01|therapist|in_room", 100.0)
+        w.write_marker("ECHO|manual_marker|coordinator_01|coordinator|session_note", 100.0)
+        w.write_marker("ECHO|zone_enter|therapist_01|therapist|arms_reach", 105.0)
         w.close()
         xdf_path = w.path
 
@@ -180,7 +181,7 @@ class TestXDFBackfillSimulation:
                     (session_id, participant_id, site_id, sponsor_id,
                      event_type, source, actor_id, actor_role, zone_label, lsl_timestamp)
                    VALUES (%s, %s, %s, %s,
-                           'proximity_state_change', 'manual_logging',
+                           'zone_enter', 'manual_logging',
                            'therapist_01', 'therapist', 'in_room', %s)""",
                 (_BF_SESSION, _BF_PARTICIPANT, _BF_SITE, _BF_SPONSOR, 100.0),
             )
@@ -196,7 +197,7 @@ class TestXDFBackfillSimulation:
             assert report.streams["HRV"].gap == 4
             assert report.streams["EDA"].gap == 0
             assert report.streams["Respiration"].gap == 10
-            assert report.streams["ECHO"].gap == 1
+            assert report.streams["ECHO"].gap == 2
 
             meta = SessionMeta(
                 participant_id=_BF_PARTICIPANT,
@@ -213,7 +214,7 @@ class TestXDFBackfillSimulation:
             assert report_after.streams["HRV"].db_count == 10
             assert report_after.streams["EDA"].db_count == 20
             assert report_after.streams["Respiration"].db_count == 15
-            assert report_after.streams["ECHO"].db_count == 2
+            assert report_after.streams["ECHO"].db_count == 3
 
             for table, expected_n in (
                 ("eeg_samples", 50),
@@ -236,7 +237,7 @@ class TestXDFBackfillSimulation:
             assert db_counts_rerun["HRV"] == 10
             assert db_counts_rerun["EDA"] == 20
             assert db_counts_rerun["Respiration"] == 15
-            assert db_counts_rerun["ECHO"] == 2
+            assert db_counts_rerun["ECHO"] == 3
 
         finally:
             for table in ("eeg_samples", "hrv_samples", "eda_samples", "respiration_samples"):

@@ -1,3 +1,5 @@
+set dotenv-load := true
+
 # ── Dev defaults — override with SESSION_ID=xxx just <recipe> ─────────────────
 session_id     := env_var_or_default("SESSION_ID",     "11111111-1111-1111-1111-111111111111")
 participant_id := env_var_or_default("PARTICIPANT_ID", "22222222-2222-2222-2222-222222222222")

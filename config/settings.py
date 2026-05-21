@@ -39,6 +39,14 @@ def _get_optional(key: str) -> str | None:
     return value if value else None
 
 
+def _get_optional_csv(key: str) -> tuple[str, ...] | None:
+    value = _get_optional(key)
+    if value is None:
+        return None
+    items = tuple(part.strip() for part in value.split(",") if part.strip())
+    return items or None
+
+
 def validate() -> None:
     """Check all required config values and fail with a single clear error.
 
@@ -87,6 +95,11 @@ def validate() -> None:
     if RESPIRATION_SOURCE not in ("belt_direct", "rsa_derived"):
         errors.append(
             f"RESPIRATION_SOURCE = {RESPIRATION_SOURCE!r} (must be belt_direct | rsa_derived)"
+        )
+    if EEG_CHANNEL_NAMES is not None and len(EEG_CHANNEL_NAMES) != EEG_CHANNEL_COUNT:
+        errors.append(
+            "EEG_CHANNEL_NAMES length must match EEG_CHANNEL_COUNT "
+            f"({len(EEG_CHANNEL_NAMES)} != {EEG_CHANNEL_COUNT})"
         )
 
     if errors:
@@ -152,6 +165,7 @@ SAMPLE_RATE_RESPIRATION: int = int(_get("SAMPLE_RATE_RESPIRATION", "4"))
 # EEG channel count — used by lsl_forwarder for narrow-row expansion
 # (one DB row per channel per sample)
 EEG_CHANNEL_COUNT: int = int(_get("EEG_CHANNEL_COUNT", "8"))
+EEG_CHANNEL_NAMES: tuple[str, ...] | None = _get_optional_csv("EEG_CHANNEL_NAMES")
 
 # ---------------------------------------------------------------------------
 # Device

@@ -46,8 +46,6 @@ from capture.watchdog.db import log_restart, mark_session_closing, mark_session_
 from capture.watchdog.process import start_forwarder, stop_forwarder, wait_for_forwarder
 from config import settings
 
-settings.validate()
-
 log = get_logger("watchdog")
 
 
@@ -65,12 +63,14 @@ def install_signal_handlers(state: models.WatchdogState, args: models.WatchdogAr
 
 
 def handle_clean_shutdown(args: models.WatchdogArgs) -> None:
-    mark_session_closing(args.session_id)
+    mark_session_closing(args.session_id, args.sponsor_id)
     log.info(
         "clean shutdown complete",
         extra={
             "next_step": (
-                f"python -m capture.session_close --session-id {args.session_id} --xdf-path <path>"
+                "python -m capture.session_close "
+                f"--session-id {args.session_id} --sponsor-id {args.sponsor_id} "
+                "--xdf-path <path>"
             )
         },
     )
@@ -134,7 +134,7 @@ def run_watchdog_loop(
                 "max restarts exceeded — marking session failed",
                 extra={"max_restarts": models.MAX_RESTARTS, "session_id": args.session_id},
             )
-            mark_session_failed(args.session_id)
+            mark_session_failed(args.session_id, args.sponsor_id)
             break
 
         delay = restart_delay_s(state.restart_count)
@@ -143,6 +143,7 @@ def run_watchdog_loop(
 
 
 def main() -> None:
+    settings.validate()
     args = watchdog_args(parse_args())
     set_session_id(args.session_id)
 

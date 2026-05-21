@@ -12,6 +12,7 @@ def parse_args() -> argparse.Namespace:
         description="Close a untitledplatform_1a session and gate post-session batch."
     )
     parser.add_argument("--session-id", required=True, help="Session UUID")
+    parser.add_argument("--sponsor-id", required=True, help="Sponsor UUID")
     parser.add_argument(
         "--xdf-path",
         required=True,
@@ -23,4 +24,4 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    sys.exit(run(args.session_id, args.xdf_path))
+    sys.exit(run(args.session_id, args.sponsor_id, args.xdf_path))

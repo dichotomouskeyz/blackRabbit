@@ -10,9 +10,10 @@ from batch.reconcile import (
     stream_xdf_markers,
     stream_xdf_samples,
 )
-from capture.xdf import XDFWriter
+from capture.xdf.writer import XDFWriter
 from tests.capture_tests.reconciliation.support import (
     _ALL_STREAMS,
+    PARTICIPANT_ID,
     SESSION_ID,
     SITE_ID,
     SPONSOR_ID,
@@ -53,12 +54,12 @@ class TestReadXDFCountsHappyPath:
             (
                 0,
                 pytest.approx(100.0),
-                "ECHO|proximity_state_change|therapist_01|therapist|arms_reach",
+                "ECHO|zone_enter|therapist_01|therapist|arms_reach",
             ),
             (
                 1,
                 pytest.approx(105.0),
-                "ECHO|proximity_state_change|therapist_01|therapist|in_room",
+                "ECHO|zone_enter|therapist_01|therapist|in_room",
             ),
         ]
 
@@ -71,7 +72,7 @@ class TestReadXDFCountsHappyPath:
         import config.settings as s
 
         monkeypatch.setattr(s, "XDF_BACKUP_DIR", tmp_path)
-        w = XDFWriter(SESSION_ID, SITE_ID, SPONSOR_ID)
+        w = XDFWriter(SESSION_ID, PARTICIPANT_ID, SITE_ID, SPONSOR_ID)
         w.write_samples("EEG", [[1.0] * 8] * 25, list(range(25)))
         w.write_samples("EEG", [[2.0] * 8] * 25, list(range(25, 50)))
         w.write_samples("EEG", [[3.0] * 8] * 10, list(range(50, 60)))
@@ -150,7 +151,7 @@ class TestStreamXDFSamples:
         import config.settings as s
 
         monkeypatch.setattr(s, "XDF_BACKUP_DIR", tmp_path)
-        w = XDFWriter(SESSION_ID, SITE_ID, SPONSOR_ID)
+        w = XDFWriter(SESSION_ID, PARTICIPANT_ID, SITE_ID, SPONSOR_ID)
         known_vals = [1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8]
         w.write_samples("EEG", [known_vals], [42.0])
         w.close()
@@ -174,7 +175,7 @@ class TestStreamXDFSamples:
         import config.settings as s
 
         monkeypatch.setattr(s, "XDF_BACKUP_DIR", tmp_path)
-        w = XDFWriter(SESSION_ID, SITE_ID, SPONSOR_ID)
+        w = XDFWriter(SESSION_ID, PARTICIPANT_ID, SITE_ID, SPONSOR_ID)
         w.write_samples("HRV", [[800.0]] * 5, list(range(5)))
         w.write_samples("HRV", [[810.0]] * 3, list(range(5, 8)))
         w.write_samples("HRV", [[820.0]] * 2, list(range(8, 10)))

@@ -9,7 +9,12 @@ from capture.synthetic_board.outlets import (
     create_outlets,
     validate_specs,
 )
-from capture.synthetic_board.runtime import build_threads, handle_stop, run_until_stopped
+from capture.synthetic_board.runtime import (
+    build_threads,
+    clear_stop_event,
+    handle_stop,
+    run_until_stopped,
+)
 from config import settings
 
 log = get_logger("synthetic_board")
@@ -50,6 +55,7 @@ def main() -> None:
 
     settings.validate()
     args = parse_args()
+    clear_stop_event()
 
     specs = build_stream_specs(args)
     validate_specs(specs)

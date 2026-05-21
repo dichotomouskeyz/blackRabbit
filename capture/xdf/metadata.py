@@ -3,7 +3,13 @@ from datetime import datetime, timezone
 from .constants import _CHANNEL_COUNTS, _SAMPLE_RATES
 
 
-def _stream_header_xml(stream_name: str, session_id: str, site_id: str, sponsor_id: str) -> str:
+def _stream_header_xml(
+    stream_name: str,
+    session_id: str,
+    participant_id: str,
+    site_id: str,
+    sponsor_id: str,
+) -> str:
     n_ch = _CHANNEL_COUNTS[stream_name]
     rate = _SAMPLE_RATES[stream_name]
     fmt = "string" if stream_name == "ECHO" else "float32"
@@ -17,6 +23,7 @@ def _stream_header_xml(stream_name: str, session_id: str, site_id: str, sponsor_
         f"<channel_format>{fmt}</channel_format>"
         f"<source_id>untitledplatform_1a-{stream_name.lower()}</source_id>"
         f"<session_id>{session_id}</session_id>"
+        f"<participant_id>{participant_id}</participant_id>"
         f"<site_id>{site_id}</site_id>"
         f"<sponsor_id>{sponsor_id}</sponsor_id>"
         f"<created_at>{datetime.now(timezone.utc).isoformat()}</created_at>"

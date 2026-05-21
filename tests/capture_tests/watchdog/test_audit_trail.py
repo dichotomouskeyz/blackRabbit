@@ -1,7 +1,8 @@
 """Tests for capture.watchdog — audit trail and end-to-end crash chain."""
 
+# ruff: noqa: E402,I001
+
 import os
-import subprocess
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -10,11 +11,13 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", ".env"))
 
-import capture.watchdog as watchdog_module  # noqa: E402
+import capture.watchdog.db as watchdog_db  # noqa: E402
+import capture.watchdog.models as watchdog_models  # noqa: E402
+import capture.watchdog.process as watchdog_process  # noqa: E402
+import capture.watchdog.runner as watchdog_runner  # noqa: E402
+from config import settings  # noqa: E402
 
 from tests.capture_tests.watchdog.support import (  # noqa: E402
-    _PART_UUID,
-    _SITE_UUID,
     _SPONSOR_UUID,
     _cleanup_session,
     _direct_conn,
@@ -24,23 +27,25 @@ from tests.capture_tests.watchdog.support import (  # noqa: E402
 _SID_ALERT = "d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a01"
 _SID_AUDIT = "d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a02"
 _SID_E2E = "d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a03"
+_SID_LOOKUP = "d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a0a"
+_OTHER_SPONSOR = "f1d00009-0000-4444-dddd-000000000099"
 
 
 @pytest.mark.integration
 class TestWatchdogAuditTrail:
     def test_log_restart_writes_alert_event(self, monkeypatch):
         monkeypatch.setattr(
-            watchdog_module.settings,
+            settings,
             "DATABASE_URL",
             os.getenv("TEST_DATABASE_URL"),
         )
         _insert_session(_SID_ALERT)
         try:
-            watchdog_module._log_restart(
+            watchdog_db.log_restart(
                 session_id=_SID_ALERT,
                 participant_id="aaaa0003-0000-0000-0000-000000000001",
                 site_id="bbbb0000-0000-0000-0000-000000000001",
-                sponsor_id="cccc0000-0000-0000-0000-000000000001",
+                sponsor_id=_SPONSOR_UUID,
                 exit_code=1,
                 restart_count=1,
                 uptime_s=12.5,
@@ -52,7 +57,8 @@ class TestWatchdogAuditTrail:
                     cur.execute(
                         """
                         SELECT alert_type, algorithm_name, algorithm_version,
-                               algorithm_parameters, severity
+                               algorithm_parameters, severity, lsl_timestamp,
+                               compound_dose
                         FROM alert_events
                         WHERE session_id = %s AND alert_type = 'process_restart'
                         ORDER BY db_insert_time DESC LIMIT 1
@@ -73,20 +79,76 @@ class TestWatchdogAuditTrail:
         assert row[3]["restart_count"] == 1
         assert row[3]["uptime_s"] == 12.5
         assert row[4] == "warning"
+        assert row[5] is not None
+        assert row[6] is None
+
+    def test_lookup_compound_requires_matching_sponsor(self, monkeypatch):
+        monkeypatch.setattr(
+            settings,
+            "DATABASE_URL",
+            os.getenv("TEST_DATABASE_URL"),
+        )
+        _insert_session(_SID_LOOKUP)
+        conn = _direct_conn()
+        try:
+            with pytest.raises(RuntimeError, match="not found for sponsor"):
+                watchdog_db.lookup_compound(conn, _SID_LOOKUP, _OTHER_SPONSOR)
+        finally:
+            conn.close()
+            _cleanup_session(_SID_LOOKUP)
+
+    def test_log_restart_preserves_unknown_dose_as_null(self, monkeypatch):
+        monkeypatch.setattr(
+            settings,
+            "DATABASE_URL",
+            os.getenv("TEST_DATABASE_URL"),
+        )
+        _insert_session(_SID_LOOKUP, compound_dose=None)
+        try:
+            watchdog_db.log_restart(
+                session_id=_SID_LOOKUP,
+                participant_id="aaaa0003-0000-0000-0000-000000000001",
+                site_id="bbbb0000-0000-0000-0000-000000000001",
+                sponsor_id=_SPONSOR_UUID,
+                exit_code=1,
+                restart_count=1,
+                uptime_s=12.5,
+            )
+
+            conn = _direct_conn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT compound_dose
+                        FROM alert_events
+                        WHERE session_id = %s AND alert_type = 'process_restart'
+                        ORDER BY db_insert_time DESC LIMIT 1
+                        """,
+                        (_SID_LOOKUP,),
+                    )
+                    row = cur.fetchone()
+            finally:
+                conn.close()
+        finally:
+            _cleanup_session(_SID_LOOKUP)
+
+        assert row is not None
+        assert row[0] is None
 
     def test_log_restart_triggers_audit_event(self, monkeypatch):
         monkeypatch.setattr(
-            watchdog_module.settings,
+            settings,
             "DATABASE_URL",
             os.getenv("TEST_DATABASE_URL"),
         )
         _insert_session(_SID_AUDIT)
         try:
-            watchdog_module._log_restart(
+            watchdog_db.log_restart(
                 session_id=_SID_AUDIT,
                 participant_id="aaaa0003-0000-0000-0000-000000000002",
                 site_id="bbbb0000-0000-0000-0000-000000000001",
-                sponsor_id="cccc0000-0000-0000-0000-000000000001",
+                sponsor_id=_SPONSOR_UUID,
                 exit_code=137,
                 restart_count=2,
                 uptime_s=300.0,
@@ -112,12 +174,12 @@ class TestWatchdogAuditTrail:
 
     def test_simulated_crash_end_to_end(self, monkeypatch):
         monkeypatch.setattr(
-            watchdog_module.settings,
+            settings,
             "DATABASE_URL",
             os.getenv("TEST_DATABASE_URL"),
         )
-        monkeypatch.setattr(watchdog_module, "MAX_RESTARTS", 1)
-        monkeypatch.setattr(watchdog_module, "RESTART_DELAY_BASE_S", 0.0)
+        monkeypatch.setattr(watchdog_models, "MAX_RESTARTS", 1)
+        monkeypatch.setattr(watchdog_models, "RESTART_DELAY_BASE_S", 0.0)
         _insert_session(_SID_E2E)
         try:
             mock_proc = MagicMock()
@@ -132,13 +194,13 @@ class TestWatchdogAuditTrail:
                     "--session-id", _SID_E2E,
                     "--participant-id", "aaaa0003-0000-0000-0000-000000000003",
                     "--site-id", "bbbb0000-0000-0000-0000-000000000001",
-                    "--sponsor-id", "cccc0000-0000-0000-0000-000000000001",
+                    "--sponsor-id", _SPONSOR_UUID,
                 ],
             )
 
-            with patch("capture.watchdog.subprocess.Popen", return_value=mock_proc):
-                with patch("capture.watchdog.time.sleep"):
-                    watchdog_module.main()
+            with patch.object(watchdog_process.subprocess, "Popen", return_value=mock_proc):
+                with patch.object(watchdog_runner.time, "sleep"):
+                    watchdog_runner.main()
 
             conn = _direct_conn()
             try:

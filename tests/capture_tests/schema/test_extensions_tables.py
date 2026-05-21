@@ -2,7 +2,7 @@
 
 import pytest
 
-from tests.capture_tests.schema.support import is_hypertable, table_exists
+from tests.capture_tests.schema.support import column_exists, is_hypertable, table_exists
 
 
 class TestExtensions:
@@ -26,11 +26,7 @@ class TestTablesExist:
         "audit_events",
         "alert_events",
         "echo_events",
-        "participant_consent_log",
         "schema_version_log",
-        "electronic_signatures",
-        "investigational_product_log",
-        "adverse_event_log",
         "session_signal_metadata",
         "data_correction_amendment_log",
         "session_environment_log",
@@ -51,3 +47,19 @@ class TestHypertables:
     @pytest.mark.parametrize("table_name", HYPERTABLES)
     def test_is_hypertable(self, cursor, table_name):
         assert is_hypertable(cursor, table_name), f"'{table_name}' is not a hypertable"
+
+
+class TestBiosignalIntegrityLog:
+    def test_log_type_column_exists(self, cursor):
+        assert column_exists(cursor, "biosignal_integrity_log", "log_type")
+
+    def test_hash_method_column_exists(self, cursor):
+        assert column_exists(cursor, "biosignal_integrity_log", "hash_method")
+
+    def test_reconciliation_report_column_exists(self, cursor):
+        assert column_exists(cursor, "biosignal_integrity_log", "reconciliation_report")
+
+
+class TestSessionSignalMetadata:
+    def test_eeg_channel_names_column_exists(self, cursor):
+        assert column_exists(cursor, "session_signal_metadata", "eeg_channel_names")

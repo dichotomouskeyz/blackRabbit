@@ -1,4 +1,4 @@
-"""Shared structured logging helper for all Consensai 1a processes.
+"""Shared structured logging helper for all blackRabbit 1a processes.
 
 Every process that runs during a session — lsl_forwarder, safety_monitor,
 sqi_monitor, batch jobs — imports this module and calls get_logger() once
@@ -130,9 +130,9 @@ def get_logger(process_name: str) -> logging.Logger:
     formatter = _JsonFormatter(process_name)
 
     # stderr handler — logs go to stderr so stdout stays clean for program output
-    stdout_handler = logging.StreamHandler(sys.stderr)
-    stdout_handler.setFormatter(formatter)
-    logger.addHandler(stdout_handler)
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setFormatter(formatter)
+    logger.addHandler(stderr_handler)
 
     try:
         log_dir: Path = settings.LOG_DIR

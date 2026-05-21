@@ -66,6 +66,10 @@ def _build_echo_marker(
     return f"ECHO|{event_type}|{actor_id}|{actor_role}|{zone_label}"
 
 
+EMISSION_SEQUENCE = _EMISSION_SEQUENCE
+build_echo_marker = _build_echo_marker
+
+
 def _handle_stop(signum, frame) -> None:
     _stop.set()
 

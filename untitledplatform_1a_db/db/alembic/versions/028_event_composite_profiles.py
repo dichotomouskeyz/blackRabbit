@@ -65,6 +65,7 @@ def upgrade() -> None:
             sap_participating_signals   JSONB            NOT NULL DEFAULT '[]'::jsonb
                                                         CHECK (jsonb_typeof(sap_participating_signals) = 'array'),
             arc_config_version          TEXT             NOT NULL,
+            arc_config_sha256           TEXT             NOT NULL,
             created_at                  TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
 
             CONSTRAINT event_composite_profiles_session_echo_event_unique

@@ -22,6 +22,7 @@ class SessionConfig:
     participant_id: str
     site_id: str
     sponsor_id: str
+    eeg_channel_names: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         for field in ("session_id", "participant_id", "site_id", "sponsor_id"):

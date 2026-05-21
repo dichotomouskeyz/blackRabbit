@@ -32,6 +32,43 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 _RESTRICTED_ROLE = "pytest_restricted"
 _RESTRICTED_PASSWORD = "pytest-restricted"
+_DB_AVAILABILITY: tuple[bool, str] | None = None
+
+
+def _database_available() -> tuple[bool, str]:
+    global _DB_AVAILABILITY
+    if _DB_AVAILABILITY is not None:
+        return _DB_AVAILABILITY
+
+    url = os.getenv("TEST_DATABASE_URL")
+    if not url:
+        _DB_AVAILABILITY = (
+            False,
+            "TEST_DATABASE_URL not set in .env. "
+            "Add: TEST_DATABASE_URL=postgresql://postgres:PASSWORD@localhost:5432/consensai_test",
+        )
+        return _DB_AVAILABILITY
+
+    try:
+        conn = psycopg2.connect(url)
+    except psycopg2.OperationalError as exc:
+        _DB_AVAILABILITY = (False, f"TEST_DATABASE_URL database is unavailable: {exc}")
+    else:
+        conn.close()
+        _DB_AVAILABILITY = (True, "")
+
+    return _DB_AVAILABILITY
+
+
+def pytest_collection_modifyitems(config, items):
+    available, reason = _database_available()
+    if available:
+        return
+
+    skip_integration = pytest.mark.skip(reason=reason)
+    for item in items:
+        if item.get_closest_marker("integration"):
+            item.add_marker(skip_integration)
 
 
 @pytest.fixture(scope="session")
@@ -43,32 +80,20 @@ def db_url():
     """
     url = os.getenv("TEST_DATABASE_URL")
     if not url:
-        raise RuntimeError(
+        pytest.skip(
             "TEST_DATABASE_URL not set in .env. "
             "Add: TEST_DATABASE_URL=postgresql://postgres:PASSWORD@localhost:5432/consensai_test"
         )
+    available, reason = _database_available()
+    if not available:
+        pytest.skip(reason)
     return url
 
 
-def _connect_from_url(url: str):
-    url = url.replace("postgresql://", "")
-    user_pass, rest = url.split("@")
-    user, password = user_pass.split(":")
-    host_port, dbname = rest.split("/")
-    host, port = host_port.split(":")
-    return {
-        "host": host,
-        "port": int(port),
-        "dbname": dbname,
-        "user": user,
-        "password": password,
-    }
-
-
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def restricted_role(db_url):
     """Create the low-privilege role used by append-only schema tests."""
-    conn = psycopg2.connect(**_connect_from_url(db_url))
+    conn = psycopg2.connect(db_url)
     conn.autocommit = True
     try:
         with conn.cursor() as cur:
@@ -107,7 +132,7 @@ def db_conn(db_url):
       fire, does the constraint reject invalid data?
       psycopg2 is the direct Postgres driver with no abstraction.
     """
-    conn = psycopg2.connect(**_connect_from_url(db_url))
+    conn = psycopg2.connect(db_url)
     conn.autocommit = False
 
     yield conn
@@ -129,15 +154,9 @@ def cursor(db_conn):
 
 
 @pytest.fixture(scope="function")
-def restricted_conn(db_url):
+def restricted_conn(db_url, restricted_role):
     """Open a restricted-privilege connection for append-only permission tests."""
-    conn = psycopg2.connect(
-        **{
-            **_connect_from_url(db_url),
-            "user": _RESTRICTED_ROLE,
-            "password": _RESTRICTED_PASSWORD,
-        }
-    )
+    conn = psycopg2.connect(db_url, user=_RESTRICTED_ROLE, password=_RESTRICTED_PASSWORD)
     conn.autocommit = False
     yield conn
     conn.rollback()

@@ -4,7 +4,6 @@ import pytest
 
 from tests.capture_tests.schema.support import (
     _BIOSIGNAL_TABLES,
-    _TS_LSL,
     _TS_SESSION,
 )
 

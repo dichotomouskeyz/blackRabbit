@@ -1,9 +1,11 @@
-"""024 sessions watermark trigger
+"""024 sessions status transition and watermark trigger
 
-Adds an AFTER UPDATE trigger on sessions that writes to audit_events when
-status transitions to 'closed' (watermark_verified) or 'failed'
-(watermark_failed).  The event_type names are the gate that batch processing
-checks before running post-session jobs.
+Adds an AFTER UPDATE trigger on sessions that writes a
+session_status_transition audit event for every genuine status transition.
+Terminal transitions also write watermark events: 'closed' produces
+watermark_verified and 'failed' produces watermark_failed. The watermark
+event_type names are the gate that batch processing checks before running
+post-session jobs.
 
 Revision ID: 024_watermark_trigger
 Revises: 023_indexes
@@ -29,6 +31,27 @@ def upgrade() -> None:
             IF NEW.status = OLD.status THEN
                 RETURN NEW;
             END IF;
+
+            INSERT INTO audit_events (
+                session_id,
+                event_type,
+                table_name,
+                record_id,
+                payload,
+                event_timestamp
+            ) VALUES (
+                NEW.id,
+                'session_status_transition',
+                'sessions',
+                NEW.id::TEXT,
+                jsonb_build_object(
+                    'old_status', OLD.status::TEXT,
+                    'new_status', NEW.status::TEXT,
+                    'started_at',  NEW.started_at,
+                    'closed_at',  NEW.closed_at
+                ),
+                NOW()
+            );
 
             IF NEW.status = 'closed' THEN
                 INSERT INTO audit_events (

@@ -1,7 +1,7 @@
 """015 add schema version metadata
 
 Revision ID: 015_schema_version_metadata
-Revises: 014_consent_log
+Revises: 013_compression_policy
 Create Date: 2026-04-27
 
 WHY SCHEMA VERSION METADATA:
@@ -18,9 +18,9 @@ WHY SCHEMA VERSION METADATA:
     - Debugging anomalies in old sessions requires knowing what the
       system looked like at the time
 
-  This is also a regulatory requirement: you must be able to
-  reconstruct the exact state of the system at the time of any
-  recorded data. Schema version is part of that reconstruction.
+  Reconstructing the exact state of the system at the time of recorded
+  data is useful for regulated deployments too, but the open-source core
+  treats schema version as computational provenance.
 
 WHAT GETS RECORDED:
   - alembic_version: the migration head at session creation time
@@ -43,9 +43,8 @@ WHY ALL THESE VERSIONS:
   how data is stored and queried. pgvector's distance functions evolved.
 
   Without knowing the exact version of every component at session time,
-  you cannot reproduce a batch computation from raw data alone — which
-  is a regulatory requirement for an IND. These columns are the
-  computational provenance record for every session.
+  you cannot reproduce a batch computation from raw data alone. These
+  columns are the computational provenance record for every session.
 
 HOW IT WORKS:
   session_init.py (Phase 2) writes one row to this table at session
@@ -61,7 +60,7 @@ from typing import Sequence, Union
 from alembic import op
 
 revision: str = "015_schema_version_metadata"
-down_revision: Union[str, None] = "014_consent_log"
+down_revision: Union[str, None] = "013_compression_policy"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -64,10 +64,28 @@ def try_reconnect(buffer_depth: int):
 
 
 def write_row(conn, row: dict):
+    # ECHO writes are write-once rows; a non-connection psycopg2.Error means the
+    # row is rejected permanently rather than buffered for retry.
     try:
         with conn.cursor() as cur:
             cur.execute(ECHO_INSERT, row)
         conn.commit()
+        log.info(
+            "ECHO event persisted",
+            extra={
+                "session_id": row.get("session_id"),
+                "participant_id": row.get("participant_id"),
+                "site_id": row.get("site_id"),
+                "sponsor_id": row.get("sponsor_id"),
+                "event_type": row.get("event_type"),
+                "source": "manual_logging",
+                "actor_id": row.get("actor_id"),
+                "actor_role": row.get("actor_role"),
+                "zone_label": row.get("zone_label"),
+                "lsl_timestamp": row.get("lsl_timestamp"),
+                "ingestion_path": "live_db",
+            },
+        )
         return conn, True
     except psycopg2.OperationalError as exc:
         log.error(
@@ -79,7 +97,15 @@ def write_row(conn, row: dict):
     except psycopg2.Error as exc:
         log.error(
             "ECHO DB insert error",
-            extra={"error": str(exc), "zone_label": row.get("zone_label")},
+            extra={
+                "error": str(exc),
+                "session_id": row.get("session_id"),
+                "event_type": row.get("event_type"),
+                "actor_role": row.get("actor_role"),
+                "zone_label": row.get("zone_label"),
+                "lsl_timestamp": row.get("lsl_timestamp"),
+                "ingestion_path": "live_db",
+            },
         )
         rollback_quietly(conn)
         return conn, False

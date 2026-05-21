@@ -21,15 +21,15 @@ from typing import IO
 from capture.logger import get_logger
 from config import settings
 
-from .binary import _write_chunk
+from .binary import write_chunk
 from .constants import (
-    _BIOSIGNAL_STREAM_IDS,
-    _STREAM_IDS,
-    _TAG_FILE_HEADER,
-    _TAG_SAMPLES,
-    _TAG_STREAM_FOOTER,
-    _TAG_STREAM_HEADER,
-    _XDF_MAGIC,
+    BIOSIGNAL_STREAM_IDS,
+    STREAM_IDS,
+    TAG_FILE_HEADER,
+    TAG_SAMPLES,
+    TAG_STREAM_FOOTER,
+    TAG_STREAM_HEADER,
+    XDF_MAGIC,
 )
 from .metadata import _stream_footer_xml, _stream_header_xml
 from .samples import _build_biosignal_payload, _build_marker_payload
@@ -49,15 +49,21 @@ class XDFWriter:
     DB write path is not affected.
     """
 
-    def __init__(self, session_id: str, site_id: str, sponsor_id: str) -> None:
+    def __init__(
+        self,
+        session_id: str,
+        participant_id: str,
+        site_id: str,
+        sponsor_id: str,
+    ) -> None:
         self._session_id = session_id
         self._lock = threading.Lock()
         self._closed = False
 
         # Per-stream statistics (protected by _lock)
-        self._sample_counts: dict[str, int] = {k: 0 for k in _STREAM_IDS}
-        self._first_ts: dict[str, float | None] = {k: None for k in _STREAM_IDS}
-        self._last_ts: dict[str, float | None] = {k: None for k in _STREAM_IDS}
+        self._sample_counts: dict[str, int] = {k: 0 for k in STREAM_IDS}
+        self._first_ts: dict[str, float | None] = {k: None for k in STREAM_IDS}
+        self._last_ts: dict[str, float | None] = {k: None for k in STREAM_IDS}
 
         # Create output directory and open file
         xdf_dir = Path(settings.XDF_BACKUP_DIR)
@@ -67,17 +73,23 @@ class XDFWriter:
         self._f: IO[bytes] = open(self._path, "wb")
 
         # Write file header + all stream headers (biosignals + ECHO markers)
-        self._f.write(_XDF_MAGIC)
-        _write_chunk(
+        self._f.write(XDF_MAGIC)
+        write_chunk(
             self._f,
-            _TAG_FILE_HEADER,
+            TAG_FILE_HEADER,
             b'<?xml version="1.0"?><info><version>1.0</version></info>',
         )
-        for stream_name, stream_id in _STREAM_IDS.items():
-            xml = _stream_header_xml(stream_name, session_id, site_id, sponsor_id)
-            _write_chunk(
+        for stream_name, stream_id in STREAM_IDS.items():
+            xml = _stream_header_xml(
+                stream_name,
+                session_id,
+                participant_id,
+                site_id,
+                sponsor_id,
+            )
+            write_chunk(
                 self._f,
-                _TAG_STREAM_HEADER,
+                TAG_STREAM_HEADER,
                 struct.pack("<I", stream_id) + xml.encode("utf-8"),
             )
         self._f.flush()
@@ -101,13 +113,13 @@ class XDFWriter:
         if self._closed:
             return
 
-        payload = _build_marker_payload(_STREAM_IDS["ECHO"], lsl_timestamp, marker)
+        payload = _build_marker_payload(STREAM_IDS["ECHO"], lsl_timestamp, marker)
 
         with self._lock:
             if self._closed:
                 return
             try:
-                _write_chunk(self._f, _TAG_SAMPLES, payload)
+                write_chunk(self._f, TAG_SAMPLES, payload)
                 self._f.flush()
             except OSError as exc:
                 log.error(
@@ -138,13 +150,13 @@ class XDFWriter:
         if not samples or self._closed:
             return
 
-        payload = _build_biosignal_payload(_BIOSIGNAL_STREAM_IDS[stream_name], timestamps, samples)
+        payload = _build_biosignal_payload(BIOSIGNAL_STREAM_IDS[stream_name], timestamps, samples)
 
         with self._lock:
             if self._closed:
                 return
             try:
-                _write_chunk(self._f, _TAG_SAMPLES, payload)
+                write_chunk(self._f, TAG_SAMPLES, payload)
                 self._f.flush()
             except OSError as exc:
                 log.error(
@@ -168,14 +180,14 @@ class XDFWriter:
                 return
             self._closed = True
 
-            for stream_name, stream_id in _STREAM_IDS.items():
+            for stream_name, stream_id in STREAM_IDS.items():
                 n = self._sample_counts[stream_name]
                 first = self._first_ts[stream_name] or 0.0
                 last = self._last_ts[stream_name] or 0.0
                 footer_xml = _stream_footer_xml(first, last, n)
-                _write_chunk(
+                write_chunk(
                     self._f,
-                    _TAG_STREAM_FOOTER,
+                    TAG_STREAM_FOOTER,
                     struct.pack("<I", stream_id) + footer_xml,
                 )
 
@@ -203,3 +215,7 @@ class XDFWriter:
     def sample_counts(self) -> dict[str, int]:
         with self._lock:
             return dict(self._sample_counts)
+
+    @property
+    def is_closed(self) -> bool:
+        return self._closed

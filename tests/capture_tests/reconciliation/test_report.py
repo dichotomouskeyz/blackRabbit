@@ -71,11 +71,23 @@ class TestBuildReport:
         assert "is_reconciled" in d
         assert "streams" in d
         assert "ran_at" in d
+        assert "max_clock_drift_s" in d
 
     def test_as_dict_streams_contain_gap(self):
         report = self._make_report({"EEG": 10}, {"EEG": 7})
         d = report.as_dict()
         assert d["streams"]["EEG"]["gap"] == 3
+
+    def test_report_preserves_max_clock_drift(self):
+        report = build_report(
+            session_id=SESSION_ID,
+            xdf_path=Path("/fake/session.xdf"),
+            xdf_counts={"EEG": 10},
+            db_counts={"EEG": 10},
+            max_clock_drift_s=0.012,
+        )
+        assert report.max_clock_drift_s == 0.012
+        assert report.as_dict()["max_clock_drift_s"] == 0.012
 
 
 class TestEndToEnd:

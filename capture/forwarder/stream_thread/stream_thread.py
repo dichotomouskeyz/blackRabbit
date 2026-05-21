@@ -8,21 +8,21 @@ import psycopg2
 import pylsl
 
 from capture.forwarder.models import BUFFER_MAX_CHUNKS, SessionConfig
-from capture.forwarder.stream_thread import (
+from capture.forwarder.stream_thread.stream_chunks import log_chunk_summary
+from capture.forwarder.stream_thread.stream_db import (
     connect_db,
     flush_buffer,
-    log_chunk_summary,
-    maybe_record_drift,
-    resolve_inlet,
-    run_stream_thread,
     try_reconnect,
-    write_integrity_log,
     write_rows,
 )
-from capture.xdf import XDFWriter
+from capture.forwarder.stream_thread.stream_drift import maybe_record_drift
+from capture.forwarder.stream_thread.stream_inlet import resolve_inlet
+from capture.forwarder.stream_thread.stream_integrity import write_integrity_log
+from capture.forwarder.stream_thread.stream_runtime import run_stream_thread
+from capture.xdf.writer import XDFWriter
 
 
-class _StreamThread(threading.Thread):
+class StreamThread(threading.Thread):
     def __init__(
         self,
         stream_name: str,
@@ -57,41 +57,61 @@ class _StreamThread(threading.Thread):
     def run(self) -> None:
         run_stream_thread(self)
 
-    def _resolve_inlet(self) -> pylsl.StreamInlet | None:
+    def resolve_inlet(self) -> pylsl.StreamInlet | None:
         return resolve_inlet(self)
 
-    def _connect_db(self) -> psycopg2.extensions.connection | None:
+    def connect_db(self) -> psycopg2.extensions.connection | None:
         return connect_db(self)
 
-    def _try_reconnect(self) -> psycopg2.extensions.connection | None:
+    def try_reconnect(self) -> psycopg2.extensions.connection | None:
         return try_reconnect(self)
 
-    def _write_rows(
+    def write_rows(
         self,
         conn: psycopg2.extensions.connection,
         rows: list[dict],
     ) -> psycopg2.extensions.connection | None:
         return write_rows(self, conn, rows)
 
-    def _flush_buffer(
+    def flush_buffer(
         self,
         conn: psycopg2.extensions.connection,
     ) -> psycopg2.extensions.connection | None:
         return flush_buffer(self, conn)
 
-    def _maybe_record_drift(
+    def maybe_record_drift(
         self,
         inlet: pylsl.StreamInlet,
         conn: psycopg2.extensions.connection | None,
     ) -> None:
         maybe_record_drift(self, inlet, conn)
 
-    def _write_integrity_log(
+    def write_integrity_log(
         self,
         conn: psycopg2.extensions.connection,
         rows: list[dict],
     ) -> None:
         write_integrity_log(self, conn, rows)
 
-    def _log_chunk_summary(self, sample_count: int, timestamps: list[float]) -> None:
+    def log_chunk_summary(self, sample_count: int, timestamps: list[float]) -> None:
         log_chunk_summary(self, sample_count, timestamps)
+
+    @property
+    def sample_index(self) -> int:
+        return self._sample_index
+
+    @property
+    def buffer(self) -> collections.deque[list[dict]]:
+        return self._buffer
+
+    _resolve_inlet = resolve_inlet
+    _connect_db = connect_db
+    _try_reconnect = try_reconnect
+    _write_rows = write_rows
+    _flush_buffer = flush_buffer
+    _maybe_record_drift = maybe_record_drift
+    _write_integrity_log = write_integrity_log
+    _log_chunk_summary = log_chunk_summary
+
+
+_StreamThread = StreamThread

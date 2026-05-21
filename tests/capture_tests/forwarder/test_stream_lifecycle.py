@@ -1,4 +1,4 @@
-"""_StreamThread integration lifecycle tests — real thread, real test DB."""
+"""StreamThread integration lifecycle tests — real thread, real test DB."""
 
 import queue
 import threading
@@ -8,12 +8,10 @@ from unittest.mock import MagicMock
 import psycopg2
 import pytest
 
-from capture.forwarder import (
-    SessionConfig,
-    _EEG_INSERT,
-    _StreamThread,
-    _build_eeg_rows,
-)
+from capture.forwarder.models import SessionConfig
+from capture.forwarder.rows import build_eeg_rows
+from capture.forwarder.sql import EEG_INSERT
+from capture.forwarder.stream_thread.stream_thread import StreamThread
 
 _SESSION = "f1d00008-0000-4444-aaaa-000000000001"
 _PART = "f1d00008-0000-4444-bbbb-000000000001"
@@ -35,17 +33,17 @@ def _make_thread(
     xdf_writer=None,
     stream_type: str = "EEG",
     cfg: SessionConfig = _CFG,
-) -> _StreamThread:
+) -> StreamThread:
     if stop_event is None:
         stop_event = threading.Event()
     if xdf_writer is None:
         xdf_writer = MagicMock()
-    return _StreamThread(
+    return StreamThread(
         stream_name=f"Test{stream_type}",
         stream_type=stream_type,
         chunk_size=25,
-        row_builder=_build_eeg_rows,
-        insert_sql=_EEG_INSERT,
+        row_builder=build_eeg_rows,
+        insert_sql=EEG_INSERT,
         cfg=cfg,
         stop_event=stop_event,
         xdf_writer=xdf_writer,
@@ -161,7 +159,7 @@ class TestStreamThreadLifecycle:
     def test_thread_exits_if_inlet_not_found(self):
         stop = threading.Event()
         t = _make_thread(stop_event=stop)
-        t._resolve_inlet = lambda: None
+        t.resolve_inlet = lambda: None
 
         t.start()
         t.join(timeout=2.0)
@@ -180,8 +178,8 @@ class TestStreamThreadLifecycle:
         t = _make_thread(stop_event=stop, xdf_writer=xdf, cfg=cfg)
 
         sample_q: queue.Queue = queue.Queue()
-        t._resolve_inlet = lambda: _FakeInlet(sample_q)
-        t._connect_db = lambda: (lambda conn: setattr(conn, "autocommit", False) or conn)(
+        t.resolve_inlet = lambda: _FakeInlet(sample_q)
+        t.connect_db = lambda: (lambda conn: setattr(conn, "autocommit", False) or conn)(
             psycopg2.connect(db_url)
         )
 
@@ -213,8 +211,8 @@ class TestStreamThreadLifecycle:
         for _ in range(n_chunks * samples_per_chunk):
             sample_q.put(list(_EEG_SAMPLE))
 
-        t._resolve_inlet = lambda: _FakeInlet(sample_q, done_event=done)
-        t._connect_db = lambda: (lambda conn: setattr(conn, "autocommit", False) or conn)(
+        t.resolve_inlet = lambda: _FakeInlet(sample_q, done_event=done)
+        t.connect_db = lambda: (lambda conn: setattr(conn, "autocommit", False) or conn)(
             psycopg2.connect(db_url)
         )
 
@@ -227,7 +225,9 @@ class TestStreamThreadLifecycle:
 
             expected_rows = n_chunks * samples_per_chunk * 8
             actual = _count_eeg_rows(db_url, session_id)
-            assert actual == expected_rows, f"expected {expected_rows} eeg_samples rows, got {actual}"
+            assert actual == expected_rows, (
+                f"expected {expected_rows} eeg_samples rows, got {actual}"
+            )
         finally:
             _cleanup(db_url, session_id)
 
@@ -253,7 +253,7 @@ class TestStreamThreadLifecycle:
         sample_q.put(list(_EEG_SAMPLE))
 
         t = _make_thread(stop_event=stop, xdf_writer=xdf, cfg=cfg)
-        original_write_rows = t._write_rows
+        original_write_rows = t.write_rows
 
         def _tracked_write_rows(conn, rows):
             result = original_write_rows(conn, rows)
@@ -261,9 +261,9 @@ class TestStreamThreadLifecycle:
                 db_commit_calls.append("db")
             return result
 
-        t._write_rows = _tracked_write_rows
-        t._resolve_inlet = lambda: _FakeInlet(sample_q, done_event=done)
-        t._connect_db = lambda: (lambda conn: setattr(conn, "autocommit", False) or conn)(
+        t.write_rows = _tracked_write_rows
+        t.resolve_inlet = lambda: _FakeInlet(sample_q, done_event=done)
+        t.connect_db = lambda: (lambda conn: setattr(conn, "autocommit", False) or conn)(
             psycopg2.connect(db_url)
         )
 
@@ -300,8 +300,8 @@ class TestStreamThreadLifecycle:
         for _ in range(n_samples):
             sample_q.put(list(_EEG_SAMPLE))
 
-        t._resolve_inlet = lambda: _FakeInlet(sample_q, done_event=done)
-        t._connect_db = lambda: (lambda conn: setattr(conn, "autocommit", False) or conn)(
+        t.resolve_inlet = lambda: _FakeInlet(sample_q, done_event=done)
+        t.connect_db = lambda: (lambda conn: setattr(conn, "autocommit", False) or conn)(
             psycopg2.connect(db_url)
         )
 
@@ -315,7 +315,12 @@ class TestStreamThreadLifecycle:
             conn = _db_conn(db_url)
             cur = conn.cursor()
             cur.execute(
-                "SELECT DISTINCT sample_index FROM eeg_samples WHERE session_id = %s ORDER BY sample_index",
+                """
+                SELECT DISTINCT sample_index
+                FROM eeg_samples
+                WHERE session_id = %s
+                ORDER BY sample_index
+                """,
                 (session_id,),
             )
             indices = [r[0] for r in cur.fetchall()]
@@ -342,8 +347,8 @@ class TestStreamThreadLifecycle:
         done = threading.Event()
         sample_q.put(list(_EEG_SAMPLE))
 
-        t._resolve_inlet = lambda: _FakeInlet(sample_q, done_event=done)
-        t._connect_db = lambda: (lambda conn: setattr(conn, "autocommit", False) or conn)(
+        t.resolve_inlet = lambda: _FakeInlet(sample_q, done_event=done)
+        t.connect_db = lambda: (lambda conn: setattr(conn, "autocommit", False) or conn)(
             psycopg2.connect(db_url)
         )
 

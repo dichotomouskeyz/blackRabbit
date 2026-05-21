@@ -29,10 +29,13 @@ from batch.reconciliation.backfill import (
 from batch.reconciliation.db import (
     build_report,
     close_session,
+    fetch_existing_echo_keys,
     fetch_existing_echo_timestamps,
     fetch_existing_sample_indices,
     fetch_session_meta,
     query_db_counts,
+    query_max_clock_drift_s,
+    write_reconciliation_log,
 )
 from batch.reconciliation.models import (
     _ECHO_STREAM_NAME,
@@ -73,9 +76,11 @@ __all__ = [
     "build_report",
     "close_session",
     "fetch_existing_echo_timestamps",
+    "fetch_existing_echo_keys",
     "fetch_existing_sample_indices",
     "fetch_session_meta",
     "query_db_counts",
+    "query_max_clock_drift_s",
     "read_xdf_counts",
     "run_backfill",
     "stream_xdf_markers",
@@ -139,16 +144,31 @@ def main() -> None:
 
     try:
         db_counts = query_db_counts(conn, args.session_id)
-        report = build_report(args.session_id, args.xdf_path, xdf_counts, db_counts)
+        max_clock_drift_s = query_max_clock_drift_s(conn, args.session_id)
+        report = build_report(
+            args.session_id,
+            args.xdf_path,
+            xdf_counts,
+            db_counts,
+            max_clock_drift_s=max_clock_drift_s,
+        )
+        meta = fetch_session_meta(conn, args.session_id)
 
         if args.backfill and not report.is_reconciled:
-            meta = fetch_session_meta(conn, args.session_id)
             backfill_results = run_backfill(conn, report, meta, chunk_size=args.chunk_size)
             log.info("backfill finished", extra={"rows_by_stream": backfill_results})
 
             db_counts_after = query_db_counts(conn, args.session_id)
-            report = build_report(args.session_id, args.xdf_path, xdf_counts, db_counts_after)
+            max_clock_drift_s = query_max_clock_drift_s(conn, args.session_id)
+            report = build_report(
+                args.session_id,
+                args.xdf_path,
+                xdf_counts,
+                db_counts_after,
+                max_clock_drift_s=max_clock_drift_s,
+            )
 
+        write_reconciliation_log(conn, meta, report)
         close_session(conn, args.session_id, report.is_reconciled)
     finally:
         conn.close()

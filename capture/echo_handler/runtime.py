@@ -12,7 +12,7 @@ def run_echo_thread(thread) -> None:
     import pylsl  # deferred so import errors don't kill other threads
 
     log.info("ECHO thread starting")
-    inlet = thread._resolve_inlet(pylsl)
+    inlet = thread.resolve_inlet(pylsl)
     if inlet is None:
         log.warning(
             "ECHO marker stream not found — thread exiting; "
@@ -21,7 +21,7 @@ def run_echo_thread(thread) -> None:
         )
         return
 
-    conn = thread._connect_db()
+    conn = thread.connect_db()
     if conn is None:
         log.error("ECHO could not establish DB connection — thread exiting")
         return
@@ -30,7 +30,7 @@ def run_echo_thread(thread) -> None:
         conn = process_next_sample(thread, inlet, conn)
 
     if conn and thread._buffer:
-        thread._flush_buffer(conn)
+        thread.flush_buffer(conn)
     if conn:
         conn.close()
     log.info("ECHO thread stopped", extra={"total_events": thread._event_count})
@@ -54,9 +54,9 @@ def process_next_sample(thread, inlet, conn):
     log_event(thread._cfg.session_id, parsed, lsl_ts)
     thread._xdf.write_marker(raw, lsl_ts)
 
-    conn = thread._write_or_buffer(conn, row)
+    conn = thread.write_or_buffer(conn, row)
     if conn is None:
-        conn = thread._try_reconnect()
+        conn = thread.try_reconnect()
     return conn
 
 

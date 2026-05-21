@@ -1,6 +1,6 @@
 # untitledplatform_1a — Database Schema
 
-Generated from migrations 001–027. All IDs are UUIDs unless noted.
+Generated from core migrations 001–029. All IDs are UUIDs unless noted.
 
 ---
 
@@ -31,14 +31,13 @@ Primary clinical record. One row per recording session.
 | `compound_dose` | `DOUBLE PRECISION` | Numeric dose value |
 | `compound_dose_unit` | `TEXT` | `mg` \| `ug` \| `µg` \| `mg/kg` \| `ug/kg` \| `µg/kg` |
 | `therapist_id` | `TEXT` | Therapist identifier |
-| `status` | `session_status` NOT NULL | ENUM: `initializing → active → closing → closed / failed` |
-| `batch_processed_at` | `TIMESTAMPTZ` | NULL = batch not yet run |
+| `status` | `session_status` NOT NULL | ENUM: `initializing` \| `active` \| `closing` \| `closed` \| `failed` |
 | `started_at` | `TIMESTAMPTZ` | |
 | `closed_at` | `TIMESTAMPTZ` | Set on `closed` or `failed` |
 | `created_at` | `TIMESTAMPTZ NOT NULL` | `DEFAULT NOW()` |
 | `updated_at` | `TIMESTAMPTZ NOT NULL` | Auto-updated by `set_updated_at()` trigger |
 
-**Triggers:** `sessions_set_updated_at` (BEFORE UPDATE), `sessions_watermark_trigger` (AFTER UPDATE — fires on `closed`/`failed` → writes to `audit_events`)
+**Triggers:** `sessions_set_updated_at` (BEFORE UPDATE), `sessions_watermark_trigger` (AFTER UPDATE — writes status transitions, plus terminal watermarks, to `audit_events`)
 
 **Indexes (023):** `sponsor_id`, `site_id`, `protocol_arm`, `(sponsor_id, site_id)`, `status`, `compound`
 
@@ -54,7 +53,7 @@ Closed vocabulary of DEA Schedule I compounds used in trials.
 | `compound_id` | `TEXT` PK | e.g. `'psilocybin'`, `'mdma'`, `'ibogaine_hcl'` |
 | `display_name` | `TEXT NOT NULL` | Human-readable label |
 | `iupac_name` | `TEXT NOT NULL` | Authoritative chemical name |
-| `cas_number` | `TEXT NOT NULL UNIQUE` | DEA/FDA registry identifier |
+| `cas_number` | `TEXT NOT NULL UNIQUE` | Chemical registry identifier |
 | `notes` | `TEXT` | |
 
 **Seed data:** lsd, psilocybin, psilocin, dmt, 5meo_dmt, ibogaine, ibogaine_hcl, mdma
@@ -155,23 +154,21 @@ Automated safety/quality alerts from `safety_monitor.py`.
 | `sponsor_id` | `UUID NOT NULL` | |
 | `alert_type` | `TEXT NOT NULL` | `cardiac` \| `sqi` \| `respiration` \| `device_loss` \| `threshold_breach` \| `process_restart` |
 | `compound` | `TEXT NOT NULL` | |
-| `compound_dose` | `FLOAT NOT NULL` | |
+| `compound_dose` | `FLOAT` | Nullable when dose is unknown |
 | `severity` | `TEXT NOT NULL` | `info` \| `warning` \| `critical` |
 | `stream_type` | `TEXT` | |
 | `channel_name` | `TEXT` | |
 | `trigger_value` | `DOUBLE PRECISION` | |
 | `threshold_value` | `DOUBLE PRECISION` | |
-| `algorithm_name` | `TEXT NOT NULL` | **Regulatory: FDA Hurdle 5** |
+| `algorithm_name` | `TEXT NOT NULL` | Reproducibility metadata |
 | `algorithm_version` | `TEXT NOT NULL` | |
 | `algorithm_parameters` | `JSONB NOT NULL` | Parameters at alert time |
 | `message` | `TEXT` | |
-| `acknowledged_by` | `TEXT` | |
-| `acknowledged_at` | `TIMESTAMPTZ` | Pair constraint: both NULL or both non-NULL |
 | `lsl_timestamp` | `DOUBLE PRECISION` | |
 | `db_insert_time` | `TIMESTAMPTZ NOT NULL` | |
 | `embedding` | `vector(384)` | Planted; NULL in 1a |
 
-**Indexes:** `(session_id, severity)`, `(session_id) WHERE acknowledged_at IS NULL`
+**Indexes:** `(session_id, severity)`
 
 ### `echo_events`
 ECHO proximity state events from LSL Marker Stream (manual in 1a).
@@ -183,13 +180,12 @@ ECHO proximity state events from LSL Marker Stream (manual in 1a).
 | `participant_id` | `UUID NOT NULL` | |
 | `site_id` | `UUID NOT NULL` | |
 | `sponsor_id` | `UUID NOT NULL` | |
-| `event_type` | `TEXT NOT NULL` | e.g. `proximity_state_change` |
+| `event_type` | `TEXT NOT NULL` | `zone_enter` \| `zone_exit` \| `manual_marker` |
 | `source` | `TEXT NOT NULL` | `manual_logging` \| `imu_derived` |
 | `actor_id` | `TEXT NOT NULL` | Person being logged |
-| `actor_role` | `TEXT` | `therapist` \| `facilitator` \| `coordinator` \| `observer` |
+| `actor_role` | `TEXT NOT NULL` | `therapist` \| `facilitator` \| `coordinator` \| `observer` |
 | `zone_id` | `TEXT` | |
-| `zone_label` | `TEXT NOT NULL` | `arms_reach` \| `in_room` \| `leaving_room` \| `out_of_room` |
-| `sample_index` | `BIGINT` | |
+| `zone_label` | `TEXT NOT NULL` | proximity zone or manual marker label |
 | `confidence_score` | `FLOAT` | 0.0–1.0; NULL in 1a manual mode |
 | `metadata` | `JSONB` | |
 | `lsl_timestamp` | `DOUBLE PRECISION NOT NULL` | |
@@ -202,7 +198,7 @@ ECHO proximity state events from LSL Marker Stream (manual in 1a).
 ## ARC Tables (027-028)
 
 ### `session_baselines`
-Persisted baseline values for ARC. One row per signal component per session, written at the end of the baseline window and read by `arc_processor.py` post-session.
+Persisted baseline values for ARC. One row per signal component per session. ARC computation is deferred in the open-source 1a MVP, so no processor writes these rows yet.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -249,6 +245,7 @@ ARC reads validated ECHO + APEX records after the session watermark is verified.
 | `sap_available_signals` | `JSONB NOT NULL` | Signals available for signal availability profile checks |
 | `sap_participating_signals` | `JSONB NOT NULL` | Available signals that participated in the ECP |
 | `arc_config_version` | `TEXT NOT NULL` | Exact ARC config version, e.g. `arc_watchdog_config.toml@...` |
+| `arc_config_sha256` | `TEXT NOT NULL` | SHA-256 of the ARC config content used for the profile |
 | `created_at` | `TIMESTAMPTZ NOT NULL` | |
 
 **Constraints:** `passed_fdr IS TRUE`, unique `(session_id, echo_event_id)`
@@ -296,28 +293,7 @@ Coordinator observations with future embedding support.
 
 ---
 
-## Regulatory Tables (014–018)
-
-### `participant_consent_log`
-21 CFR Part 11 — one row per consent event, independent of sessions.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | `BIGSERIAL` PK | |
-| `participant_id` | `UUID NOT NULL` | |
-| `session_id` | `UUID` | Nullable — consent can precede session creation |
-| `site_id` | `UUID NOT NULL` | |
-| `sponsor_id` | `UUID NOT NULL` | |
-| `protocol_id` | `TEXT NOT NULL` | |
-| `consent_version` | `TEXT NOT NULL` | IRB form version |
-| `consent_type` | `TEXT NOT NULL` | `initial` \| `updated` \| `reconsent` |
-| `consented_at` | `TIMESTAMPTZ NOT NULL` | |
-| `consent_obtained_by` | `TEXT NOT NULL` | |
-| `consent_method` | `TEXT NOT NULL` | `electronic_signature` \| `in_person` \| `video` \| `other` |
-| `revoked_at` | `TIMESTAMPTZ` | |
-| `revocation_reason` | `TEXT` | |
-| `notes` | `TEXT` | |
-| `db_insert_time` | `TIMESTAMPTZ NOT NULL` | |
+## Provenance Tables (015)
 
 ### `schema_version_log`
 Computational provenance — one row per session start.
@@ -339,85 +315,9 @@ Computational provenance — one row per session start.
 | `pylsl_version` | `TEXT` | |
 | `recorded_at` | `TIMESTAMPTZ NOT NULL` | |
 
-### `electronic_signatures`
-**Append-only.** 21 CFR Part 11 Section 11.50 legal signature record.
+## Optional Governance Extensions
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | `BIGSERIAL` PK | |
-| `session_id` | `UUID` | Nullable |
-| `site_id` | `UUID NOT NULL` | |
-| `sponsor_id` | `UUID NOT NULL` | |
-| `signer_id` | `TEXT NOT NULL` | |
-| `signer_printed_name` | `TEXT NOT NULL` | Required by Part 11 |
-| `signer_role` | `TEXT NOT NULL` | |
-| `signature_meaning` | `TEXT NOT NULL` | `session_opened` \| `session_closed` \| `dose_administered` \| `adverse_event_reviewed` \| `adverse_event_reported` \| `alert_acknowledged` \| `consent_obtained` \| `protocol_deviation_logged` \| `data_export_authorized` \| `audit_review_completed` |
-| `table_name` | `TEXT NOT NULL` | Signed record's table |
-| `record_id` | `TEXT NOT NULL` | Signed record's row ID |
-| `signature_hash` | `TEXT NOT NULL` | SHA-256 of signed record at signing time |
-| `signed_at` | `TIMESTAMPTZ NOT NULL` | |
-| `db_insert_time` | `TIMESTAMPTZ NOT NULL` | |
-
-**Permissions:** `REVOKE UPDATE, DELETE FROM PUBLIC`
-
-### `investigational_product_log`
-**Append-only.** DEA Schedule I substance chain of custody.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | `BIGSERIAL` PK | |
-| `session_id` | `UUID` | Nullable (receipt/storage events have no session) |
-| `site_id` | `UUID NOT NULL` | |
-| `sponsor_id` | `UUID NOT NULL` | |
-| `compound` | `TEXT NOT NULL` | |
-| `lot_number` | `TEXT NOT NULL` | DEA accountability unit |
-| `coa_reference` | `TEXT` | Certificate of Analysis reference |
-| `event_type` | `TEXT NOT NULL` | `receipt` \| `storage_check` \| `preparation` \| `transfer` \| `administration` \| `return` \| `destruction` \| `reconciliation` |
-| `quantity_mg` | `DOUBLE PRECISION` | |
-| `quantity_unit` | `TEXT` | |
-| `quantity_remaining_mg` | `DOUBLE PRECISION` | |
-| `performed_by` | `TEXT NOT NULL` | |
-| `witnessed_by` | `TEXT` | Required by DEA for preparation/destruction |
-| `storage_location` | `TEXT` | |
-| `temperature_c` | `DOUBLE PRECISION` | |
-| `notes` | `TEXT` | |
-| `event_timestamp` | `TIMESTAMPTZ NOT NULL` | |
-| `db_insert_time` | `TIMESTAMPTZ NOT NULL` | |
-
-**Permissions:** `REVOKE UPDATE, DELETE FROM PUBLIC`
-
-### `adverse_event_log`
-Formal clinical AE designations (distinct from automated `alert_events`).
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | `BIGSERIAL` PK | |
-| `session_id` | `UUID NOT NULL` | |
-| `participant_id` | `UUID NOT NULL` | |
-| `site_id` | `UUID NOT NULL` | |
-| `sponsor_id` | `UUID NOT NULL` | |
-| `compound` | `TEXT NOT NULL` | |
-| `ae_term` | `TEXT NOT NULL` | |
-| `ae_description` | `TEXT NOT NULL` | |
-| `ctcae_grade` | `SMALLINT NOT NULL` | 1–5 (FDA standard CTCAE scale) |
-| `is_serious` | `BOOLEAN NOT NULL` | Grade 3+ triggers expedited reporting |
-| `relatedness` | `TEXT NOT NULL` | `unrelated` \| `unlikely` \| `possible` \| `probable` \| `definite` |
-| `onset_timestamp` | `TIMESTAMPTZ NOT NULL` | |
-| `resolution_timestamp` | `TIMESTAMPTZ` | |
-| `outcome` | `TEXT` | `resolved` \| `resolving` \| `not_resolved` \| `resolved_with_sequelae` \| `medical_intervention` \| `hospitalization` \| `fatal` \| `other` \| `unknown` |
-| `action_taken` | `TEXT` | `none` \| `dose_not_changed` \| `dose_reduced` \| `dose_held` \| `drug_discontinued` \| `emergency_services_called` \| `medication_given` \| `other` |
-| `reported_by` | `TEXT NOT NULL` | |
-| `reviewed_by` | `TEXT` | |
-| `irb_reported_at` | `TIMESTAMPTZ` | |
-| `fda_reported_at` | `TIMESTAMPTZ` | NULL = not yet reported |
-| `linked_alert_id` | `BIGINT` | Links to `alert_events.id` |
-| `notes` | `TEXT` | |
-| `db_insert_time` | `TIMESTAMPTZ NOT NULL` | |
-| `updated_at` | `TIMESTAMPTZ NOT NULL` | Auto-updated by trigger |
-
-**Triggers:** `adverse_event_log_set_updated_at`
-
----
+Regulated-deployment tables for consent, electronic signatures, investigational product accountability, and adverse-event designations are no longer part of the default open-source migration chain. Their historical migrations live under `untitledplatform_1a_db/db/alembic/optional_governance/` as reference material for deployments that need them.
 
 ## Recording Metadata (019)
 
@@ -439,6 +339,7 @@ One row per `(session_id, modality)` — static recording setup, not per-sample 
 | `eeg_reference` | `TEXT` | e.g. `'average'`, `'Cz'` |
 | `sampling_frequency` | `FLOAT` | EEG Hz |
 | `eeg_channel_count` | `INTEGER` | |
+| `eeg_channel_names` | `JSONB` | Canonical channel labels, stored as an array when available |
 | `cap_manufacturer` | `TEXT` | |
 | `cap_manufacturer_model_name` | `TEXT` | |
 | `hrv_signal_source` | `TEXT` | `ecg` \| `pcg` \| `ppg` |
@@ -461,18 +362,18 @@ One row per `(session_id, modality)` — static recording setup, not per-sample 
 
 ## Audit Triggers (020, updated by 026–027)
 
-Full-row audit triggers cover low-volume governance and ARC output tables. Migration 026 removes the high-volume per-row biosignal audit triggers and replaces them with `biosignal_integrity_log`.
+Full-row audit triggers cover low-volume governance and ARC output tables. High-volume biosignal hypertables are intentionally not trigger-audited per row; `biosignal_integrity_log` records chunk-level write provenance instead.
 
 | Function | Tables | Payload |
 |----------|--------|---------|
-| `audit_trigger_full_func()` | sessions, alert_events, echo_events, session_feature_vectors, session_notes, participant_consent_log, schema_version_log, electronic_signatures, investigational_product_log, adverse_event_log, session_signal_metadata, data_correction_amendment_log, session_environment_log, event_composite_profiles | Full row as JSONB |
+| `audit_trigger_full_func()` | sessions, alert_events, echo_events, session_feature_vectors, session_notes, schema_version_log, session_signal_metadata, data_correction_amendment_log, session_environment_log, event_composite_profiles | Full row as JSONB |
 
 ---
 
 ## Correction & Environment Logs (021–022)
 
 ### `data_correction_amendment_log`
-21 CFR Part 11 Section 11.10(e) — structured correction record with approval chain.
+Structured correction record with approval fields for deployments that want a review workflow.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -521,12 +422,13 @@ Full-row audit triggers cover low-volume governance and ARC output tables. Migra
 
 ## Watermark Trigger (024)
 
-`sessions_watermark_trigger` fires AFTER UPDATE on `sessions`:
+`sessions_watermark_trigger` fires AFTER UPDATE on `sessions` for genuine status changes:
 
 | Status transition | Audit event written |
 |-------------------|---------------------|
-| any → `closed` | `watermark_verified` — gates post-session batch processing |
-| any → `failed` | `watermark_failed` — blocks batch, alerts coordinator |
+| any status change | `session_status_transition` — records old/new status |
+| any → `closed` | `session_status_transition` + `watermark_verified` — gates post-session batch processing |
+| any → `failed` | `session_status_transition` + `watermark_failed` — blocks batch, alerts coordinator |
 
 ---
 
@@ -557,7 +459,7 @@ Durably records LSL-to-NTP clock offset at regular intervals. Non-optional for i
 ## Biosignal Integrity Log (026)
 
 ### `biosignal_integrity_log`
-One row per successfully written biosignal chunk. This replaces per-row audit triggers on high-volume hypertables while preserving chunk-level completeness and tamper-evidence.
+One row per successfully written biosignal chunk, plus one reconciliation summary row per session close attempt. This avoids per-row audit amplification on high-volume hypertables while preserving chunk-level completeness, tamper-evidence, and the final XDF-vs-DB reconciliation record.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -565,24 +467,27 @@ One row per successfully written biosignal chunk. This replaces per-row audit tr
 | `session_id` | `UUID NOT NULL` | |
 | `site_id` | `UUID NOT NULL` | |
 | `sponsor_id` | `UUID NOT NULL` | |
-| `table_name` | `TEXT NOT NULL` | Source biosignal table |
-| `row_count` | `INTEGER NOT NULL` | Rows in the written chunk |
-| `min_sample_index` | `BIGINT NOT NULL` | |
-| `max_sample_index` | `BIGINT NOT NULL` | |
-| `chunk_hash` | `TEXT NOT NULL` | Deterministic hash of signal values in the chunk |
+| `log_type` | `TEXT NOT NULL` | `chunk_integrity` or `xdf_reconciliation` |
+| `table_name` | `TEXT` | Source biosignal table; null on reconciliation rows |
+| `row_count` | `INTEGER` | Rows in the written chunk; null on reconciliation rows |
+| `min_sample_index` | `BIGINT` | Null on reconciliation rows |
+| `max_sample_index` | `BIGINT` | Null on reconciliation rows |
+| `chunk_hash` | `TEXT` | Deterministic hash of signal values in the chunk; null on reconciliation rows |
+| `hash_method` | `TEXT` | Hash algorithm used to compute `chunk_hash`; null on reconciliation rows |
+| `reconciliation_report` | `JSONB` | Full XDF reconciliation summary, null on chunk rows |
 | `written_at` | `TIMESTAMPTZ NOT NULL` | |
 
 **Indexes:** `(session_id, written_at)`
 
 ---
 
-## Regulatory Invariants
+## Core Invariants
 
 | Rule | Enforcement |
 |------|-------------|
 | Audit trail via triggers only — never application code | `REVOKE UPDATE, DELETE ON audit_events FROM PUBLIC` + trigger-only writes |
 | `lsl_timestamp` ≠ `db_insert_time` — always separate columns | Schema design; two-timestamp rule on every table |
-| Algorithm governance on every alert | `algorithm_name`, `algorithm_version`, `algorithm_parameters` NOT NULL on `alert_events` |
+| Algorithm provenance on every alert/context event | `algorithm_name`, `algorithm_version`, `algorithm_parameters` NOT NULL on `alert_events` |
 | Pseudonymous IDs only — real identity never stored | `participant_id` is a site-generated token |
 | Data tenancy on every table | `site_id UUID NOT NULL` + `sponsor_id UUID NOT NULL` everywhere |
 | Batch only after `watermark_verified` | `sessions_watermark_trigger` gates batch pipeline |

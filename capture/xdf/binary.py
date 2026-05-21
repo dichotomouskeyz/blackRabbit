@@ -20,3 +20,7 @@ def _write_chunk(f: IO[bytes], tag: int, payload: bytes) -> None:
     full = tag_bytes + payload
     f.write(_encode_varlen(len(full)))
     f.write(full)
+
+
+encode_varlen = _encode_varlen
+write_chunk = _write_chunk

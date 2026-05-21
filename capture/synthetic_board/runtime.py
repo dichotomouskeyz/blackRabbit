@@ -12,6 +12,10 @@ log = get_logger("synthetic_board")
 stop_event = threading.Event()
 
 
+def clear_stop_event() -> None:
+    stop_event.clear()
+
+
 def handle_stop(signum, frame) -> None:
     stop_event.set()
 
@@ -55,6 +59,7 @@ def build_threads(
 
 
 def run_until_stopped(threads: list[threading.Thread]) -> None:
+    clear_stop_event()
     for thread in threads:
         thread.start()
 

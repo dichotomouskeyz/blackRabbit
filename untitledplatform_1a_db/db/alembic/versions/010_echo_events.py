@@ -59,14 +59,25 @@ def upgrade() -> None:
             participant_id   UUID             NOT NULL,
             site_id          UUID             NOT NULL,
             sponsor_id       UUID             NOT NULL,
-            event_type       TEXT             NOT NULL,
+            event_type       TEXT             NOT NULL
+                             CHECK (event_type IN (
+                                 'zone_enter',
+                                 'zone_exit',
+                                 'manual_marker'
+                             )),
             source           TEXT             NOT NULL
                              CHECK (source IN (
                                  'manual_logging',
                                  'imu_derived'
                              )),
             actor_id         TEXT             NOT NULL,
-            actor_role       TEXT,
+            actor_role       TEXT             NOT NULL
+                             CHECK (actor_role IN (
+                                 'therapist',
+                                 'facilitator',
+                                 'coordinator',
+                                 'observer'
+                             )),
             zone_id          TEXT,
             zone_label       TEXT             NOT NULL
                              CHECK (zone_label IN (
@@ -75,7 +86,6 @@ def upgrade() -> None:
                                  'leaving_room',
                                  'out_of_room'
                              )),
-            sample_index     BIGINT,
             confidence_score FLOAT
                              CHECK (confidence_score IS NULL OR
                                     (confidence_score >= 0.0 AND confidence_score <= 1.0)),

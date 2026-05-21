@@ -6,11 +6,13 @@ from unittest.mock import patch
 import psycopg2
 import pytest
 
-import capture.session_close as session_close
+import capture.session_close.workflow as session_close
 from batch.reconcile import XDFTruncatedError
+from config import settings
 
 _SITE = "f1d00005-0000-4444-cccc-000000000001"
 _SPONSOR = "f1d00005-0000-4444-dddd-000000000001"
+_OTHER_SPONSOR = "f1d00005-0000-4444-dddd-000000000099"
 _PART = "f1d00005-0000-4444-bbbb-000000000001"
 _COMPOUND = "psilocybin"
 
@@ -46,6 +48,7 @@ def _insert_session(db_url: str, session_id: str, status: str = "active") -> Non
 def _cleanup(db_url: str, session_id: str) -> None:
     conn = _conn(db_url)
     cur = conn.cursor()
+    cur.execute("DELETE FROM biosignal_integrity_log WHERE session_id = %s", (session_id,))
     cur.execute("DELETE FROM audit_events WHERE session_id = %s", (session_id,))
     cur.execute("DELETE FROM sessions WHERE id = %s", (session_id,))
     cur.close()
@@ -75,20 +78,34 @@ def _get_audit_types(db_url: str, session_id: str) -> list[str]:
     return [r[0] for r in rows]
 
 
+def _get_integrity_log_types(db_url: str, session_id: str) -> list[str]:
+    conn = _conn(db_url)
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT log_type FROM biosignal_integrity_log WHERE session_id = %s ORDER BY id",
+        (session_id,),
+    )
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [r[0] for r in rows]
+
+
 def _run(
     session_id: str,
     db_url: str,
+    sponsor_id: str = _SPONSOR,
     xdf_counts: dict | None = None,
     db_counts: dict | None = None,
 ) -> int:
     xdf = xdf_counts if xdf_counts is not None else _MATCHED
     dbc = db_counts if db_counts is not None else _MATCHED
     with (
-        patch("capture.session_close.read_xdf_counts", return_value=xdf),
-        patch("capture.session_close.query_db_counts", return_value=dbc),
-        patch.object(session_close.settings, "DATABASE_URL", db_url),
+        patch("capture.session_close.reconciliation.read_xdf_counts", return_value=xdf),
+        patch("capture.session_close.reconciliation.query_db_counts", return_value=dbc),
+        patch.object(settings, "DATABASE_URL", db_url),
     ):
-        return session_close.run(session_id, _FAKE_XDF)
+        return session_close.run(session_id, sponsor_id, _FAKE_XDF)
 
 
 @pytest.mark.integration
@@ -102,6 +119,7 @@ class TestSessionClose:
             assert code == 0
             assert _get_status(db_url, sid) == "closed"
             assert "watermark_verified" in _get_audit_types(db_url, sid)
+            assert _get_integrity_log_types(db_url, sid) == ["xdf_reconciliation"]
         finally:
             _cleanup(db_url, sid)
 
@@ -119,6 +137,7 @@ class TestSessionClose:
             assert code == 1
             assert _get_status(db_url, sid) == "failed"
             assert "watermark_failed" in _get_audit_types(db_url, sid)
+            assert _get_integrity_log_types(db_url, sid) == ["xdf_reconciliation"]
         finally:
             _cleanup(db_url, sid)
 
@@ -128,6 +147,17 @@ class TestSessionClose:
 
         assert code == 2
         assert _get_status(db_url, sid) is None
+
+    def test_wrong_sponsor_is_not_closeable(self, db_url):
+        sid = "f1d00005-0000-4444-aaaa-000000000109"
+        _insert_session(db_url, sid)
+        try:
+            code = _run(sid, db_url, sponsor_id=_OTHER_SPONSOR)
+
+            assert code == 2
+            assert _get_status(db_url, sid) == "active"
+        finally:
+            _cleanup(db_url, sid)
 
     def test_session_wrong_state(self, db_url):
         sid = "f1d00005-0000-4444-aaaa-000000000003"
@@ -158,12 +188,12 @@ class TestSessionClose:
         try:
             with (
                 patch(
-                    "capture.session_close.read_xdf_counts",
+                    "capture.session_close.reconciliation.read_xdf_counts",
                     side_effect=XDFTruncatedError("footer missing"),
                 ),
-                patch.object(session_close.settings, "DATABASE_URL", db_url),
+                patch.object(settings, "DATABASE_URL", db_url),
             ):
-                code = session_close.run(sid, _FAKE_XDF)
+                code = session_close.run(sid, _SPONSOR, _FAKE_XDF)
 
             assert code == 2
             assert _get_status(db_url, sid) == "active"

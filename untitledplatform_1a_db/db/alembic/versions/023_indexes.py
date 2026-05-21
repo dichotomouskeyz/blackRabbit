@@ -6,11 +6,10 @@ Create Date: 2026-05-04
 
 WHY INDEXES ARE THE LAST MIGRATION:
   Indexes must be created AFTER the tables they reference exist.
-  Placing this migration last ensures every table in the 1a schema
-  — including regulatory tables (014-019), correction and environment
-  logs (021-022) — is present before any index is created. A single
-  consolidated migration is also easier to audit: one file lists every
-  index in the schema.
+  Placing this migration after the core table migrations ensures every
+  table in the open-source 1a schema is present before any index is
+  created. Optional governance extensions define their own indexes when
+  enabled.
 
 WHY INDEXES MATTER:
   Without indexes, every query does a "sequential scan" — Postgres
@@ -151,11 +150,6 @@ def upgrade() -> None:
         CREATE INDEX idx_alert_events_severity
         ON alert_events (session_id, severity);
     """)
-    op.execute("""
-        CREATE INDEX idx_alert_events_unacknowledged
-        ON alert_events (session_id)
-        WHERE acknowledged_at IS NULL;
-    """)
 
     # ECHO: time-ordered events per session for timeline reconstruction
     op.execute("""
@@ -193,84 +187,6 @@ def upgrade() -> None:
         ON schema_version_log (recorded_at DESC);
     """)
 
-    # --- electronic_signatures ---
-    op.execute("""
-        CREATE INDEX idx_esig_session
-        ON electronic_signatures (session_id);
-    """)
-    op.execute("""
-        CREATE INDEX idx_esig_record
-        ON electronic_signatures (table_name, record_id);
-    """)
-    op.execute("""
-        CREATE INDEX idx_esig_signer
-        ON electronic_signatures (signer_id, signed_at DESC);
-    """)
-    op.execute("""
-        CREATE INDEX idx_esig_tenancy
-        ON electronic_signatures (site_id, sponsor_id);
-    """)
-    op.execute("""
-        CREATE INDEX idx_esig_session_time
-        ON electronic_signatures (session_id, signed_at DESC);
-    """)
-
-    # --- investigational_product_log ---
-    op.execute("""
-        CREATE INDEX idx_ip_log_session
-        ON investigational_product_log (session_id);
-    """)
-    op.execute("""
-        CREATE INDEX idx_ip_log_compound_lot
-        ON investigational_product_log (compound, lot_number);
-    """)
-    op.execute("""
-        CREATE INDEX idx_ip_log_tenancy
-        ON investigational_product_log (site_id, sponsor_id);
-    """)
-    op.execute("""
-        CREATE INDEX idx_ip_log_time
-        ON investigational_product_log (session_id, event_timestamp DESC);
-    """)
-
-    # --- adverse_event_log ---
-    op.execute("""
-        CREATE INDEX idx_ae_session
-        ON adverse_event_log (session_id);
-    """)
-    op.execute("""
-        CREATE INDEX idx_ae_tenancy
-        ON adverse_event_log (site_id, sponsor_id);
-    """)
-    op.execute("""
-        CREATE INDEX idx_ae_time
-        ON adverse_event_log (session_id, db_insert_time DESC);
-    """)
-    # All unresolved serious AEs requiring FDA reporting
-    op.execute("""
-        CREATE INDEX idx_ae_serious_unreported
-        ON adverse_event_log (site_id, sponsor_id)
-        WHERE is_serious = TRUE AND fda_reported_at IS NULL;
-    """)
-
-    # --- participant_consent_log ---
-    op.execute("""
-        CREATE INDEX idx_consent_participant_protocol
-        ON participant_consent_log (participant_id, protocol_id);
-    """)
-    op.execute("""
-        CREATE INDEX idx_consent_tenancy
-        ON participant_consent_log (site_id, sponsor_id);
-    """)
-    op.execute("""
-        CREATE INDEX idx_consent_active
-        ON participant_consent_log (participant_id, protocol_id)
-        WHERE revoked_at IS NULL;
-    """)
-    op.execute("""
-        CREATE INDEX idx_consent_session
-        ON participant_consent_log (session_id);
-    """)
 
     # --- session_signal_metadata ---
     op.execute("""
@@ -336,7 +252,6 @@ def downgrade() -> None:
         op.execute(f"DROP INDEX IF EXISTS idx_{table}_tenancy;")
 
     op.execute("DROP INDEX IF EXISTS idx_alert_events_severity;")
-    op.execute("DROP INDEX IF EXISTS idx_alert_events_unacknowledged;")
     op.execute("DROP INDEX IF EXISTS idx_echo_events_session_time;")
     op.execute("DROP INDEX IF EXISTS idx_echo_events_actor;")
     op.execute("DROP INDEX IF EXISTS idx_echo_events_zone_label;")
@@ -346,27 +261,6 @@ def downgrade() -> None:
     op.execute("DROP INDEX IF EXISTS idx_schema_version_session;")
     op.execute("DROP INDEX IF EXISTS idx_schema_version_alembic;")
     op.execute("DROP INDEX IF EXISTS idx_schema_version_recorded;")
-
-    op.execute("DROP INDEX IF EXISTS idx_esig_session;")
-    op.execute("DROP INDEX IF EXISTS idx_esig_record;")
-    op.execute("DROP INDEX IF EXISTS idx_esig_signer;")
-    op.execute("DROP INDEX IF EXISTS idx_esig_tenancy;")
-    op.execute("DROP INDEX IF EXISTS idx_esig_session_time;")
-
-    op.execute("DROP INDEX IF EXISTS idx_ip_log_session;")
-    op.execute("DROP INDEX IF EXISTS idx_ip_log_compound_lot;")
-    op.execute("DROP INDEX IF EXISTS idx_ip_log_tenancy;")
-    op.execute("DROP INDEX IF EXISTS idx_ip_log_time;")
-
-    op.execute("DROP INDEX IF EXISTS idx_ae_session;")
-    op.execute("DROP INDEX IF EXISTS idx_ae_tenancy;")
-    op.execute("DROP INDEX IF EXISTS idx_ae_time;")
-    op.execute("DROP INDEX IF EXISTS idx_ae_serious_unreported;")
-
-    op.execute("DROP INDEX IF EXISTS idx_consent_participant_protocol;")
-    op.execute("DROP INDEX IF EXISTS idx_consent_tenancy;")
-    op.execute("DROP INDEX IF EXISTS idx_consent_active;")
-    op.execute("DROP INDEX IF EXISTS idx_consent_session;")
 
     op.execute("DROP INDEX IF EXISTS idx_session_signal_metadata_tenancy;")
     op.execute("DROP INDEX IF EXISTS idx_session_signal_metadata_session;")

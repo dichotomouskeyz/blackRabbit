@@ -1,6 +1,10 @@
 """Session signal metadata row construction."""
 
+from psycopg2.extras import Json
+
 from config import settings
+
+_RESPIRATION_DERIVED_SOURCES = frozenset({"rsa_derived"})
 
 
 def _build_metadata_rows(
@@ -37,6 +41,7 @@ def _null_metadata_fields() -> dict:
         "eeg_reference": None,
         "sampling_frequency": None,
         "eeg_channel_count": None,
+        "eeg_channel_names": None,
         "cap_manufacturer": None,
         "cap_manufacturer_model_name": None,
         "hrv_signal_source": None,
@@ -63,6 +68,9 @@ def _eeg_metadata(base: dict, null: dict) -> dict:
         "eeg_reference": settings.EEG_REFERENCE,
         "sampling_frequency": float(settings.SAMPLE_RATE_EEG),
         "eeg_channel_count": settings.EEG_CHANNEL_COUNT,
+        "eeg_channel_names": Json(list(settings.EEG_CHANNEL_NAMES))
+        if settings.EEG_CHANNEL_NAMES is not None
+        else None,
         "cap_manufacturer": settings.CAP_MANUFACTURER,
         "cap_manufacturer_model_name": settings.CAP_MANUFACTURER_MODEL_NAME,
     }
@@ -108,6 +116,6 @@ def _respiration_metadata(base: dict, null: dict) -> dict:
         "modality": "respiration",
         "sample_rate_hz": float(settings.SAMPLE_RATE_RESPIRATION),
         "respiration_source": settings.RESPIRATION_SOURCE,
-        "is_derived": settings.RESPIRATION_SOURCE == "rsa_derived",
+        "is_derived": settings.RESPIRATION_SOURCE in _RESPIRATION_DERIVED_SOURCES,
         "respiration_unit": settings.RESPIRATION_UNIT,
     }

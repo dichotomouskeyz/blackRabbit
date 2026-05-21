@@ -3,6 +3,7 @@
 import json
 
 import psycopg2
+import pylsl
 
 from capture.logger import get_logger
 from capture.watchdog import models
@@ -11,21 +12,23 @@ from config import settings
 log = get_logger("watchdog")
 
 
-def lookup_compound(conn: "psycopg2.extensions.connection", session_id: str) -> tuple[str, float]:
+def lookup_compound(
+    conn: "psycopg2.extensions.connection", session_id: str, sponsor_id: str
+) -> tuple[str, float | None]:
     """Return (compound, compound_dose) using the supplied connection."""
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT compound, compound_dose FROM sessions WHERE id = %s",
-            (session_id,),
+            "SELECT compound, compound_dose FROM sessions WHERE id = %s AND sponsor_id = %s",
+            (session_id, sponsor_id),
         )
         row = cur.fetchone()
 
     if row is None:
         raise RuntimeError(
-            f"Session {session_id!r} not found in sessions table — "
+            f"Session {session_id!r} not found for sponsor {sponsor_id!r} — "
             "compound is required and cannot be inferred"
         )
-    return row[0], float(row[1] or 0.0)
+    return row[0], float(row[1]) if row[1] is not None else None
 
 
 def log_restart(
@@ -46,7 +49,7 @@ def log_restart(
         }
     )
     conn = psycopg2.connect(settings.DATABASE_URL)
-    compound, compound_dose = lookup_compound(conn, session_id)
+    compound, compound_dose = lookup_compound(conn, session_id, sponsor_id)
     try:
         with conn.cursor() as cur:
             cur.execute(
@@ -55,11 +58,11 @@ def log_restart(
                     session_id, participant_id, site_id, sponsor_id,
                     alert_type, compound, compound_dose, severity,
                     algorithm_name, algorithm_version, algorithm_parameters,
-                    message
+                    message, lsl_timestamp
                 ) VALUES (%s, %s, %s, %s,
                           'process_restart', %s, %s, 'warning',
                           %s, %s, %s::jsonb,
-                          %s)
+                          %s, %s)
                 """,
                 (
                     session_id,
@@ -73,6 +76,7 @@ def log_restart(
                     params,
                     f"lsl_forwarder exited with code {exit_code}, "
                     f"restarting (attempt {restart_count}/{models.MAX_RESTARTS})",
+                    pylsl.local_clock(),
                 ),
             )
         conn.commit()
@@ -90,31 +94,32 @@ def log_restart(
         conn.close()
 
 
-def mark_session_closing(session_id: str) -> None:
+def mark_session_closing(session_id: str, sponsor_id: str) -> None:
     """Transition session active->closing after the forwarder stops cleanly."""
     try:
         conn = psycopg2.connect(settings.DATABASE_URL)
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "UPDATE sessions SET status = 'closing' WHERE id = %s AND status = 'active'",
-                    (session_id,),
+                    "UPDATE sessions SET status = 'closing' "
+                    "WHERE id = %s AND sponsor_id = %s AND status = 'active'",
+                    (session_id, sponsor_id),
                 )
             conn.commit()
             log.info(
                 "session status → closing — run session_close to reconcile",
-                extra={"session_id": session_id},
+                extra={"session_id": session_id, "sponsor_id": sponsor_id},
             )
         finally:
             conn.close()
     except Exception as exc:
         log.error(
             "failed to set session to closing",
-            extra={"error": str(exc), "session_id": session_id},
+            extra={"error": str(exc), "session_id": session_id, "sponsor_id": sponsor_id},
         )
 
 
-def mark_session_failed(session_id: str) -> None:
+def mark_session_failed(session_id: str, sponsor_id: str) -> None:
     """Set session status to failed after max restarts are exhausted."""
     try:
         conn = psycopg2.connect(settings.DATABASE_URL)
@@ -122,18 +127,18 @@ def mark_session_failed(session_id: str) -> None:
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE sessions SET status = 'failed', closed_at = NOW() "
-                    "WHERE id = %s AND status IN ('active', 'closing')",
-                    (session_id,),
+                    "WHERE id = %s AND sponsor_id = %s AND status IN ('active', 'closing')",
+                    (session_id, sponsor_id),
                 )
             conn.commit()
             log.error(
                 "session marked failed — watermark_failed written to audit_events",
-                extra={"session_id": session_id},
+                extra={"session_id": session_id, "sponsor_id": sponsor_id},
             )
         finally:
             conn.close()
     except Exception as exc:
         log.error(
             "failed to mark session as failed",
-            extra={"error": str(exc), "session_id": session_id},
+            extra={"error": str(exc), "session_id": session_id, "sponsor_id": sponsor_id},
         )

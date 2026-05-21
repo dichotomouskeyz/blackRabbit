@@ -1,6 +1,7 @@
 """Constants for reconciliation test modules."""
 
 SESSION_ID = "ccccdddd-0000-0000-0000-000000000001"
+PARTICIPANT_ID = "PARTICIPANT-REC-01"
 SITE_ID = "SITE-REC-01"
 SPONSOR_ID = "SPONSOR-REC-01"
 _ALL_STREAMS = ("EEG", "HRV", "EDA", "Respiration")

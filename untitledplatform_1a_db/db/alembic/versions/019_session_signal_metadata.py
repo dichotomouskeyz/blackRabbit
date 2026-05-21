@@ -1,7 +1,7 @@
 """019 create session_signal_metadata table
 
 Revision ID: 019_session_signal_metadata
-Revises: 018_adverse_event_log
+Revises: 015_schema_version_metadata
 Create Date: 2026-05-02
 
 WHY THIS TABLE EXISTS:
@@ -20,9 +20,9 @@ WHY THIS TABLE EXISTS:
     2. Consistency: if a coordinator corrects a metadata entry (e.g.,
        wrong electrode cap model entered at session start), you'd need to
        UPDATE millions of rows. That's a write that should update one row.
-    3. Clarity: a schema reviewer or FDA auditor looking at eeg_samples
-       should see signal data. Recording provenance belongs in its own
-       table, with its own audit trail entry.
+    3. Clarity: a schema reviewer looking at eeg_samples should see signal
+       data. Recording provenance belongs in its own table, with its own
+       event trail entry.
 
   session_signal_metadata holds exactly one row per (session_id, modality).
   The four sample hypertables hold only what varies per sample.
@@ -78,6 +78,9 @@ WHY EEG METADATA FIELDS:
   eeg_channel_count (INTEGER): total channels declared in this recording.
     Used by the MNE pipeline to validate that eeg_samples row count
     matches the declared layout.
+  eeg_channel_names (JSONB array): canonical per-channel labels from the
+    device or acquisition config. Used by the forwarder to name channel_id
+    values when real hardware provides channel-specific names.
   cap_manufacturer (TEXT): e.g., 'Brain Products', 'OpenBCI'. Required
     for the batch layer to select the correct electrode coordinate file.
   cap_manufacturer_model_name (TEXT): e.g., 'actiCAP snap', 'Ultracortex
@@ -89,11 +92,10 @@ WHY HRV METADATA FIELDS:
     (optical). PPG intervals cannot be directly compared to ECG intervals
     without correcting for pulse transit time. The batch layer branches
     on this value.
-  beat_detection_algorithm / beat_detection_version (TEXT): the FDA
-    needs to be able to reproduce every HRV feature from raw data.
-    Without knowing the exact algorithm and version, reproduction is
-    impossible. This is the HRV equivalent of the algorithm_name /
-    algorithm_version columns on alert_events.
+  beat_detection_algorithm / beat_detection_version (TEXT): reproducible
+    HRV features need a known extraction algorithm and version. This is
+    the HRV equivalent of the algorithm_name / algorithm_version columns
+    on alert_events.
 
 WHY EDA METADATA FIELDS:
   electrode_placement (TEXT): palmar / thenar / plantar / other.
@@ -143,7 +145,7 @@ from typing import Sequence, Union
 from alembic import op
 
 revision: str = "019_session_signal_metadata"
-down_revision: Union[str, None] = "018_adverse_event_log"
+down_revision: Union[str, None] = "015_schema_version_metadata"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -177,6 +179,11 @@ def upgrade() -> None:
             sampling_frequency          FLOAT,
             eeg_channel_count           INTEGER
                                         CHECK (eeg_channel_count IS NULL OR eeg_channel_count >= 0),
+            eeg_channel_names           JSONB
+                                        CHECK (
+                                            eeg_channel_names IS NULL OR
+                                            jsonb_typeof(eeg_channel_names) = 'array'
+                                        ),
             cap_manufacturer            TEXT,
             cap_manufacturer_model_name TEXT,
 

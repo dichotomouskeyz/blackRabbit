@@ -2,7 +2,7 @@
 
 import threading
 
-from tests.capture_tests.xdf.support import _iter_chunks
+from tests.capture_tests.xdf.support import iter_chunks
 
 
 class TestThreadSafety:
@@ -36,6 +36,6 @@ class TestThreadSafety:
         assert writer.sample_counts["EDA"] == 10
 
         raw = writer.path.read_bytes()
-        chunk_count = sum(1 for _ in _iter_chunks(raw))
+        chunk_count = sum(1 for _ in iter_chunks(raw))
         # magic(skip) + FileHeader + 5×StreamHeader + ≥1 Samples + 5×StreamFooter
         assert chunk_count >= 11

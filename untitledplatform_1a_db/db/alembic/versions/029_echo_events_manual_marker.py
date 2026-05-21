@@ -6,7 +6,7 @@ Create Date: 2026-05-14
 
 WHY:
   Migration 010 created echo_events with a zone_label CHECK constraint limited
-  to the four spatial proximity states used by proximity_state_change events:
+  to the four spatial proximity states used by zone_enter / zone_exit events:
     arms_reach | in_room | leaving_room | out_of_room
 
   The marker_simulator now publishes three event types:
@@ -21,11 +21,11 @@ WHY:
     environmental_note    — environmental condition change
 
   The existing zone labels remain untouched; this migration ADDS the
-  manual_marker labels to the CHECK constraint. event_type is TEXT
-  with no DB-level constraint — validation is enforced by echo_handler.py.
+  manual_marker labels to the CHECK constraint. event_type also has a
+  DB-level CHECK constraint in migration 010.
 
   zone_enter and zone_exit require no schema change; they use the same
-  spatial zone labels as proximity_state_change.
+  spatial zone labels.
 """
 
 from typing import Sequence, Union

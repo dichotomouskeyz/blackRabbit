@@ -25,7 +25,7 @@ class TestECHOThreadLive:
         monkeypatch.setattr(s, "XDF_BACKUP_DIR", tmp_path)
         xdf = make_xdf(session_id, monkeypatch, tmp_path)
 
-        marker_str = "ECHO|proximity_state_change|therapist_01|therapist|arms_reach"
+        marker_str = "ECHO|zone_enter|therapist_01|therapist|arms_reach"
         marker_ts = 99001.5
 
         thread, stop = build_thread(session_id, xdf, [(marker_str, marker_ts)])
@@ -52,7 +52,7 @@ class TestECHOThreadLive:
             conn.close()
 
             assert row is not None
-            assert row[0] == "proximity_state_change"
+            assert row[0] == "zone_enter"
             assert row[1] == "manual_logging"
             assert row[2] == "therapist_01"
             assert row[3] == "therapist"
@@ -69,7 +69,7 @@ class TestECHOThreadLive:
         monkeypatch.setattr(s, "XDF_BACKUP_DIR", tmp_path)
         xdf = make_xdf(session_id, monkeypatch, tmp_path)
 
-        marker_str = "ECHO|proximity_state_change|therapist_01|therapist|in_room"
+        marker_str = "ECHO|zone_enter|therapist_01|therapist|in_room"
         marker_ts = 99002.0
 
         thread, stop = build_thread(session_id, xdf, [(marker_str, marker_ts)])
@@ -96,9 +96,9 @@ class TestECHOThreadLive:
         xdf = make_xdf(session_id, monkeypatch, tmp_path)
 
         presses = [
-            ("ECHO|proximity_state_change|therapist_01|therapist|arms_reach", 99003.1),
-            ("ECHO|proximity_state_change|therapist_01|therapist|in_room", 99003.2),
-            ("ECHO|proximity_state_change|therapist_01|therapist|leaving_room", 99003.3),
+            ("ECHO|zone_enter|therapist_01|therapist|arms_reach", 99003.1),
+            ("ECHO|zone_enter|therapist_01|therapist|in_room", 99003.2),
+            ("ECHO|zone_enter|therapist_01|therapist|leaving_room", 99003.3),
         ]
 
         thread, stop = build_thread(session_id, xdf, presses)
@@ -142,7 +142,7 @@ class TestECHOThreadLive:
         presses = [
             ("NOT_ECHO_AT_ALL", 99004.0),
             ("ECHO|bad_event_type|t|therapist|arms_reach", 99004.1),
-            ("ECHO|proximity_state_change|t|therapist|arms_reach", 99004.2),
+            ("ECHO|zone_enter|t|therapist|arms_reach", 99004.2),
         ]
 
         thread, stop = build_thread(session_id, xdf, presses)

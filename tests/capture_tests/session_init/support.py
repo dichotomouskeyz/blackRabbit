@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 import psycopg2
 
-import capture.session_init as session_init
-from capture.session_init import create_session
+from capture.session_init.workflow import create_session
+from config import settings
 
 _SITE = "f1d00007-0000-4444-cccc-000000000001"
 _SPONSOR = "f1d00007-0000-4444-dddd-000000000001"
@@ -57,7 +57,7 @@ def _query_metadata(db_url: str, session_id: str) -> list[dict]:
         """
         SELECT modality,
                power_line_frequency, sample_rate_hz,
-               eeg_reference, sampling_frequency, eeg_channel_count,
+               eeg_reference, sampling_frequency, eeg_channel_count, eeg_channel_names,
                cap_manufacturer, cap_manufacturer_model_name,
                hrv_signal_source, beat_detection_algorithm, beat_detection_version,
                electrode_placement, electrode_type, skin_prep,
@@ -99,5 +99,5 @@ def _call(db_url: str, **kwargs) -> str:
         participant_id=_PART,
     )
     defaults.update(kwargs)
-    with patch.object(session_init.settings, "DATABASE_URL", db_url):
+    with patch.object(settings, "DATABASE_URL", db_url):
         return create_session(**defaults)

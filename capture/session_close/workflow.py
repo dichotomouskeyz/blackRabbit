@@ -41,6 +41,7 @@ Usage
 -----
     python -m capture.session_close \\
         --session-id <uuid> \\
+        --sponsor-id <uuid> \\
         --xdf-path   <path/to/session.xdf>
 """
 
@@ -61,13 +62,13 @@ settings.validate()
 log = get_logger("session_close")
 
 
-def run(session_id: str, xdf_path: Path) -> int:
+def run(session_id: str, sponsor_id: str, xdf_path: Path) -> int:
     """Core logic. Returns the exit code."""
     set_session_id(session_id)
 
     log.info(
         "session_close starting",
-        extra={"session_id": session_id, "xdf_path": str(xdf_path)},
+        extra={"session_id": session_id, "sponsor_id": sponsor_id, "xdf_path": str(xdf_path)},
     )
 
     # XDF read happens before DB connection so broken files fail early.
@@ -80,11 +81,11 @@ def run(session_id: str, xdf_path: Path) -> int:
         return 2
 
     try:
-        status = validate_entry_state(conn, session_id)
+        status = validate_entry_state(conn, session_id, sponsor_id)
         if status is None:
             return 2
 
-        ensure_closing(conn, session_id, status)
+        ensure_closing(conn, session_id, sponsor_id, status)
         report = reconcile_session(conn, session_id, xdf_path, xdf_counts)
         close_session(conn, session_id, report.is_reconciled)
 

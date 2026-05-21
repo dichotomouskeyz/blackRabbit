@@ -6,10 +6,10 @@ import time
 
 from capture.control import clear_stop_request, stop_requested
 from capture.forwarder.models import PAYLOAD_SCHEMA_VERSION, SessionConfig
-from capture.forwarder.preflight import _verify_session_ready
-from capture.forwarder.stream_thread import _build_stream_threads
+from capture.forwarder.preflight import load_session_config, verify_session_ready
+from capture.forwarder.stream_thread.streams import build_stream_threads
 from capture.logger import get_logger, set_session_id
-from capture.xdf import XDFWriter
+from capture.xdf.writer import XDFWriter
 from config import settings
 
 log = get_logger("lsl_forwarder")
@@ -18,7 +18,8 @@ log = get_logger("lsl_forwarder")
 def run_forwarder(cfg: SessionConfig) -> None:
     set_session_id(cfg.session_id)
     clear_stop_request(cfg.session_id)
-    _verify_session_ready(cfg)
+    verify_session_ready(cfg)
+    cfg = load_session_config(cfg)
 
     log.info(
         "forwarder starting",
@@ -35,6 +36,7 @@ def run_forwarder(cfg: SessionConfig) -> None:
 
     xdf = XDFWriter(
         session_id=cfg.session_id,
+        participant_id=cfg.participant_id,
         site_id=cfg.site_id,
         sponsor_id=cfg.sponsor_id,
     )
@@ -44,18 +46,31 @@ def run_forwarder(cfg: SessionConfig) -> None:
     if hasattr(signal, "SIGBREAK"):
         signal.signal(signal.SIGBREAK, lambda sig, frame: stop.set())
 
-    threads = _build_stream_threads(cfg, stop, xdf)
+    threads = build_stream_threads(cfg, stop, xdf)
     for thread in threads:
         thread.start()
 
     log.info("all forwarder threads started - press Ctrl+C to stop")
-    _wait_for_stop(cfg.session_id, stop)
+    wait_for_stop(cfg.session_id, stop)
 
-    for thread in threads:
-        thread.join(timeout=10.0)
-
-    xdf.close()
+    try:
+        join_threads(threads)
+    finally:
+        xdf.close()
     log.info("forwarder stopped")
+
+
+def _join_threads(threads: list[threading.Thread], timeout_s: float = 10.0) -> None:
+    for thread in threads:
+        thread.join(timeout=timeout_s)
+        if thread.is_alive():
+            log.error(
+                "forwarder thread did not stop after join timeout",
+                extra={
+                    "thread_name": thread.name,
+                    "join_timeout_s": timeout_s,
+                },
+            )
 
 
 def _wait_for_stop(session_id: str, stop: threading.Event) -> None:
@@ -69,3 +84,7 @@ def _wait_for_stop(session_id: str, stop: threading.Event) -> None:
     except KeyboardInterrupt:
         log.info("shutdown requested - flushing buffers")
         stop.set()
+
+
+join_threads = _join_threads
+wait_for_stop = _wait_for_stop

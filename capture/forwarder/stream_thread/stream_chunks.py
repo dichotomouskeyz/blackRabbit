@@ -19,7 +19,7 @@ def process_chunk(thread, conn, samples: list, timestamps: list[float]):
         conn = write_rows_and_integrity(thread, conn, rows)
     if conn is None:
         buffer_chunk(thread, rows)
-        conn = thread._try_reconnect()
+        conn = thread.try_reconnect()
     return conn
 
 
@@ -33,11 +33,11 @@ def build_rows(thread, samples: list, timestamps: list[float]) -> list[dict]:
 
 def write_rows_and_integrity(thread, conn, rows: list[dict]):
     if thread._buffer:
-        conn = thread._flush_buffer(conn)
+        conn = thread.flush_buffer(conn)
     if conn is not None:
-        conn = thread._write_rows(conn, rows)
+        conn = thread.write_rows(conn, rows)
     if conn is not None:
-        thread._write_integrity_log(conn, rows)
+        thread.write_integrity_log(conn, rows)
     return conn
 
 
@@ -45,14 +45,15 @@ def buffer_chunk(thread, rows: list[dict]) -> None:
     if len(thread._buffer) < BUFFER_MAX_CHUNKS:
         thread._buffer.append(rows)
     else:
+        dropped_rows = len(thread._buffer[0])
+        thread._buffer.append(rows)
         log.error(
             f"{thread._stream_type} buffer full - oldest chunk dropped",
             extra={
-                "dropped_rows": len(thread._buffer[0]),
+                "dropped_rows": dropped_rows,
                 "buffer_depth": len(thread._buffer),
             },
         )
-        thread._buffer.append(rows)
 
     if thread._chunk_count % 10 == 0:
         log.warning(

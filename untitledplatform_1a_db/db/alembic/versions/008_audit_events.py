@@ -5,18 +5,16 @@ Revises: 007_respiration_samples
 Create Date: 2026-04-26
 
 WHY APPEND-ONLY:
-  21 CFR Part 11 requires that electronic records used in clinical
-  trials are tamper-evident. "Append-only" means:
+  The core event trail should be tamper-evident. "Append-only" means:
     - Rows can be INSERTed, never UPDATEd or DELETEd.
     - Application code cannot write here directly — only database
       triggers can (enforced in migration 023).
     - Every write to ANY other table automatically generates an
       audit_events row via trigger.
 
-  This means if the FDA asks "prove that this EEG sample wasn't
-  modified after the session," you can show the audit trail: the
-  original INSERT event with its timestamp, and no subsequent
-  UPDATE or DELETE events for that row.
+  This means a reviewer can inspect the original INSERT event with its
+  timestamp, and verify that no subsequent UPDATE or DELETE event exists
+  for that row.
 
 WHY PAYLOAD IS JSONB:
   Audit events cover everything — session starts, config snapshots,
@@ -32,7 +30,7 @@ WHY TWO TIMESTAMP COLUMNS:
   event_timestamp = when the event actually happened (may be an
   LSL timestamp or application timestamp).
   db_insert_time = when the audit row was written to the database.
-  Same logic as biosignal tables — regulatory requirement.
+  Same logic as biosignal tables.
 """
 
 from typing import Sequence, Union

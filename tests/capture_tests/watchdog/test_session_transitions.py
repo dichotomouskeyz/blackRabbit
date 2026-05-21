@@ -9,8 +9,11 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", ".env"))
 
-import capture.watchdog as watchdog_module  # noqa: E402
-
+import capture.watchdog.db as watchdog_db  # noqa: E402
+import capture.watchdog.models as watchdog_models  # noqa: E402
+import capture.watchdog.process as watchdog_process  # noqa: E402
+import capture.watchdog.runner as watchdog_runner  # noqa: E402
+from config import settings  # noqa: E402
 from tests.capture_tests.watchdog.support import (  # noqa: E402
     _PART_UUID,
     _SITE_UUID,
@@ -27,31 +30,35 @@ _SID_FAILED = "d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a05"
 _SID_MAXRETRY = "d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a06"
 _SID_NOOP_CLOSING = "d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a07"
 _SID_NOOP_CLOSED = "d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a08"
+_SID_WRONG_SPONSOR = "d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a09"
+_OTHER_SPONSOR = "f1d00009-0000-4444-dddd-000000000099"
 
 
 @pytest.mark.integration
 class TestWatchdogSessionTransitions:
     def test_mark_session_closing_sets_status(self, monkeypatch):
         monkeypatch.setattr(
-            watchdog_module.settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
+            settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
         )
         _insert_session(_SID_CLOSING, status="active")
         try:
-            watchdog_module._mark_session_closing(_SID_CLOSING)
+            watchdog_db.mark_session_closing(_SID_CLOSING, _SPONSOR_UUID)
 
             assert _get_status(_SID_CLOSING) == "closing"
-            assert "watermark_verified" not in _get_audit_types(_SID_CLOSING)
-            assert "watermark_failed" not in _get_audit_types(_SID_CLOSING)
+            audit_types = _get_audit_types(_SID_CLOSING)
+            assert "session_status_transition" in audit_types
+            assert "watermark_verified" not in audit_types
+            assert "watermark_failed" not in audit_types
         finally:
             _cleanup_session(_SID_CLOSING)
 
     def test_mark_session_closing_is_noop_if_already_closing(self, monkeypatch):
         monkeypatch.setattr(
-            watchdog_module.settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
+            settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
         )
         _insert_session(_SID_NOOP_CLOSING, status="closing")
         try:
-            watchdog_module._mark_session_closing(_SID_NOOP_CLOSING)
+            watchdog_db.mark_session_closing(_SID_NOOP_CLOSING, _SPONSOR_UUID)
 
             assert _get_status(_SID_NOOP_CLOSING) == "closing"
         finally:
@@ -59,35 +66,61 @@ class TestWatchdogSessionTransitions:
 
     def test_mark_session_failed_sets_status_and_fires_trigger(self, monkeypatch):
         monkeypatch.setattr(
-            watchdog_module.settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
+            settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
         )
         _insert_session(_SID_FAILED, status="active")
         try:
-            watchdog_module._mark_session_failed(_SID_FAILED)
+            watchdog_db.mark_session_failed(_SID_FAILED, _SPONSOR_UUID)
 
             assert _get_status(_SID_FAILED) == "failed"
-            assert "watermark_failed" in _get_audit_types(_SID_FAILED)
+            audit_types = _get_audit_types(_SID_FAILED)
+            assert "session_status_transition" in audit_types
+            assert "watermark_failed" in audit_types
         finally:
             _cleanup_session(_SID_FAILED)
 
     def test_mark_session_failed_is_noop_on_closed_session(self, monkeypatch):
         monkeypatch.setattr(
-            watchdog_module.settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
+            settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
         )
         _insert_session(_SID_NOOP_CLOSED, status="closed")
         try:
-            watchdog_module._mark_session_failed(_SID_NOOP_CLOSED)
+            watchdog_db.mark_session_failed(_SID_NOOP_CLOSED, _SPONSOR_UUID)
 
             assert _get_status(_SID_NOOP_CLOSED) == "closed"
         finally:
             _cleanup_session(_SID_NOOP_CLOSED)
 
+    def test_mark_session_closing_wrong_sponsor_is_noop(self, monkeypatch):
+        monkeypatch.setattr(
+            settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
+        )
+        _insert_session(_SID_WRONG_SPONSOR, status="active")
+        try:
+            watchdog_db.mark_session_closing(_SID_WRONG_SPONSOR, _OTHER_SPONSOR)
+
+            assert _get_status(_SID_WRONG_SPONSOR) == "active"
+        finally:
+            _cleanup_session(_SID_WRONG_SPONSOR)
+
+    def test_mark_session_failed_wrong_sponsor_is_noop(self, monkeypatch):
+        monkeypatch.setattr(
+            settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
+        )
+        _insert_session(_SID_WRONG_SPONSOR, status="active")
+        try:
+            watchdog_db.mark_session_failed(_SID_WRONG_SPONSOR, _OTHER_SPONSOR)
+
+            assert _get_status(_SID_WRONG_SPONSOR) == "active"
+        finally:
+            _cleanup_session(_SID_WRONG_SPONSOR)
+
     def test_max_restarts_marks_session_failed_end_to_end(self, monkeypatch):
         monkeypatch.setattr(
-            watchdog_module.settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
+            settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
         )
-        monkeypatch.setattr(watchdog_module, "MAX_RESTARTS", 1)
-        monkeypatch.setattr(watchdog_module, "RESTART_DELAY_BASE_S", 0.0)
+        monkeypatch.setattr(watchdog_models, "MAX_RESTARTS", 1)
+        monkeypatch.setattr(watchdog_models, "RESTART_DELAY_BASE_S", 0.0)
 
         _insert_session(_SID_MAXRETRY, status="active")
 
@@ -108,14 +141,16 @@ class TestWatchdogSessionTransitions:
         )
 
         try:
-            with patch("capture.watchdog.subprocess.Popen", return_value=mock_proc):
-                with patch("capture.watchdog.time.sleep"):
-                    watchdog_module.main()
+            with patch.object(watchdog_process.subprocess, "Popen", return_value=mock_proc):
+                with patch.object(watchdog_runner.time, "sleep"):
+                    watchdog_runner.main()
 
             assert _get_status(_SID_MAXRETRY) == "failed", (
                 "session should be 'failed' after max restarts exhausted"
             )
-            assert "watermark_failed" in _get_audit_types(_SID_MAXRETRY), (
+            audit_types = _get_audit_types(_SID_MAXRETRY)
+            assert "session_status_transition" in audit_types
+            assert "watermark_failed" in audit_types, (
                 "watermark_failed must be written to audit_events"
             )
 

@@ -8,8 +8,6 @@ from capture.session_init.metadata import _build_metadata_rows
 from capture.session_init.sql import _METADATA_INSERT, SESSION_ACTIVATE, SESSION_INSERT
 from config import settings
 
-settings.validate()
-
 
 def create_session(
     compound: str,
@@ -25,6 +23,7 @@ def create_session(
     skin_prep: str | None = None,
 ) -> str:
     """Insert sessions anchor row, write 4 signal metadata rows, return session UUID."""
+    settings.validate()
     session_id = str(uuid.uuid4())
 
     conn = psycopg2.connect(settings.DATABASE_URL)

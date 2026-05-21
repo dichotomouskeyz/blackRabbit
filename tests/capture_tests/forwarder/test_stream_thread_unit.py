@@ -1,19 +1,16 @@
-"""_StreamThread unit tests — no DB, no thread start."""
+"""StreamThread unit tests — no DB, no thread start."""
 
-import queue
 import threading
-import time
 from unittest.mock import MagicMock, patch
 
 import psycopg2
+import pytest
 
-from capture.forwarder import (
-    BUFFER_MAX_CHUNKS,
-    SessionConfig,
-    _EEG_INSERT,
-    _StreamThread,
-    _build_eeg_rows,
-)
+from capture.forwarder.models import BUFFER_MAX_CHUNKS, SessionConfig
+from capture.forwarder.rows import build_eeg_rows
+from capture.forwarder.sql import EEG_INSERT
+from capture.forwarder.stream_thread.stream_chunks import buffer_chunk
+from capture.forwarder.stream_thread.stream_thread import StreamThread
 
 _SESSION = "f1d00008-0000-4444-aaaa-000000000001"
 _PART = "f1d00008-0000-4444-bbbb-000000000001"
@@ -35,17 +32,17 @@ def _make_thread(
     xdf_writer=None,
     stream_type: str = "EEG",
     cfg: SessionConfig = _CFG,
-) -> _StreamThread:
+) -> StreamThread:
     if stop_event is None:
         stop_event = threading.Event()
     if xdf_writer is None:
         xdf_writer = MagicMock()
-    return _StreamThread(
+    return StreamThread(
         stream_name=f"Test{stream_type}",
         stream_type=stream_type,
         chunk_size=25,
-        row_builder=_build_eeg_rows,
-        insert_sql=_EEG_INSERT,
+        row_builder=build_eeg_rows,
+        insert_sql=EEG_INSERT,
         cfg=cfg,
         stop_event=stop_event,
         xdf_writer=xdf_writer,
@@ -66,20 +63,20 @@ class TestStreamThreadUnit:
 
     def test_initial_sample_index_is_zero(self):
         t = _make_thread()
-        assert t._sample_index == 0
+        assert t.sample_index == 0
 
     def test_initial_buffer_is_empty(self):
         t = _make_thread()
-        assert len(t._buffer) == 0
+        assert len(t.buffer) == 0
 
     def test_write_rows_returns_conn_on_success(self):
         t = _make_thread()
         mock_conn = MagicMock()
         mock_conn.cursor.return_value = MagicMock()
 
-        rows = _build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.0, 0)
+        rows = build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.0, 0)
         with patch("psycopg2.extras.execute_batch"):
-            result = t._write_rows(mock_conn, rows)
+            result = t.write_rows(mock_conn, rows)
 
         assert result is mock_conn
         mock_conn.commit.assert_called_once()
@@ -89,16 +86,16 @@ class TestStreamThreadUnit:
         mock_conn = MagicMock()
         mock_conn.cursor.return_value = MagicMock()
 
-        rows = _build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.0, 0)
+        rows = build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.0, 0)
         with patch(
             "psycopg2.extras.execute_batch",
             side_effect=psycopg2.OperationalError("lost connection"),
         ):
-            result = t._write_rows(mock_conn, rows)
+            result = t.write_rows(mock_conn, rows)
 
         assert result is None
-        assert len(t._buffer) == 1
-        assert t._buffer[0] is rows
+        assert len(t.buffer) == 1
+        assert t.buffer[0] is rows
         mock_conn.close.assert_called_once()
 
     def test_write_rows_rolls_back_on_non_connection_error(self):
@@ -106,45 +103,137 @@ class TestStreamThreadUnit:
         mock_conn = MagicMock()
         mock_conn.cursor.return_value = MagicMock()
 
-        rows = _build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.0, 0)
+        rows = build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.0, 0)
         with patch(
             "psycopg2.extras.execute_batch",
             side_effect=psycopg2.IntegrityError("duplicate key"),
         ):
-            result = t._write_rows(mock_conn, rows)
+            result = t.write_rows(mock_conn, rows)
 
         assert result is mock_conn
         mock_conn.rollback.assert_called_once()
 
     def test_flush_buffer_drains_all_chunks(self):
         t = _make_thread()
-        rows_a = _build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.0, 0)
-        rows_b = _build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.004, 1)
-        t._buffer.append(rows_a)
-        t._buffer.append(rows_b)
+        rows_a = build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.0, 0)
+        rows_b = build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.004, 1)
+        t.buffer.append(rows_a)
+        t.buffer.append(rows_b)
 
         mock_conn = MagicMock()
-        t._write_rows = lambda conn, rows: conn
+        t.write_rows = lambda conn, rows: conn
 
-        result = t._flush_buffer(mock_conn)
+        result = t.flush_buffer(mock_conn)
 
-        assert len(t._buffer) == 0
+        assert len(t.buffer) == 0
         assert result is mock_conn
 
     def test_flush_buffer_stops_on_connection_drop(self):
         t = _make_thread()
-        rows_a = _build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.0, 0)
-        rows_b = _build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.004, 1)
-        t._buffer.append(rows_a)
-        t._buffer.append(rows_b)
+        rows_a = build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.0, 0)
+        rows_b = build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.004, 1)
+        t.buffer.append(rows_a)
+        t.buffer.append(rows_b)
 
         mock_conn = MagicMock()
-        t._write_rows = lambda conn, rows: None
+        t.write_rows = lambda conn, rows: None
 
-        result = t._flush_buffer(mock_conn)
+        result = t.flush_buffer(mock_conn)
 
         assert result is None
-        assert len(t._buffer) == 2
+        assert len(t.buffer) == 2
 
     def test_buffer_max_chunks_constant_is_positive(self):
         assert BUFFER_MAX_CHUNKS > 0
+
+    def test_buffer_chunk_logs_after_appending_when_full(self):
+        t = _make_thread()
+        t.buffer.extend([[{"row": i}]] for i in range(BUFFER_MAX_CHUNKS))
+
+        with patch("capture.forwarder.stream_thread.stream_chunks.log.error") as log_error:
+            buffer_chunk(t, [{"row": "new"}])
+
+        assert len(t.buffer) == BUFFER_MAX_CHUNKS
+        assert t.buffer[-1] == [{"row": "new"}]
+        log_error.assert_called_once()
+        extra = log_error.call_args.kwargs["extra"]
+        assert extra["dropped_rows"] == 1
+        assert extra["buffer_depth"] == BUFFER_MAX_CHUNKS
+
+    def test_maybe_record_drift_requires_db_connection(self, monkeypatch):
+        t = _make_thread()
+        monkeypatch.setattr(
+            "capture.forwarder.stream_thread.stream_drift.time.monotonic",
+            lambda: 999.0,
+        )
+
+        inlet = MagicMock()
+
+        with pytest.raises(RuntimeError, match="clock_drift_log"):
+            t.maybe_record_drift(inlet, None)
+
+        inlet.time_correction.assert_not_called()
+
+    def test_maybe_record_drift_writes_clock_drift_log(self, monkeypatch):
+        t = _make_thread()
+        monkeypatch.setattr(
+            "capture.forwarder.stream_thread.stream_drift.time.monotonic",
+            lambda: 999.0,
+        )
+        monkeypatch.setattr(
+            "capture.forwarder.stream_thread.stream_drift.pylsl.local_clock",
+            lambda: 1234.5,
+        )
+
+        inlet = MagicMock()
+        inlet.time_correction.return_value = 0.001
+        mock_conn = MagicMock()
+        mock_cur = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+
+        t.maybe_record_drift(inlet, mock_conn)
+
+        mock_cur.execute.assert_called_once()
+        sql, params = mock_cur.execute.call_args.args
+        assert "INSERT INTO clock_drift_log" in sql
+        assert params["session_id"] == _SESSION
+        assert params["stream_type"] == "EEG"
+        assert params["remote_clock_offset_s"] == 0.001
+        assert params["lsl_timestamp"] == 1234.5
+        mock_conn.commit.assert_called_once()
+
+    def test_maybe_record_drift_rolls_back_and_raises_on_db_failure(self, monkeypatch):
+        t = _make_thread()
+        monkeypatch.setattr(
+            "capture.forwarder.stream_thread.stream_drift.time.monotonic",
+            lambda: 999.0,
+        )
+
+        inlet = MagicMock()
+        inlet.time_correction.return_value = 0.001
+        mock_conn = MagicMock()
+        mock_cur = MagicMock()
+        mock_cur.execute.side_effect = psycopg2.DatabaseError("write failed")
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+
+        with pytest.raises(RuntimeError, match="clock_drift_log"):
+            t.maybe_record_drift(inlet, mock_conn)
+
+        mock_conn.rollback.assert_called_once()
+
+    def test_write_integrity_log_records_hash_method(self):
+        t = _make_thread()
+        rows = build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.0, 0)
+        mock_conn = MagicMock()
+        mock_cur = MagicMock()
+        mock_conn.cursor.return_value = mock_cur
+
+        t.write_integrity_log(mock_conn, rows)
+
+        mock_cur.execute.assert_called_once()
+        sql, params = mock_cur.execute.call_args.args
+        assert "log_type" in sql
+        assert "hash_method" in sql
+        assert params[4] == "chunk_integrity"
+        assert params[-1] == "md5"
+        mock_conn.commit.assert_called_once()

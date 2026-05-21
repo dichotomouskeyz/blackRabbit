@@ -9,19 +9,20 @@ WHY A SEPARATE REFERENCE TABLE:
   compound administered in a session. Without a reference table, that
   column is free-text — "LSD", "lsd", "Lsd", and "lysergic acid
   diethylamide" could all appear in different rows for the same substance.
-  That makes downstream analysis brittle and regulatory audits unreliable.
+  That makes downstream analysis brittle and difficult to reproduce.
 
   This table defines the closed vocabulary. sessions.compound must be
   one of the compound_id values here. display_name gives a human-readable
   label; iupac_name is the authoritative chemical identity; cas_number is
-  the globally unique registry identifier required on every DEA Form 222
-  and FDA IND submission.
+  the globally unique registry identifier commonly used by regulated
+  deployments and chemical reference material.
 
 WHY IUPAC AND CAS BOTH:
   IUPAC names are unambiguous: no two valid IUPAC names can refer to the
   same compound. CAS numbers are globally unique identifiers issued by the
-  Chemical Abstracts Service — every DEA Schedule I accountability report
-  and FDA IND amendment references them. Regulatory inspectors expect both.
+  Chemical Abstracts Service. Keeping both supports deployments that need
+  formal chemical accountability without making the open-source core a
+  compliance product.
 
 WHY PSILOCIN IS INCLUDED:
   Psilocybin ([3-[2-(dimethylamino)ethyl]-1H-indol-4-yl] dihydrogen
@@ -33,15 +34,13 @@ WHY PSILOCIN IS INCLUDED:
 
 WHY IBOGAINE AND IBOGAINE HYDROCHLORIDE ARE SEPARATE ROWS:
   Free base and hydrochloride salt are chemically distinct with separate
-  CAS numbers. The distinction matters for DEA Schedule I accountability:
-  the two forms have different molecular weights, so the same molar dose
-  corresponds to different administered masses. FDA and DEA documentation
-  always specifies the exact salt form used. Conflating them would
+  CAS numbers. The two forms have different molecular weights, so the same
+  molar dose corresponds to different administered masses. Conflating them would
   introduce a systematic error in dose accountability records.
 
 SEED DATA:
-  Populated at migration time via INSERT. All compounds are DEA Schedule I
-  substances used exclusively in FDA-authorized IND clinical trials.
+  Populated at migration time via INSERT. The default vocabulary covers the
+  compounds this project models in local research and demo sessions.
 """
 
 from typing import Sequence, Union

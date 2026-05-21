@@ -1,4 +1,4 @@
-"""020 create audit triggers on all tables
+"""020 create audit triggers on low-volume tables
 
 Revision ID: 020_audit_triggers
 Revises: 019_session_signal_metadata
@@ -17,31 +17,27 @@ WHY THIS RUNS LAST (among table-creation migrations):
 
 HOW TRIGGERS WORK:
   A database trigger is a function that Postgres runs automatically
-  when a specific event happens on a table. Here we attach triggers
-  to every table so that every INSERT also writes a row to audit_events.
+  when a specific event happens on a table. Here we attach triggers to
+  low-volume governance and metadata tables so that every INSERT also
+  writes a row to audit_events.
 
   This happens at the DATABASE level, not the application level:
   both writes occur in the same transaction. If either fails, both
   fail. Even a direct psql INSERT triggers the audit. There is no
-  code path that can write data without an audit trail.
+  code path that can write these low-volume records without an audit
+  trail.
 
-WHY ONE GENERIC FUNCTION PER TIER:
+WHY ONE GENERIC FUNCTION:
   Instead of a separate trigger function per table, we write one
-  function per audit tier (full and chunk) that uses TG_TABLE_NAME
-  and TG_OP (Postgres built-in variables) to know what triggered it.
+  function that uses TG_TABLE_NAME and TG_OP (Postgres built-in
+  variables) to know what triggered it.
 
-WHY TWO TIERS:
+WHY BIOSIGNALS ARE EXCLUDED:
 
-  FULL AUDIT (low-volume clinical and regulatory tables):
-    Captures the entire new row as JSONB. These tables produce at most
-    one row per clinical event — consent logs, signatures, AE records —
-    so full-row capture is both appropriate and inexpensive.
-
-  LIGHTWEIGHT AUDIT (high-volume biosignal hypertables):
-    Captures only the identifying fields per row — sample_index,
-    lsl_timestamp, device_id — rather than the full biosignal value.
-    This proves each write happened and when, without duplicating
-    the signal data that already lives in the hypertable.
+  High-volume biosignal hypertables would generate millions of audit
+  rows per long session. They are intentionally not trigger-audited
+  here. Migration 026 creates biosignal_integrity_log for chunk-level
+  write provenance, completeness, and tamper-evidence.
 """
 
 from typing import Sequence, Union
@@ -62,24 +58,10 @@ FULL_AUDIT_TABLES = [
     "echo_events",
     "session_feature_vectors",
     "session_notes",
-    # Regulatory tables (014-018)
-    "participant_consent_log",
     "schema_version_log",
-    "electronic_signatures",
-    "investigational_product_log",
-    "adverse_event_log",
     # Recording metadata (019)
     "session_signal_metadata",
 ]
-
-# Lightweight audit: one audit entry per row, minimal payload.
-LIGHTWEIGHT_AUDIT_TABLES = [
-    "eeg_samples",
-    "hrv_samples",
-    "eda_samples",
-    "respiration_samples",
-]
-
 
 def upgrade() -> None:
     # --- Full audit trigger function ---
@@ -120,36 +102,6 @@ def upgrade() -> None:
         $$ LANGUAGE plpgsql;
     """)
 
-    # --- Lightweight audit trigger function (for high-volume hypertables) ---
-    # Records that the write happened without storing the full row.
-    op.execute("""
-        CREATE OR REPLACE FUNCTION audit_trigger_lightweight_func()
-        RETURNS TRIGGER AS $$
-        BEGIN
-            INSERT INTO audit_events (
-                session_id,
-                event_type,
-                table_name,
-                record_id,
-                payload,
-                event_timestamp
-            ) VALUES (
-                NEW.session_id,
-                TG_OP,
-                TG_TABLE_NAME,
-                NEW.id::TEXT,
-                jsonb_build_object(
-                    'sample_index', NEW.sample_index,
-                    'lsl_timestamp', NEW.lsl_timestamp,
-                    'device_id', NEW.device_id
-                ),
-                NOW()
-            );
-            RETURN NEW;
-        END;
-        $$ LANGUAGE plpgsql;
-    """)
-
     # Attach full audit triggers (row-level)
     for table in FULL_AUDIT_TABLES:
         op.execute(f"""
@@ -159,19 +111,8 @@ def upgrade() -> None:
             EXECUTE FUNCTION audit_trigger_full_func();
         """)
 
-    # Attach lightweight audit triggers (row-level)
-    for table in LIGHTWEIGHT_AUDIT_TABLES:
-        op.execute(f"""
-            CREATE TRIGGER {table}_audit_trigger
-            AFTER INSERT ON {table}
-            FOR EACH ROW
-            EXECUTE FUNCTION audit_trigger_lightweight_func();
-        """)
-
 
 def downgrade() -> None:
-    all_tables = FULL_AUDIT_TABLES + LIGHTWEIGHT_AUDIT_TABLES
-    for table in all_tables:
+    for table in FULL_AUDIT_TABLES:
         op.execute(f"DROP TRIGGER IF EXISTS {table}_audit_trigger ON {table};")
-    op.execute("DROP FUNCTION IF EXISTS audit_trigger_lightweight_func;")
     op.execute("DROP FUNCTION IF EXISTS audit_trigger_full_func;")

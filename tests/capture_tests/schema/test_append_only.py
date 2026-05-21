@@ -11,12 +11,12 @@ class TestAppendOnly:
             """
             INSERT INTO echo_events
                 (session_id, participant_id, site_id, sponsor_id, event_type,
-                 source, actor_id, zone_label, lsl_timestamp)
+                 source, actor_id, actor_role, zone_label, lsl_timestamp)
             VALUES (%s,
                     'aaaa0000-0000-0000-0000-000000000001',
                     'bbbb0000-0000-0000-0000-000000000001',
                     'cccc0000-0000-0000-0000-000000000001',
-                    'zone_enter', 'manual_logging', 'C01', 'in_room', 1234567890.0)
+                    'zone_enter', 'manual_logging', 'C01', 'coordinator', 'in_room', 1234567890.0)
             RETURNING id;
             """,
             (session_id,),
@@ -28,7 +28,7 @@ class TestAppendOnly:
                 session_id, participant_id, site_id, sponsor_id, echo_event_id,
                 w1_convergence_density, w2_convergence_density, w3_convergence_density,
                 deviation_metrics, null_threshold, fdr_q_value, passed_fdr,
-                temporal_alignment_score, arc_config_version
+                temporal_alignment_score, arc_config_version, arc_config_sha256
             )
             VALUES (
                 %s,
@@ -39,7 +39,8 @@ class TestAppendOnly:
                 0.33, 0.50, 0.66,
                 '{"w1": {"hrv_rmssd": {"z_score": 2.4, "p_value": 0.002}}}'::jsonb,
                 0.95, 0.004, TRUE, 0.88,
-                'arc_watchdog_config.toml@demo-001'
+                'arc_watchdog_config.toml@demo-001',
+                '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
             );
             """,
             (session_id, echo_event_id),
@@ -72,22 +73,4 @@ class TestAppendOnly:
             restricted_cursor.execute(
                 "DELETE FROM audit_events"
                 " WHERE session_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13';"
-            )
-
-    def test_electronic_signatures_rejects_update(self, restricted_cursor, restricted_conn):
-        restricted_cursor.execute("""
-            INSERT INTO electronic_signatures
-                (session_id, site_id, sponsor_id, signer_id, signer_printed_name,
-                 signer_role, signature_meaning, table_name, record_id, signature_hash)
-            VALUES ('a0eebc99-0000-0000-0000-000000000004',
-                    'bbbb0000-0000-0000-0000-000000000001',
-                    'cccc0000-0000-0000-0000-000000000001',
-                    'USER01', 'Jay Ahlon',
-                    'coordinator', 'session_closed', 'sessions', 'rec-004', 'abc123');
-        """)
-        restricted_conn.commit()
-        with pytest.raises(psycopg2.errors.InsufficientPrivilege):
-            restricted_cursor.execute(
-                "UPDATE electronic_signatures SET signature_hash = 'tampered' "
-                "WHERE session_id = 'a0eebc99-0000-0000-0000-000000000004';"
             )

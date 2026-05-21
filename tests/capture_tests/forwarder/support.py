@@ -1,6 +1,6 @@
 """Shared constants and helpers for forwarder test modules."""
 
-from capture.forwarder import SessionConfig
+from capture.forwarder.models import SessionConfig
 
 # Unit-test config — no DB involved
 _UNIT_CFG = SessionConfig(

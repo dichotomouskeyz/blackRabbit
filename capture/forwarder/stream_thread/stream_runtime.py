@@ -9,18 +9,18 @@ log = get_logger("lsl_forwarder")
 def run_stream_thread(thread) -> None:
     log.info(f"{thread._stream_type} thread starting")
 
-    inlet = thread._resolve_inlet()
+    inlet = thread.resolve_inlet()
     if inlet is None:
         log.error(f"{thread._stream_type} inlet not found - thread exiting")
         return
 
-    conn = thread._connect_db()
+    conn = thread.connect_db()
     if conn is None:
         log.error(f"{thread._stream_type} could not establish DB connection - thread exiting")
         return
 
     while not thread._stop_event.is_set():
-        thread._maybe_record_drift(inlet, conn)
+        thread.maybe_record_drift(inlet, conn)
         samples, timestamps = inlet.pull_chunk(
             timeout=1.0,
             max_samples=thread._chunk_size,
@@ -28,14 +28,24 @@ def run_stream_thread(thread) -> None:
         if samples:
             conn = process_chunk(thread, conn, samples, timestamps)
 
-    if conn and thread._buffer:
-        thread._flush_buffer(conn)
+    if conn and thread.buffer:
+        thread.flush_buffer(conn)
+    if thread.buffer:
+        rows_at_risk = sum(len(chunk) for chunk in thread.buffer)
+        log.error(
+            f"{thread._stream_type} thread stopped with buffered data at risk",
+            extra={
+                "stream_type": thread._stream_type,
+                "buffered_chunks_remaining": len(thread.buffer),
+                "rows_at_risk": rows_at_risk,
+            },
+        )
     if conn:
         conn.close()
     log.info(
         f"{thread._stream_type} thread stopped",
         extra={
-            "total_samples": thread._sample_index,
-            "buffered_chunks_remaining": len(thread._buffer),
+            "total_samples": thread.sample_index,
+            "buffered_chunks_remaining": len(thread.buffer),
         },
     )

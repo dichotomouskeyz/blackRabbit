@@ -4,26 +4,21 @@ Revision ID: 021_data_correction_amendment_log
 Revises: 020_audit_triggers
 Create Date: 2026-05-04
 
-WHY THIS IS REQUIRED BY 21 CFR PART 11:
-  Section 11.10(e) mandates that audit trails for electronic records
-  must capture any changes made to data, preserving the original value,
-  who made the change, and when. The key regulatory language is:
-  "original value is preserved" — it cannot be overwritten.
+WHY THIS TABLE EXISTS:
+  Data correction workflows need a structured place to preserve the
+  original value, corrected value, reason, reviewer, and timestamps.
 
   In untitledplatform_1a, direct table UPDATEs are caught by the existing audit
   trigger infrastructure. But the audit_events payload shows only what
   the row looks like AFTER the change. This table provides the
-  structured clinical data correction record that regulators expect —
-  original value, corrected value, reason, and approval chain — in a
-  queryable form that audit_events' JSONB payload does not offer.
+  structured correction record — original value, corrected value, reason,
+  and approval chain — in a queryable form that audit_events' JSONB
+  payload does not offer.
 
-WHY APPROVAL IS REQUIRED:
-  FDA and ICH E6(R3) Good Clinical Practice guidelines require that
-  data corrections in clinical trials be reviewed and approved by an
-  authorized person (typically the site's data manager or investigator).
-  A unilateral self-correction that bypasses approval is a GCP violation.
-  approved_by and approved_at track the approval. A NULL approved_by means
-  the correction is in a pending state — not yet validated for the record.
+WHY APPROVAL FIELDS EXIST:
+  Some deployments want corrections reviewed before they become trusted.
+  approved_by and approved_at track that optional review state. A NULL
+  approved_by means the correction is pending.
 
 CORRECTION_TYPE VOCABULARY:
   'transcription_error'   — data was entered incorrectly (typo, copy error)

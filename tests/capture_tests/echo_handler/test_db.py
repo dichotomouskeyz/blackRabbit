@@ -37,7 +37,7 @@ class TestECHODBWrite:
 
         assert row is not None, "No echo_events row found"
         assert row[0] == _SID_INSERT
-        assert row[1] == "proximity_state_change"
+        assert row[1] == "zone_enter"
         assert row[2] == "manual_logging"
         assert row[3] == "therapist_01"
         assert row[4] == "therapist"
@@ -66,7 +66,7 @@ class TestECHODBWrite:
     def test_xdf_marker_written_before_db(self):
         from unittest.mock import MagicMock
 
-        from capture.echo_handler import ECHOThread
+        from capture.echo_handler.thread import ECHOThread
 
         cfg = MagicMock()
         cfg.session_id = "e0eebc99-9c0b-4ef8-bb6d-6bb9bd380a04"
@@ -77,7 +77,7 @@ class TestECHODBWrite:
         xdf_mock = MagicMock()
         thread = ECHOThread(cfg=cfg, stop_event=MagicMock(), xdf_writer=xdf_mock)
 
-        marker = "ECHO|proximity_state_change|therapist_01|therapist|arms_reach"
+        marker = "ECHO|zone_enter|therapist_01|therapist|arms_reach"
         conn = psycopg2.connect(database_url())
         conn.autocommit = False
 
@@ -86,7 +86,7 @@ class TestECHODBWrite:
             "participant_id": "aaaa0002-0000-0000-0000-000000000002",
             "site_id": "bbbb0000-0000-0000-0000-000000000001",
             "sponsor_id": "cccc0000-0000-0000-0000-000000000001",
-            "event_type": "proximity_state_change",
+            "event_type": "zone_enter",
             "actor_id": "therapist_01",
             "actor_role": "therapist",
             "zone_label": "arms_reach",
@@ -94,7 +94,7 @@ class TestECHODBWrite:
         }
 
         thread._xdf.write_marker(marker, row["lsl_timestamp"])
-        thread._write_row(conn, row)
+        thread.write_row(conn, row)
         conn.close()
 
         xdf_mock.write_marker.assert_called_once_with(marker, 1234567999.0)

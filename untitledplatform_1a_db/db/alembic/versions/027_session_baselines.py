@@ -6,12 +6,9 @@ Create Date: 2026-05-12
 
 WHY THIS TABLE EXISTS:
   ARC needs persisted baseline values to interpret post-session signal
-  deviations. safety_monitor.py writes one row per signal component per
-  session at the end of the baseline window. arc_processor.py reads the
-  rows later after the validated session record exists.
-
-  This keeps baseline capture in the current phase without introducing
-  1b streaming or batch infrastructure.
+  deviations. In the open-source 1a MVP this table defines the durable
+  shape of those values, but no ARC processor writes it yet. Future ARC
+  work should populate it only after the validated session record exists.
 """
 
 from typing import Sequence, Union

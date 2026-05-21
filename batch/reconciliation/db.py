@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import psycopg2
+from psycopg2.extras import Json
 
 from batch.reconciliation.models import (
     _ECHO_STREAM_NAME,
@@ -32,11 +33,26 @@ def query_db_counts(conn: psycopg2.extensions.connection, session_id: str) -> di
     return counts
 
 
+def query_max_clock_drift_s(conn: psycopg2.extensions.connection, session_id: str) -> float | None:
+    """Return the max absolute LSL clock offset recorded for a session."""
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT MAX(ABS(remote_clock_offset_s)) FROM clock_drift_log WHERE session_id = %s",
+        (session_id,),
+    )
+    row = cur.fetchone()
+    cur.close()
+    if not row or row[0] is None:
+        return None
+    return float(row[0])
+
+
 def build_report(
     session_id: str,
     xdf_path: Path,
     xdf_counts: dict[str, int],
     db_counts: dict[str, int],
+    max_clock_drift_s: float | None = None,
 ) -> ReconciliationReport:
     """Compare counts and build a ReconciliationReport."""
     all_streams = set(xdf_counts) | set(db_counts) | set(_STREAM_TABLES) | {_ECHO_STREAM_NAME}
@@ -53,6 +69,7 @@ def build_report(
         streams=streams,
         is_reconciled=all(r.gap == 0 for r in streams.values()),
         ran_at=datetime.now(timezone.utc).isoformat(),
+        max_clock_drift_s=max_clock_drift_s,
     )
 
 
@@ -69,6 +86,32 @@ def close_session(
         (new_status, session_id),
     )
     conn.commit()
+    cur.close()
+
+
+def write_reconciliation_log(
+    conn: psycopg2.extensions.connection,
+    meta: SessionMeta,
+    report: ReconciliationReport,
+) -> None:
+    """Write an XDF reconciliation summary row into biosignal_integrity_log."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO biosignal_integrity_log
+            (session_id, participant_id, site_id, sponsor_id, log_type,
+             reconciliation_report)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """,
+        (
+            report.session_id,
+            meta.participant_id,
+            meta.site_id,
+            meta.sponsor_id,
+            "xdf_reconciliation",
+            Json(report.as_dict()),
+        ),
+    )
     cur.close()
 
 
@@ -114,5 +157,26 @@ def fetch_existing_echo_timestamps(
         (session_id,),
     )
     result = frozenset(float(row[0]) for row in cur.fetchall())
+    cur.close()
+    return result
+
+
+def fetch_existing_echo_keys(
+    conn: psycopg2.extensions.connection, session_id: str
+) -> frozenset[tuple[float, str, str, str, str]]:
+    """Return composite ECHO keys already present for a session."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT lsl_timestamp, event_type, actor_id, actor_role, zone_label
+        FROM echo_events
+        WHERE session_id = %s
+        """,
+        (session_id,),
+    )
+    result = frozenset(
+        (float(row[0]), str(row[1]), str(row[2]), str(row[3]), str(row[4]))
+        for row in cur.fetchall()
+    )
     cur.close()
     return result

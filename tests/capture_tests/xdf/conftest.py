@@ -1,7 +1,7 @@
 import pytest
 
-from capture.xdf import XDFWriter
-from tests.capture_tests.xdf.support import SESSION_ID, SITE_ID, SPONSOR_ID
+from capture.xdf.writer import XDFWriter
+from tests.capture_tests.xdf.support import PARTICIPANT_ID, SESSION_ID, SITE_ID, SPONSOR_ID
 
 
 @pytest.fixture()
@@ -10,9 +10,9 @@ def writer(tmp_path, monkeypatch):
     import config.settings as s
 
     monkeypatch.setattr(s, "XDF_BACKUP_DIR", tmp_path)
-    w = XDFWriter(SESSION_ID, SITE_ID, SPONSOR_ID)
+    w = XDFWriter(SESSION_ID, PARTICIPANT_ID, SITE_ID, SPONSOR_ID)
     yield w
-    if not w._closed:
+    if not w.is_closed:
         w.close()
 
 

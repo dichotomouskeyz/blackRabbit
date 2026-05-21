@@ -10,19 +10,23 @@ log = get_logger("session_close")
 VALID_ENTRY_STATES = frozenset({"active", "closing"})
 
 
-def fetch_session_status(conn, session_id: str) -> str | None:
+def fetch_session_status(conn, session_id: str, sponsor_id: str) -> str | None:
     """Return the current status string, or None if not found."""
     with conn.cursor() as cur:
-        cur.execute("SELECT status FROM sessions WHERE id = %s", (session_id,))
+        cur.execute(
+            "SELECT status FROM sessions WHERE id = %s AND sponsor_id = %s",
+            (session_id, sponsor_id),
+        )
         row = cur.fetchone()
     return str(row[0]) if row else None
 
 
-def set_closing(conn, session_id: str) -> None:
+def set_closing(conn, session_id: str, sponsor_id: str) -> None:
     with conn.cursor() as cur:
         cur.execute(
-            "UPDATE sessions SET status = 'closing' WHERE id = %s AND status = 'active'",
-            (session_id,),
+            "UPDATE sessions SET status = 'closing' "
+            "WHERE id = %s AND sponsor_id = %s AND status = 'active'",
+            (session_id, sponsor_id),
         )
     conn.commit()
 
@@ -37,10 +41,10 @@ def connect_db():
         return None
 
 
-def validate_entry_state(conn, session_id: str) -> str | None:
-    status = fetch_session_status(conn, session_id)
+def validate_entry_state(conn, session_id: str, sponsor_id: str) -> str | None:
+    status = fetch_session_status(conn, session_id, sponsor_id)
     if status is None:
-        log.error("session not found", extra={"session_id": session_id})
+        log.error("session not found", extra={"session_id": session_id, "sponsor_id": sponsor_id})
         return None
     if status not in VALID_ENTRY_STATES:
         log.error(
@@ -51,7 +55,7 @@ def validate_entry_state(conn, session_id: str) -> str | None:
     return status
 
 
-def ensure_closing(conn, session_id: str, status: str) -> None:
+def ensure_closing(conn, session_id: str, sponsor_id: str, status: str) -> None:
     if status != "active":
         return
 
@@ -61,5 +65,5 @@ def ensure_closing(conn, session_id: str, status: str) -> None:
         "Expected sequence: SIGTERM watchdog → watchdog exits → session_close.",
         extra={"session_id": session_id},
     )
-    set_closing(conn, session_id)
-    log.info("session status → closing", extra={"session_id": session_id})
+    set_closing(conn, session_id, sponsor_id)
+    log.info("session status → closing", extra={"session_id": session_id, "sponsor_id": sponsor_id})

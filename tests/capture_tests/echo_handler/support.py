@@ -10,8 +10,8 @@ from unittest.mock import MagicMock
 import psycopg2
 from dotenv import load_dotenv
 
-from capture.echo_handler import ECHOThread
-from capture.xdf import XDFWriter
+from capture.echo_handler.thread import ECHOThread
+from capture.xdf.writer import XDFWriter
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env"))
 
@@ -26,12 +26,7 @@ _LIVE_PART = "f1d00003-0000-4444-bbbb-000000000001"
 
 def db_conn():
     url = os.getenv("TEST_DATABASE_URL", "")
-    url = url.replace("postgresql://", "")
-    user_pass, rest = url.split("@")
-    user, password = user_pass.split(":")
-    host_port, dbname = rest.split("/")
-    host, port = host_port.split(":")
-    return psycopg2.connect(host=host, port=int(port), dbname=dbname, user=user, password=password)
+    return psycopg2.connect(url)
 
 
 def database_url() -> str:
@@ -57,13 +52,13 @@ def insert_echo_event(session_id: str, zone_label: str, lsl_ts: float) -> None:
             "participant_id": "aaaa0002-0000-0000-0000-000000000001",
             "site_id": "bbbb0000-0000-0000-0000-000000000001",
             "sponsor_id": "cccc0000-0000-0000-0000-000000000001",
-            "event_type": "proximity_state_change",
+            "event_type": "zone_enter",
             "actor_id": "therapist_01",
             "actor_role": "therapist",
             "zone_label": zone_label,
             "lsl_timestamp": lsl_ts,
         }
-        thread._write_row(conn, row)
+        thread.write_row(conn, row)
     finally:
         conn.close()
 
@@ -92,14 +87,14 @@ def build_thread(session_id: str, xdf_writer, marker_queue):
 
     stop = threading.Event()
     thread = ECHOThread(cfg=cfg, stop_event=stop, xdf_writer=xdf_writer)
-    thread._resolve_inlet = MagicMock(return_value=mock_inlet)
+    thread.resolve_inlet = MagicMock(return_value=mock_inlet)
 
     def _test_connect_db():
         conn = psycopg2.connect(db_url)
         conn.autocommit = False
         return conn
 
-    thread._connect_db = _test_connect_db
+    thread.connect_db = _test_connect_db
     return thread, stop
 
 
@@ -138,4 +133,4 @@ def make_xdf(session_id: str, monkeypatch, tmp_path) -> XDFWriter:
     import config.settings as s
 
     monkeypatch.setattr(s, "XDF_BACKUP_DIR", tmp_path)
-    return XDFWriter(session_id, _LIVE_SITE, _LIVE_SPONSOR)
+    return XDFWriter(session_id, _LIVE_PART, _LIVE_SITE, _LIVE_SPONSOR)

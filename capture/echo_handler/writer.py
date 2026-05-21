@@ -30,11 +30,13 @@ class ECHOWriter:
     def buffer_row(self, row: dict[str, Any]) -> None:
         dropped = len(self.buffer) == self.buffer.maxlen
         if dropped:
+            self.buffer.append(row)
             log.error(
                 "ECHO buffer full — oldest event dropped",
                 extra={"buffer_depth": len(self.buffer)},
             )
-        self.buffer.append(row)
+        else:
+            self.buffer.append(row)
 
     def write_row(self, conn, row: dict):
         conn, wrote = db.write_row(conn, row)

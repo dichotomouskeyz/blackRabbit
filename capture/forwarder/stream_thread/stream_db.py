@@ -9,12 +9,17 @@ from config import settings
 log = get_logger("lsl_forwarder")
 
 
+def _open_connection():
+    conn = psycopg2.connect(settings.DATABASE_URL)
+    conn.autocommit = False
+    return conn
+
+
 def connect_db(thread) -> psycopg2.extensions.connection | None:
     backoff = 1.0
     while not thread._stop_event.is_set():
         try:
-            conn = psycopg2.connect(settings.DATABASE_URL)
-            conn.autocommit = False
+            conn = _open_connection()
             log.info(f"{thread._stream_type} DB connection established")
             return conn
         except psycopg2.OperationalError as exc:
@@ -29,11 +34,10 @@ def connect_db(thread) -> psycopg2.extensions.connection | None:
 
 def try_reconnect(thread) -> psycopg2.extensions.connection | None:
     try:
-        conn = psycopg2.connect(settings.DATABASE_URL)
-        conn.autocommit = False
+        conn = _open_connection()
         log.info(
             f"{thread._stream_type} DB reconnected",
-            extra={"buffered_chunks": len(thread._buffer)},
+            extra={"buffered_chunks": len(thread.buffer)},
         )
         return conn
     except psycopg2.OperationalError:
@@ -53,12 +57,12 @@ def write_rows(thread, conn: psycopg2.extensions.connection, rows: list[dict]):
             extra={"error": str(exc), "rows_lost_to_buffer": len(rows)},
         )
         close_after_write_error(thread, conn)
-        thread._buffer.append(rows)
+        thread.buffer.append(rows)
         return None
     except psycopg2.Error as exc:
         log.error(
-            f"{thread._stream_type} DB insert error",
-            extra={"error": str(exc), "rows": len(rows)},
+            f"{thread._stream_type} DB insert error - chunk permanently dropped",
+            extra={"error": str(exc), "rows_dropped": len(rows)},
         )
         rollback_quietly(conn)
         return conn
@@ -83,18 +87,18 @@ def rollback_quietly(conn) -> None:
 
 def flush_buffer(thread, conn: psycopg2.extensions.connection):
     flushed = 0
-    while thread._buffer and conn is not None:
-        rows = thread._buffer[0]
-        conn = thread._write_rows(conn, rows)
+    while thread.buffer and conn is not None:
+        rows = thread.buffer[0]
+        conn = thread.write_rows(conn, rows)
         if conn is not None:
-            thread._buffer.popleft()
+            thread.buffer.popleft()
             flushed += 1
     if flushed:
         log.info(
             f"{thread._stream_type} buffer flushed",
             extra={
                 "chunks_flushed": flushed,
-                "chunks_remaining": len(thread._buffer),
+                "chunks_remaining": len(thread.buffer),
             },
         )
     return conn

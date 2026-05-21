@@ -16,7 +16,7 @@ VALID_ACTOR_ROLES: frozenset[str] = frozenset(
     {"therapist", "facilitator", "coordinator", "observer"}
 )
 VALID_EVENT_TYPES: frozenset[str] = frozenset(
-    {"proximity_state_change", "zone_enter", "zone_exit", "manual_marker"}
+    {"zone_enter", "zone_exit", "manual_marker"}
 )
 
 

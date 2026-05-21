@@ -1,16 +1,17 @@
 """Integration tests for session_signal_metadata rows created by create_session."""
 
+import json
+
 import psycopg2
 import pytest
 
-import capture.session_init as session_init
+from config import settings
 from tests.capture_tests.session_init.support import (
     _PART,
     _SITE,
     _SPONSOR,
     _call,
     _cleanup,
-    _conn,
     _query_metadata,
 )
 
@@ -49,15 +50,35 @@ class TestSignalMetadataDB:
         sid = _call(db_url)
         try:
             eeg = _query_metadata(db_url, sid)[0]
+            names = eeg["eeg_channel_names"]
+            if isinstance(names, str):
+                names = json.loads(names)
             assert eeg["modality"] == "eeg"
-            assert eeg["eeg_reference"] == session_init.settings.EEG_REFERENCE
+            assert eeg["eeg_reference"] == settings.EEG_REFERENCE
             assert eeg["sampling_frequency"] == pytest.approx(
-                float(session_init.settings.SAMPLE_RATE_EEG)
+                float(settings.SAMPLE_RATE_EEG)
             )
-            assert eeg["eeg_channel_count"] == session_init.settings.EEG_CHANNEL_COUNT
+            assert eeg["eeg_channel_count"] == settings.EEG_CHANNEL_COUNT
+            assert names is None
             assert eeg["power_line_frequency"] == pytest.approx(
-                session_init.settings.POWER_LINE_FREQUENCY
+                settings.POWER_LINE_FREQUENCY
             )
+        finally:
+            _cleanup(db_url, sid)
+
+    def test_eeg_channel_names_stored_when_configured(self, db_url, monkeypatch):
+        monkeypatch.setattr(
+            settings,
+            "EEG_CHANNEL_NAMES",
+            tuple(f"Fp{i}" for i in range(settings.EEG_CHANNEL_COUNT)),
+        )
+        sid = _call(db_url)
+        try:
+            eeg = _query_metadata(db_url, sid)[0]
+            names = eeg["eeg_channel_names"]
+            if isinstance(names, str):
+                names = json.loads(names)
+            assert names == [f"Fp{i}" for i in range(settings.EEG_CHANNEL_COUNT)]
         finally:
             _cleanup(db_url, sid)
 
@@ -66,9 +87,9 @@ class TestSignalMetadataDB:
         try:
             hrv = _query_metadata(db_url, sid)[1]
             assert hrv["modality"] == "hrv"
-            assert hrv["hrv_signal_source"] == session_init.settings.HRV_SIGNAL_SOURCE
+            assert hrv["hrv_signal_source"] == settings.HRV_SIGNAL_SOURCE
             assert hrv["sample_rate_hz"] == pytest.approx(
-                float(session_init.settings.SAMPLE_RATE_HRV)
+                float(settings.SAMPLE_RATE_HRV)
             )
         finally:
             _cleanup(db_url, sid)
@@ -78,9 +99,9 @@ class TestSignalMetadataDB:
         try:
             eda = _query_metadata(db_url, sid)[2]
             assert eda["modality"] == "eda"
-            assert eda["eda_signal_source"] == session_init.settings.EDA_SIGNAL_SOURCE
+            assert eda["eda_signal_source"] == settings.EDA_SIGNAL_SOURCE
             assert eda["sample_rate_hz"] == pytest.approx(
-                float(session_init.settings.SAMPLE_RATE_EDA)
+                float(settings.SAMPLE_RATE_EDA)
             )
         finally:
             _cleanup(db_url, sid)
@@ -90,10 +111,10 @@ class TestSignalMetadataDB:
         try:
             resp = _query_metadata(db_url, sid)[3]
             assert resp["modality"] == "respiration"
-            assert resp["respiration_source"] == session_init.settings.RESPIRATION_SOURCE
-            assert resp["is_derived"] == (session_init.settings.RESPIRATION_SOURCE == "rsa_derived")
+            assert resp["respiration_source"] == settings.RESPIRATION_SOURCE
+            assert resp["is_derived"] == (settings.RESPIRATION_SOURCE in {"rsa_derived"})
             assert resp["sample_rate_hz"] == pytest.approx(
-                float(session_init.settings.SAMPLE_RATE_RESPIRATION)
+                float(settings.SAMPLE_RATE_RESPIRATION)
             )
         finally:
             _cleanup(db_url, sid)
@@ -126,7 +147,7 @@ class TestSignalMetadataDB:
     def test_metadata_rolled_back_with_session_on_failure(self):
         from unittest.mock import MagicMock, patch
 
-        from capture.session_init import create_session
+        from capture.session_init.workflow import create_session
 
         mock_conn = MagicMock()
         mock_cur = MagicMock()
@@ -138,7 +159,7 @@ class TestSignalMetadataDB:
             psycopg2.IntegrityError("hrv constraint"),
         ]
 
-        with patch("capture.session_init.psycopg2.connect", return_value=mock_conn):
+        with patch("capture.session_init.workflow.psycopg2.connect", return_value=mock_conn):
             with pytest.raises(psycopg2.IntegrityError):
                 create_session("psilocybin", _SITE, _SPONSOR, _PART)
 

@@ -58,7 +58,7 @@ class TestSeparateTimestampsDB:
                (session_id, participant_id, site_id, sponsor_id,
                 event_type, source, actor_id, actor_role, zone_label, lsl_timestamp)
                VALUES (%s, %s, %s, %s,
-                       'proximity_state_change', 'manual_logging',
+                       'zone_enter', 'manual_logging',
                        'therapist_01', 'therapist', 'arms_reach', %s)""",
             (_INT_SESSION, _INT_PART, _INT_SITE, _INT_SPONSOR, _INT_LSL_TS),
         )

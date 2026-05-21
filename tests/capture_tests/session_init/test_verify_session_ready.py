@@ -1,11 +1,12 @@
-"""Integration tests for _verify_session_ready."""
+"""Integration tests for verify_session_ready."""
 
 import uuid
 from unittest.mock import patch
 
 import pytest
 
-from capture.forwarder import SessionConfig, _verify_session_ready
+from capture.forwarder.models import SessionConfig
+from capture.forwarder.preflight import verify_session_ready
 from tests.capture_tests.session_init.support import (
     _call,
     _cleanup,
@@ -14,6 +15,7 @@ from tests.capture_tests.session_init.support import (
 
 _VFY_SITE = "f1d00008-0000-4444-cccc-000000000001"
 _VFY_SPONSOR = "f1d00008-0000-4444-dddd-000000000001"
+_OTHER_SPONSOR = "f1d00008-0000-4444-dddd-000000000002"
 _VFY_PART = "f1d00008-0000-4444-bbbb-000000000001"
 
 
@@ -32,17 +34,32 @@ class TestVerifySessionReady:
         sid = _call(db_url, site_id=_VFY_SITE, sponsor_id=_VFY_SPONSOR, participant_id=_VFY_PART)
         try:
             cfg = _vfy_cfg(sid)
-            with patch("capture.forwarder.settings.DATABASE_URL", db_url):
-                _verify_session_ready(cfg)
+            with patch("capture.forwarder.preflight.settings.DATABASE_URL", db_url):
+                verify_session_ready(cfg)
         finally:
             _cleanup(db_url, sid)
 
     def test_raises_if_session_missing(self, db_url):
         ghost_id = str(uuid.uuid4())
         cfg = _vfy_cfg(ghost_id)
-        with patch("capture.forwarder.settings.DATABASE_URL", db_url):
+        with patch("capture.forwarder.preflight.settings.DATABASE_URL", db_url):
             with pytest.raises(RuntimeError, match="not found"):
-                _verify_session_ready(cfg)
+                verify_session_ready(cfg)
+
+    def test_raises_if_session_exists_under_different_sponsor(self, db_url):
+        sid = _call(db_url, site_id=_VFY_SITE, sponsor_id=_VFY_SPONSOR, participant_id=_VFY_PART)
+        try:
+            cfg = SessionConfig(
+                session_id=sid,
+                participant_id=_VFY_PART,
+                site_id=_VFY_SITE,
+                sponsor_id=_OTHER_SPONSOR,
+            )
+            with patch("capture.forwarder.preflight.settings.DATABASE_URL", db_url):
+                with pytest.raises(RuntimeError, match="not found"):
+                    verify_session_ready(cfg)
+        finally:
+            _cleanup(db_url, sid)
 
     def test_raises_if_status_not_active(self, db_url):
         sid = _call(db_url, site_id=_VFY_SITE, sponsor_id=_VFY_SPONSOR, participant_id=_VFY_PART)
@@ -55,9 +72,9 @@ class TestVerifySessionReady:
             conn.close()
 
             cfg = _vfy_cfg(sid)
-            with patch("capture.forwarder.settings.DATABASE_URL", db_url):
+            with patch("capture.forwarder.preflight.settings.DATABASE_URL", db_url):
                 with pytest.raises(RuntimeError, match="status.*closing"):
-                    _verify_session_ready(cfg)
+                    verify_session_ready(cfg)
         finally:
             _cleanup(db_url, sid)
 
@@ -76,9 +93,9 @@ class TestVerifySessionReady:
             conn.close()
 
             cfg = _vfy_cfg(sid)
-            with patch("capture.forwarder.settings.DATABASE_URL", db_url):
+            with patch("capture.forwarder.preflight.settings.DATABASE_URL", db_url):
                 with pytest.raises(RuntimeError, match="missing signal metadata"):
-                    _verify_session_ready(cfg)
+                    verify_session_ready(cfg)
         finally:
             _cleanup(db_url, sid)
 
@@ -97,8 +114,8 @@ class TestVerifySessionReady:
             conn.close()
 
             cfg = _vfy_cfg(sid)
-            with patch("capture.forwarder.settings.DATABASE_URL", db_url):
+            with patch("capture.forwarder.preflight.settings.DATABASE_URL", db_url):
                 with pytest.raises(RuntimeError, match="respiration"):
-                    _verify_session_ready(cfg)
+                    verify_session_ready(cfg)
         finally:
             _cleanup(db_url, sid)

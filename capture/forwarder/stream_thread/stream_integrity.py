@@ -1,10 +1,13 @@
 """Biosignal integrity log writes."""
 
 import hashlib
+import json
 
 from capture.logger import get_logger
 
 log = get_logger("lsl_forwarder")
+
+HASH_METHOD = "md5"
 
 
 def write_integrity_log(thread, conn, rows: list[dict]) -> None:
@@ -12,26 +15,30 @@ def write_integrity_log(thread, conn, rows: list[dict]) -> None:
         sorted_rows = sorted(
             rows, key=lambda row: tuple(row[key] for key in thread._hash_sort_keys)
         )
-        hash_input = ",".join(
-            "|".join(str(row[field]) for field in thread._hash_fields) for row in sorted_rows
+        hash_input = json.dumps(
+            [{field: row[field] for field in thread._hash_fields} for row in sorted_rows],
+            sort_keys=True,
         )
         chunk_hash = hashlib.md5(hash_input.encode(), usedforsecurity=False).hexdigest()
         sample_indices = [row["sample_index"] for row in rows]
         cur = conn.cursor()
         cur.execute(
             """INSERT INTO biosignal_integrity_log
-               (session_id, site_id, sponsor_id, table_name, row_count,
-                min_sample_index, max_sample_index, chunk_hash)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+               (session_id, participant_id, site_id, sponsor_id, log_type, table_name,
+                row_count, min_sample_index, max_sample_index, chunk_hash, hash_method)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (
                 rows[0]["session_id"],
+                rows[0]["participant_id"],
                 rows[0]["site_id"],
                 rows[0]["sponsor_id"],
+                "chunk_integrity",
                 thread._table_name,
                 len(rows),
                 min(sample_indices),
                 max(sample_indices),
                 chunk_hash,
+                HASH_METHOD,
             ),
         )
         conn.commit()

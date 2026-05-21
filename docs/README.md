@@ -1,8 +1,8 @@
 # untitledplatform_1a
 
-Regulatory-grade neuro-behavioral data infrastructure for psychedelic clinical trials.
+Open-source neuro-behavioral data infrastructure for local research sessions.
 
-Captures EEG, HRV, EDA, and respiration via Lab Streaming Layer (LSL), writes to TimescaleDB with a tamper-evident audit trail, and produces a simultaneous XDF backup for reconciliation. Designed for 21 CFR Part 11 compliance.
+Captures EEG, HRV, EDA, and respiration via Lab Streaming Layer (LSL), writes to TimescaleDB with an audit-oriented event trail, and produces a simultaneous XDF backup for reconciliation. Regulated deployments can add their own compliance workflows on top of the core schema.
 
 ---
 
@@ -128,7 +128,9 @@ requirements, null model, and signal availability profile.
 
 `arc_config_version` values should use the loader's `version_label`, for example
 `arc_watchdog_config.toml@demo-001`, so every Event Composite Profile points back
-to the exact config version that produced it.
+to the named config version that produced it. Event Composite Profiles also store
+the config content SHA-256 so replay can detect an edited file with an unchanged
+version label.
 
 ---
 

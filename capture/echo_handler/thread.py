@@ -45,34 +45,34 @@ class ECHOThread(threading.Thread):
                 extra={"error": str(exc)},
             )
 
-    def _run(self) -> None:
+    def run_loop(self) -> None:
         run_echo_thread(self)
 
-    def _process_next_sample(self, inlet, conn):
+    def process_next_sample(self, inlet, conn):
         return process_next_sample(self, inlet, conn)
 
-    def _log_event(self, parsed: dict[str, str], lsl_ts: float) -> None:
+    def log_event(self, parsed: dict[str, str], lsl_ts: float) -> None:
         log_event(self._cfg.session_id, parsed, lsl_ts)
 
-    def _write_or_buffer(self, conn, row: dict[str, Any]):
+    def write_or_buffer(self, conn, row: dict[str, Any]):
         return self._writer.write_or_buffer(conn, row)
 
-    def _buffer_row(self, row: dict[str, Any]) -> None:
+    def buffer_row(self, row: dict[str, Any]) -> None:
         self._writer.buffer_row(row)
 
-    def _resolve_inlet(self, pylsl):
+    def resolve_inlet(self, pylsl):
         return resolve_inlet(pylsl)
 
-    def _connect_db(self):
+    def connect_db(self):
         return db.connect_db(self._stop_event)
 
-    def _try_reconnect(self):
+    def try_reconnect(self):
         return db.try_reconnect(len(self._writer.buffer))
 
-    def _write_row(self, conn, row: dict):
+    def write_row(self, conn, row: dict):
         return self._writer.write_row(conn, row)
 
-    def _flush_buffer(self, conn):
+    def flush_buffer(self, conn):
         return self._writer.flush_buffer(conn)
 
     @property
@@ -82,3 +82,14 @@ class ECHOThread(threading.Thread):
     @property
     def _event_count(self) -> int:
         return self._writer.event_count
+
+    _run = run_loop
+    _process_next_sample = process_next_sample
+    _log_event = log_event
+    _write_or_buffer = write_or_buffer
+    _buffer_row = buffer_row
+    _resolve_inlet = resolve_inlet
+    _connect_db = connect_db
+    _try_reconnect = try_reconnect
+    _write_row = write_row
+    _flush_buffer = flush_buffer

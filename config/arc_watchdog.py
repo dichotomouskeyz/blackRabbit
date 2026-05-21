@@ -87,10 +87,14 @@ def _validate_config(config: dict[str, Any]) -> None:
         raise ValueError("fdr.family_scope must be 'session'")
 
     null_model = _require_mapping(config, "null_model")
-    _require_text(null_model, "method")
+    method = _require_text(null_model, "method")
     permutation_count = null_model.get("permutation_count")
     if not isinstance(permutation_count, int) or permutation_count <= 0:
         raise ValueError("null_model.permutation_count must be a positive integer")
+    if method == "permutation":
+        random_seed = null_model.get("random_seed")
+        if not isinstance(random_seed, int):
+            raise ValueError("null_model.random_seed must be an integer for permutation")
 
     signal_components = _require_mapping(config, "signal_components")
     for modality in REQUIRED_MODALITIES:

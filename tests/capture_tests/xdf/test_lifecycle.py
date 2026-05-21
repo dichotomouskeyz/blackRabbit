@@ -2,8 +2,8 @@
 
 import struct
 
-from capture.xdf import _STREAM_IDS, _TAG_STREAM_FOOTER
-from tests.capture_tests.xdf.support import _iter_chunks
+from capture.xdf.constants import STREAM_IDS, TAG_STREAM_FOOTER
+from tests.capture_tests.xdf.support import iter_chunks
 
 
 class TestStatistics:
@@ -24,10 +24,10 @@ class TestStatistics:
         writer.write_samples("Respiration", [[0.5]] * 7, list(range(7)))
         writer.close()
         raw = writer.path.read_bytes()
-        for tag, payload in _iter_chunks(raw):
-            if tag == _TAG_STREAM_FOOTER:
+        for tag, payload in iter_chunks(raw):
+            if tag == TAG_STREAM_FOOTER:
                 sid = struct.unpack_from("<I", payload, 0)[0]
-                if sid == _STREAM_IDS["Respiration"]:
+                if sid == STREAM_IDS["Respiration"]:
                     xml = payload[4:].decode("utf-8")
                     assert "<sample_count>7</sample_count>" in xml
                     break

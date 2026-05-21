@@ -6,7 +6,7 @@ import psycopg2
 import psycopg2.extras
 
 from batch.reconciliation.db import (
-    fetch_existing_echo_timestamps,
+    fetch_existing_echo_keys,
     fetch_existing_sample_indices,
 )
 from batch.reconciliation.models import (
@@ -155,21 +155,39 @@ def backfill_echo_markers(
     chunk_size: int = BACKFILL_CHUNK_SIZE_ROWS,
 ) -> int:
     """Replay ECHO markers from XDF into echo_events."""
-    existing = fetch_existing_echo_timestamps(conn, session_id)
+    existing = fetch_existing_echo_keys(conn, session_id)
     pending: list[dict] = []
     total_rows = 0
     skipped = 0
 
     for _, lsl_ts, marker in stream_xdf_markers(xdf_path):
-        if lsl_ts in existing:
-            skipped += 1
-            continue
-
         parsed = parse_echo_marker(marker)
         if parsed is None:
             log.warning(
                 "ECHO marker in XDF could not be parsed during backfill",
                 extra={"marker": marker[:100], "lsl_timestamp": lsl_ts},
+            )
+            continue
+
+        key = (
+            float(lsl_ts),
+            parsed["event_type"],
+            parsed["actor_id"],
+            parsed["actor_role"],
+            parsed["zone_label"],
+        )
+        if key in existing:
+            skipped += 1
+            log.debug(
+                "ECHO replay marker skipped — already present",
+                extra={
+                    "session_id": session_id,
+                    "event_type": parsed["event_type"],
+                    "actor_role": parsed["actor_role"],
+                    "zone_label": parsed["zone_label"],
+                    "lsl_timestamp": lsl_ts,
+                    "ingestion_path": "xdf_replay",
+                },
             )
             continue
 
@@ -190,7 +208,26 @@ def backfill_echo_markers(
             conn.commit()
             cur.close()
             total_rows += len(pending)
-            existing = existing | frozenset(row["lsl_timestamp"] for row in pending)
+            log.info(
+                "ECHO replay batch inserted",
+                extra={
+                    "session_id": session_id,
+                    "rows_inserted": len(pending),
+                    "total_rows_inserted": total_rows,
+                    "xdf_path": str(xdf_path),
+                    "ingestion_path": "xdf_replay",
+                },
+            )
+            existing = existing | frozenset(
+                (
+                    float(row["lsl_timestamp"]),
+                    row["event_type"],
+                    row["actor_id"],
+                    row["actor_role"],
+                    row["zone_label"],
+                )
+                for row in pending
+            )
             pending = []
 
     if pending:
@@ -199,10 +236,26 @@ def backfill_echo_markers(
         conn.commit()
         cur.close()
         total_rows += len(pending)
+        log.info(
+            "ECHO replay batch inserted",
+            extra={
+                "session_id": session_id,
+                "rows_inserted": len(pending),
+                "total_rows_inserted": total_rows,
+                "xdf_path": str(xdf_path),
+                "ingestion_path": "xdf_replay",
+            },
+        )
 
     log.info(
         "ECHO backfill complete",
-        extra={"rows_inserted": total_rows, "skipped_existing": skipped},
+        extra={
+            "session_id": session_id,
+            "rows_inserted": total_rows,
+            "skipped_existing": skipped,
+            "xdf_path": str(xdf_path),
+            "ingestion_path": "xdf_replay",
+        },
     )
     return total_rows
 

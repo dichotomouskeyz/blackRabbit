@@ -11,27 +11,26 @@ _PART_UUID = "f1d00009-0000-4444-bbbb-000000000001"
 
 def _direct_conn() -> psycopg2.extensions.connection:
     url = os.getenv("TEST_DATABASE_URL", "")
-    url = url.replace("postgresql://", "")
-    user_pass, rest = url.split("@")
-    user, password = user_pass.split(":")
-    host_port, dbname = rest.split("/")
-    host, port = host_port.split(":")
-    return psycopg2.connect(host=host, port=int(port), dbname=dbname, user=user, password=password)
+    return psycopg2.connect(url)
 
 
-def _insert_session(session_id: str, status: str = "active") -> None:
+def _insert_session(
+    session_id: str,
+    status: str = "active",
+    compound_dose: float | None = None,
+) -> None:
     conn = _direct_conn()
     conn.autocommit = True
     with conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO sessions (id, site_id, sponsor_id, participant_id,
-                                  compound, status)
+                                  compound, compound_dose, status)
             VALUES (%s, %s::uuid, %s::uuid, %s::uuid,
-                    'psilocybin', %s::session_status)
+                    'psilocybin', %s, %s::session_status)
             ON CONFLICT (id) DO NOTHING
             """,
-            (session_id, _SITE_UUID, _SPONSOR_UUID, _PART_UUID, status),
+            (session_id, _SITE_UUID, _SPONSOR_UUID, _PART_UUID, compound_dose, status),
         )
     conn.close()
 

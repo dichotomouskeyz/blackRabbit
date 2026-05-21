@@ -42,6 +42,7 @@ class ReconciliationReport:
     streams: dict[str, StreamResult] = field(default_factory=dict)
     is_reconciled: bool = False
     ran_at: str = ""
+    max_clock_drift_s: float | None = None
 
     def as_dict(self) -> dict:
         return {
@@ -49,6 +50,7 @@ class ReconciliationReport:
             "xdf_path": str(self.xdf_path),
             "is_reconciled": self.is_reconciled,
             "ran_at": self.ran_at,
+            "max_clock_drift_s": self.max_clock_drift_s,
             "streams": {
                 name: {
                     "xdf_count": result.xdf_count,
