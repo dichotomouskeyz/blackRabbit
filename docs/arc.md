@@ -4,7 +4,7 @@ ARC is the synchronized convergence layer between ECHO and APEX.
 
 ## Canonical Convergence Event
 
-The canonical in-memory object is `ARCConvergenceEvent` in `batch.arc_models`.
+The canonical in-memory object is `ARCConvergenceEvent` in `batch.arc.models`.
 It represents one event-locked convergence result:
 
 | Layer | Object | Role |
@@ -41,7 +41,7 @@ APEX features, null models, or FDR correction itself.
 
 ## Temporal Alignment Gate
 
-Before ARC processing begins, `batch.arc_preflight.assert_arc_temporal_alignment()`
+Before ARC processing begins, `batch.arc.preflight.assert_arc_temporal_alignment()`
 must pass for the session.
 
 The gate verifies synchronized LSL time between ECHO and APEX:
@@ -56,9 +56,26 @@ This check is separate from clock drift logging. Drift logging records clock
 correction provenance during capture; the ARC temporal alignment gate verifies
 the actual stored ECHO/APEX timestamps that the convergence processor would use.
 
+## ECHO Anchor Clustering
+
+ARC keeps raw `echo_events` rows unchanged, but it does not treat every raw
+marker as a separate convergence trigger.
+
+- ARC first filters rows to anchor-eligible ECHO events.
+- Eligible rows are sorted by `lsl_timestamp`.
+- Nearby rows are grouped with a debounce window before ARC opens windows.
+- The first row in each cluster becomes the canonical ARC anchor.
+
+The default debounce window is 10 seconds. This keeps back-to-back markers from
+creating duplicate ARC episodes while preserving the full raw audit trail.
+
+If ARC post-session processing throws, session close records an
+`alert_events` row with `alert_type = 'arc_failure'`. A clean ARC run that
+produces zero output is not treated as a failure.
+
 ## W1/W2/W3 Window Helpers
 
-`batch.arc_windows` defines reusable centered LSL-time windows around an ECHO
+`batch.arc.windows` defines reusable centered LSL-time windows around an ECHO
 timestamp:
 
 | Window | Label | Width | Helper |

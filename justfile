@@ -120,6 +120,10 @@ sim:
     fi
 
 # ── Standalone ECHO marker stream ──────────────────────────────────────────────
+# ── Windows-native simulation launcher ────────────────────────────────────────
+sim-win:
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\sim.ps1
+
 markers:
     SIMULATION_MODE=true uv run python -m capture.marker_simulator
 
@@ -168,7 +172,7 @@ coverage:
 
 # ── Schema tests only ──────────────────────────────────────────────────────────
 test-schema:
-    uv run pytest tests/test_schema.py -v
+    uv run pytest tests/capture_tests/schema/ -v
 
 # ── Lint: ruff check + format check + pyright ─────────────────────────────────
 lint:

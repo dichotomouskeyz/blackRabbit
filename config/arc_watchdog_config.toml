@@ -1,4 +1,4 @@
-config_version = "demo-001"
+config_version = "demo-002"
 config_role = "arc_watchdog"
 
 [baseline]
@@ -45,3 +45,22 @@ respiration = ["respiration_rate", "respiration_amplitude"]
 min_modalities_required = 2
 require_echo_event = true
 missing_signal_policy = "record_available_only"
+
+# Which echo events open ARC convergence windows.
+# zone_exit and coarse zone transitions (in_room) are excluded — they are
+# departures or weak-signal transitions, not physiological onset anchors.
+[[anchor_events.include]]
+event_type = "manual_marker"
+zone_label = "dose_administration"
+
+[[anchor_events.include]]
+event_type = "manual_marker"
+zone_label = "participant_note"
+
+[[anchor_events.include]]
+event_type = "manual_marker"
+zone_label = "environmental_note"
+
+[[anchor_events.include]]
+event_type = "zone_enter"
+zone_label = "arms_reach"

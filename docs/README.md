@@ -41,7 +41,7 @@ Start the forwarder. It resolves LSL streams by name — whatever is publishing
 `EEG`, `HRV`, `EDA`, and `Respiration` streams on the network will be captured.
 
 ```bash
-# In .env:  SIMULATION_MODE=false
+# In .env:  CAPTURE_MODE=hardware  (SIMULATION_MODE=false still works as a legacy alias)
 
 python -m capture.lsl_forwarder
 ```
@@ -54,7 +54,7 @@ The simulator publishes synthetic biosignal streams on the local network using
 the same stream names as real hardware. The forwarder cannot tell the difference.
 
 ```bash
-# In .env:  SIMULATION_MODE=true
+# In .env:  CAPTURE_MODE=simulated  (SIMULATION_MODE=true still works as a legacy alias)
 
 # Terminal 1 — start streams (BrainFlow synthetic board by default)
 python -m capture.synthetic_board
@@ -74,8 +74,10 @@ The synthetic board outputs:
 | EDA         | 1        | 4 Hz    | Board EDA channel if available; tonic/SCR fallback |
 | Respiration | 1        | 4 Hz    | Accel Z-axis proxy; ~0.3 Hz sine fallback      |
 
-`SIMULATION_MODE=true` is logged at forwarder startup so audit records clearly
-distinguish simulated sessions from sessions with real devices.
+`capture_mode` is persisted on the session row, and `device_type` is persisted
+on each `session_signal_metadata` row, so downstream queries can distinguish
+simulated sessions from sessions with real devices without relying on runtime
+environment variables alone.
 
 ---
 

@@ -37,6 +37,26 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  grafana:
+    image: grafana/grafana:latest
+    container_name: blackrabbit_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=dev
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  ts_data:
+  grafana_data:
+
+
   # --- Stubs for Phase 4 ---
   # Uncomment when in Phase 4 (Session Interface).
   # api:
@@ -57,6 +77,3 @@ services:
   #     - "3000:3000"
   #   depends_on:
   #     - api
-
-volumes:
-  ts_data:
