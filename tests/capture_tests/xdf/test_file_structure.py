@@ -1,6 +1,7 @@
 """XDF file-level structure tests: magic, headers, footers."""
 
 import struct
+import xml.etree.ElementTree as ET
 
 from capture.xdf.constants import (
     STREAM_IDS,
@@ -8,6 +9,7 @@ from capture.xdf.constants import (
     TAG_STREAM_FOOTER,
     TAG_STREAM_HEADER,
 )
+from capture.xdf.metadata import _stream_header_xml
 from tests.capture_tests.xdf.support import (
     PARTICIPANT_ID,
     SESSION_ID,
@@ -83,3 +85,18 @@ class TestFileStructure:
         writer.write_samples("EEG", [[1.0] * 8, [2.0] * 8], [100.0, 100.004])
         size_after = writer.path.stat().st_size
         assert size_after > size_before
+
+    def test_stream_header_xml_escapes_identity_fields(self):
+        xml = _stream_header_xml(
+            "EEG",
+            'session<&">x</session_id><evil/>',
+            'participant<&">x',
+            'site<&">x',
+            'sponsor<&">x',
+        )
+
+        root = ET.fromstring(xml)
+
+        assert root.findtext("session_id") == 'session<&">x</session_id><evil/>'
+        assert root.find("evil") is None
+        assert "</session_id><evil/>" not in xml

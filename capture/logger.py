@@ -82,6 +82,23 @@ _RECORD_BUILTINS = frozenset(
     }
 )
 
+_FORBIDDEN_LOG_KEYS = frozenset(
+    {
+        "address",
+        "api_key",
+        "date_of_birth",
+        "dob",
+        "email",
+        "name",
+        "participant_name",
+        "password",
+        "phone",
+        "secret",
+        "ssn",
+        "token",
+    }
+)
+
 
 class _JsonFormatter(logging.Formatter):
     def __init__(self, process_name: str) -> None:
@@ -99,7 +116,11 @@ class _JsonFormatter(logging.Formatter):
 
         # Forward only caller-supplied extra fields, not internal LogRecord attrs
         for key, val in record.__dict__.items():
-            if key not in _RECORD_BUILTINS and not key.startswith("_"):
+            if (
+                key not in _RECORD_BUILTINS
+                and key not in _FORBIDDEN_LOG_KEYS
+                and not key.startswith("_")
+            ):
                 payload[key] = val
 
         if record.exc_info:
@@ -123,7 +144,7 @@ def get_logger(process_name: str) -> logging.Logger:
     if process_name in _loggers:
         return _loggers[process_name]
 
-    logger = logging.getLogger(f"consensai.{process_name}")
+    logger = logging.getLogger(f"blackrabbit.{process_name}")
     logger.setLevel(logging.DEBUG)
     logger.propagate = False
 

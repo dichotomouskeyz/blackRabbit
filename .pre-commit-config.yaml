@@ -26,8 +26,17 @@ repos:
     hooks:
       - id: bandit
         pass_filenames: false
-        # add streaming/ api/ to args once those modules exist
-        args: [-r, "capture/", --skip, "B101,B105,B110,B311,B314,B404,B405,B608"]
+        args:
+          [
+            -r,
+            "capture/",
+            "batch/",
+            "ingestion/",
+            "storage/",
+            "untitledplatform_1a_db/db/alembic/",
+            --skip,
+            "B101,B105,B110,B311,B314,B404,B405",
+          ]
 
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0

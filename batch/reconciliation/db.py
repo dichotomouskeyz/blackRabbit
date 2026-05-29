@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import psycopg2
+from psycopg2 import sql
 from psycopg2.extras import Json
 
 from batch.reconciliation.models import (
@@ -21,7 +22,9 @@ def query_db_counts(conn: psycopg2.extensions.connection, session_id: str) -> di
     cur = conn.cursor()
     for stream_name, table in _STREAM_TABLES.items():
         cur.execute(
-            f"SELECT COUNT(DISTINCT sample_index) FROM {table} WHERE session_id = %s",
+            sql.SQL(
+                "SELECT COUNT(DISTINCT sample_index) FROM {table} WHERE session_id = %s"
+            ).format(table=sql.Identifier(table)),
             (session_id,),
         )
         row = cur.fetchone()
@@ -139,7 +142,9 @@ def fetch_existing_sample_indices(
     """Return sample_index values already present in a biosignal table."""
     cur = conn.cursor()
     cur.execute(
-        f"SELECT DISTINCT sample_index FROM {table} WHERE session_id = %s",
+        sql.SQL("SELECT DISTINCT sample_index FROM {table} WHERE session_id = %s").format(
+            table=sql.Identifier(table)
+        ),
         (session_id,),
     )
     result = frozenset(row[0] for row in cur.fetchall())

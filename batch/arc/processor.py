@@ -12,6 +12,7 @@ from math import isfinite
 from typing import Sequence
 
 import psycopg2
+from psycopg2 import sql
 
 from batch.reconciliation.models import _STREAM_TABLES
 from config.arc_watchdog import AnchorEventFilter, load_arc_watchdog_config
@@ -360,13 +361,15 @@ def _query_biosignal_count(
 ) -> int:
     with conn.cursor() as cur:
         cur.execute(
-            f"""
+            sql.SQL(
+                """
             SELECT COUNT(*)
             FROM {table_name}
             WHERE session_id = %s
               AND lsl_timestamp >= %s
               AND lsl_timestamp < %s
-            """,
+            """
+            ).format(table_name=sql.Identifier(table_name)),
             (session_id, start_lsl_timestamp, end_lsl_timestamp),
         )
         row = cur.fetchone()
