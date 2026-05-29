@@ -1,12 +1,14 @@
 """Integration tests for capture.session_close."""
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import psycopg2
 import pytest
 
 import capture.session_close.workflow as session_close
+from batch.arc.processor import ARCPostSessionError
 from batch.reconcile import XDFTruncatedError
 from config import settings
 
@@ -49,6 +51,7 @@ def _cleanup(db_url: str, session_id: str) -> None:
     conn = _conn(db_url)
     cur = conn.cursor()
     cur.execute("DELETE FROM biosignal_integrity_log WHERE session_id = %s", (session_id,))
+    cur.execute("DELETE FROM alert_events WHERE session_id = %s", (session_id,))
     cur.execute("DELETE FROM audit_events WHERE session_id = %s", (session_id,))
     cur.execute("DELETE FROM sessions WHERE id = %s", (session_id,))
     cur.close()
@@ -89,6 +92,25 @@ def _get_integrity_log_types(db_url: str, session_id: str) -> list[str]:
     cur.close()
     conn.close()
     return [r[0] for r in rows]
+
+
+def _get_alert_rows(db_url: str, session_id: str) -> list[tuple]:
+    conn = _conn(db_url)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT alert_type, algorithm_name, algorithm_version, algorithm_parameters,
+               severity, message
+        FROM alert_events
+        WHERE session_id = %s
+        ORDER BY id
+        """,
+        (session_id,),
+    )
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return rows
 
 
 def _run(
@@ -208,5 +230,70 @@ class TestSessionClose:
             audit_types = _get_audit_types(db_url, sid)
             watermark_events = [e for e in audit_types if e == "watermark_verified"]
             assert len(watermark_events) == 1
+        finally:
+            _cleanup(db_url, sid)
+
+    def test_arc_post_session_is_invoked(self, db_url):
+        sid = "f1d00005-0000-4444-aaaa-000000000007"
+        _insert_session(db_url, sid)
+        try:
+            with (
+                patch(
+                    "capture.session_close.reconciliation.read_xdf_counts",
+                    return_value=_MATCHED,
+                ),
+                patch(
+                    "capture.session_close.reconciliation.query_db_counts",
+                    return_value=_MATCHED,
+                ),
+                patch("capture.session_close.workflow.run_arc_post_session") as arc_mock,
+                patch.object(settings, "DATABASE_URL", db_url),
+            ):
+                arc_mock.return_value = SimpleNamespace(
+                    session_id=sid,
+                    canonical_anchor_count=1,
+                    cluster_count=1,
+                    baseline_row_count=4,
+                    baseline_window_start=100.0,
+                    baseline_window_end=220.0,
+                )
+                code = session_close.run(sid, _SPONSOR, _FAKE_XDF)
+
+            assert code == 0
+            assert arc_mock.call_count == 1
+            assert arc_mock.call_args.args[1] == sid
+            assert _get_status(db_url, sid) == "closed"
+        finally:
+            _cleanup(db_url, sid)
+
+    def test_arc_post_session_failure_marks_session_failed(self, db_url):
+        sid = "f1d00005-0000-4444-aaaa-000000000008"
+        _insert_session(db_url, sid)
+        try:
+            with (
+                patch(
+                    "capture.session_close.reconciliation.read_xdf_counts",
+                    return_value=_MATCHED,
+                ),
+                patch(
+                    "capture.session_close.reconciliation.query_db_counts",
+                    return_value=_MATCHED,
+                ),
+                patch(
+                    "capture.session_close.workflow.run_arc_post_session",
+                    side_effect=ARCPostSessionError("boom"),
+                ),
+                patch.object(settings, "DATABASE_URL", db_url),
+            ):
+                code = session_close.run(sid, _SPONSOR, _FAKE_XDF)
+
+            assert code == 1
+            assert _get_status(db_url, sid) == "failed"
+            assert "watermark_failed" in _get_audit_types(db_url, sid)
+            alert_rows = _get_alert_rows(db_url, sid)
+            assert len(alert_rows) == 1
+            assert alert_rows[0][0] == "arc_failure"
+            assert alert_rows[0][1] == "arc_post_session"
+            assert alert_rows[0][4] == "critical"
         finally:
             _cleanup(db_url, sid)

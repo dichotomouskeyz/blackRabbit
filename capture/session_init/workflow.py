@@ -14,6 +14,7 @@ def create_session(
     site_id: str,
     sponsor_id: str,
     participant_id: str,
+    capture_mode: str | None = None,
     compound_dose: float | None = None,
     compound_dose_unit: str | None = None,
     protocol_arm: str | None = None,
@@ -22,8 +23,9 @@ def create_session(
     electrode_type: str | None = None,
     skin_prep: str | None = None,
 ) -> str:
-    """Insert sessions anchor row, write 4 signal metadata rows, return session UUID."""
+    """Insert session anchor row, write 4 signal metadata rows, return session UUID."""
     settings.validate()
+    capture_mode = capture_mode or settings.CAPTURE_MODE
     session_id = str(uuid.uuid4())
 
     conn = psycopg2.connect(settings.DATABASE_URL)
@@ -37,6 +39,7 @@ def create_session(
                 "site_id": site_id,
                 "sponsor_id": sponsor_id,
                 "participant_id": participant_id,
+                "capture_mode": capture_mode,
                 "compound": compound,
                 "compound_dose": compound_dose,
                 "compound_dose_unit": compound_dose_unit,
@@ -51,6 +54,7 @@ def create_session(
             site_id=site_id,
             sponsor_id=sponsor_id,
             participant_id=participant_id,
+            capture_mode=capture_mode,
             electrode_placement=electrode_placement,
             electrode_type=electrode_type,
             skin_prep=skin_prep,

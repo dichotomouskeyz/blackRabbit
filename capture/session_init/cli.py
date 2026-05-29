@@ -31,6 +31,12 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument("--compound-dose", type=float, default=None)
     p.add_argument("--compound-dose-unit", choices=VALID_DOSE_UNITS, default=None)
+    p.add_argument(
+        "--capture-mode",
+        choices=("simulated", "hardware"),
+        default=settings.CAPTURE_MODE,
+        help="Persisted capture mode for the session (default: %(default)s)",
+    )
     p.add_argument("--protocol-arm", default=None)
     p.add_argument("--room-id", type=_parse_uuid, default=None, help="Room UUID")
     p.add_argument(
@@ -63,7 +69,8 @@ def main() -> None:
             "compound": args.compound,
             "site_id": args.site_id,
             "sponsor_id": args.sponsor_id,
-            "simulation_mode": settings.SIMULATION_MODE,
+            "capture_mode": args.capture_mode,
+            "simulation_mode": args.capture_mode == "simulated",
         },
     )
 
@@ -72,6 +79,7 @@ def main() -> None:
         site_id=args.site_id,
         sponsor_id=args.sponsor_id,
         participant_id=args.participant_id,
+        capture_mode=args.capture_mode,
         compound_dose=args.compound_dose,
         compound_dose_unit=args.compound_dose_unit,
         protocol_arm=args.protocol_arm,

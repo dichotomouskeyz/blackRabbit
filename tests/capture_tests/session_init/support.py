@@ -24,7 +24,7 @@ def _query_session(db_url: str, session_id: str) -> tuple | None:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT site_id, sponsor_id, participant_id, compound,
+        SELECT site_id, sponsor_id, participant_id, capture_mode, compound,
                compound_dose, compound_dose_unit, protocol_arm, room_id,
                status, started_at
         FROM sessions WHERE id = %s
@@ -56,6 +56,7 @@ def _query_metadata(db_url: str, session_id: str) -> list[dict]:
     cur.execute(
         """
         SELECT modality,
+               device_type,
                power_line_frequency, sample_rate_hz,
                eeg_reference, sampling_frequency, eeg_channel_count, eeg_channel_names,
                cap_manufacturer, cap_manufacturer_model_name,

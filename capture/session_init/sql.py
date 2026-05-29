@@ -3,12 +3,12 @@
 SESSION_INSERT = """
     INSERT INTO sessions (
         id, site_id, sponsor_id, participant_id,
-        compound, compound_dose, compound_dose_unit,
+        capture_mode, compound, compound_dose, compound_dose_unit,
         protocol_arm, room_id,
         status, started_at
     ) VALUES (
         %(id)s, %(site_id)s, %(sponsor_id)s, %(participant_id)s,
-        %(compound)s, %(compound_dose)s, %(compound_dose_unit)s,
+        %(capture_mode)s, %(compound)s, %(compound_dose)s, %(compound_dose_unit)s,
         %(protocol_arm)s, %(room_id)s,
         'initializing', NOW()
     )
@@ -19,6 +19,7 @@ SESSION_ACTIVATE = "UPDATE sessions SET status = 'active' WHERE id = %s"
 _METADATA_INSERT = """
     INSERT INTO session_signal_metadata (
         session_id, site_id, sponsor_id, participant_id, device_id,
+        device_type,
         modality,
         power_line_frequency, sample_rate_hz, software_filters,
         eeg_reference, sampling_frequency, eeg_channel_count, eeg_channel_names,
@@ -29,6 +30,7 @@ _METADATA_INSERT = """
         respiration_source, is_derived, respiration_unit
     ) VALUES (
         %(session_id)s, %(site_id)s, %(sponsor_id)s, %(participant_id)s, %(device_id)s,
+        %(device_type)s,
         %(modality)s,
         %(power_line_frequency)s, %(sample_rate_hz)s, %(software_filters)s,
         %(eeg_reference)s, %(sampling_frequency)s, %(eeg_channel_count)s, %(eeg_channel_names)s,

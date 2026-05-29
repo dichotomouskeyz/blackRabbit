@@ -28,17 +28,24 @@ class TestCreateSessionDB:
         sid = _call(db_url)
         try:
             row = _query_session(db_url, sid)
-            assert str(row[8]) == "active"
+            assert str(row[9]) == "active"
         finally:
             _cleanup(db_url, sid)
 
     def test_required_columns_stored_correctly(self, db_url):
         sid = _call(db_url)
         try:
-            site_id, sponsor_id, participant_id, compound = _query_session(db_url, sid)[:4]
+            (
+                site_id,
+                sponsor_id,
+                participant_id,
+                capture_mode,
+                compound,
+            ) = _query_session(db_url, sid)[:5]
             assert str(site_id) == _SITE
             assert str(sponsor_id) == _SPONSOR
             assert str(participant_id) == _PART
+            assert capture_mode == "simulated"
             assert compound == _COMPOUND
         finally:
             _cleanup(db_url, sid)
@@ -46,7 +53,7 @@ class TestCreateSessionDB:
     def test_started_at_is_set(self, db_url):
         sid = _call(db_url)
         try:
-            started_at = _query_session(db_url, sid)[9]
+            started_at = _query_session(db_url, sid)[10]
             assert started_at is not None
         finally:
             _cleanup(db_url, sid)
@@ -55,7 +62,7 @@ class TestCreateSessionDB:
         sid = _call(db_url)
         try:
             row = _query_session(db_url, sid)
-            compound_dose, compound_dose_unit, protocol_arm, room_id = row[4:8]
+            compound_dose, compound_dose_unit, protocol_arm, room_id = row[5:9]
             assert compound_dose is None
             assert compound_dose_unit is None
             assert protocol_arm is None
@@ -67,6 +74,7 @@ class TestCreateSessionDB:
         room = "f1d00007-0000-4444-eeee-000000000001"
         sid = _call(
             db_url,
+            capture_mode="hardware",
             compound_dose=25.0,
             compound_dose_unit="mg",
             protocol_arm="high_dose_25mg",
@@ -74,11 +82,19 @@ class TestCreateSessionDB:
         )
         try:
             row = _query_session(db_url, sid)
-            compound_dose, compound_dose_unit, protocol_arm, room_id = row[4:8]
+            compound_dose, compound_dose_unit, protocol_arm, room_id = row[5:9]
             assert compound_dose == pytest.approx(25.0)
             assert compound_dose_unit == "mg"
             assert protocol_arm == "high_dose_25mg"
             assert str(room_id) == room
+        finally:
+            _cleanup(db_url, sid)
+
+    def test_capture_mode_persisted_when_provided(self, db_url):
+        sid = _call(db_url, capture_mode="hardware")
+        try:
+            row = _query_session(db_url, sid)
+            assert row[3] == "hardware"
         finally:
             _cleanup(db_url, sid)
 
@@ -118,6 +134,6 @@ class TestCreateSessionDB:
             sid = _call(db_url, compound=compound)
             try:
                 row = _query_session(db_url, sid)
-                assert row[3] == compound
+                assert row[4] == compound
             finally:
                 _cleanup(db_url, sid)

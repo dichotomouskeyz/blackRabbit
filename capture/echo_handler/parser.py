@@ -27,11 +27,9 @@ def parse_echo_event(marker: str) -> ECHOEvent | None:
         return None
 
     _, event_type, actor_id, actor_role, zone_label = parts
-    actor_id = actor_id.strip()
+    actor_id = actor_id.strip() or None
 
     if event_type not in VALID_EVENT_TYPES:
-        return None
-    if not actor_id:
         return None
     if actor_role not in VALID_ACTOR_ROLES:
         return None

@@ -55,14 +55,19 @@ class TestSignalMetadataDB:
                 names = json.loads(names)
             assert eeg["modality"] == "eeg"
             assert eeg["eeg_reference"] == settings.EEG_REFERENCE
-            assert eeg["sampling_frequency"] == pytest.approx(
-                float(settings.SAMPLE_RATE_EEG)
-            )
+            assert eeg["sampling_frequency"] == pytest.approx(float(settings.SAMPLE_RATE_EEG))
             assert eeg["eeg_channel_count"] == settings.EEG_CHANNEL_COUNT
             assert names is None
-            assert eeg["power_line_frequency"] == pytest.approx(
-                settings.POWER_LINE_FREQUENCY
-            )
+            assert eeg["device_type"] == "simulated"
+            assert eeg["power_line_frequency"] == pytest.approx(settings.POWER_LINE_FREQUENCY)
+        finally:
+            _cleanup(db_url, sid)
+
+    def test_device_type_tracks_capture_mode(self, db_url):
+        sid = _call(db_url, capture_mode="hardware")
+        try:
+            rows = _query_metadata(db_url, sid)
+            assert {row["device_type"] for row in rows} == {"hardware"}
         finally:
             _cleanup(db_url, sid)
 
@@ -88,9 +93,7 @@ class TestSignalMetadataDB:
             hrv = _query_metadata(db_url, sid)[1]
             assert hrv["modality"] == "hrv"
             assert hrv["hrv_signal_source"] == settings.HRV_SIGNAL_SOURCE
-            assert hrv["sample_rate_hz"] == pytest.approx(
-                float(settings.SAMPLE_RATE_HRV)
-            )
+            assert hrv["sample_rate_hz"] == pytest.approx(float(settings.SAMPLE_RATE_HRV))
         finally:
             _cleanup(db_url, sid)
 
@@ -100,9 +103,7 @@ class TestSignalMetadataDB:
             eda = _query_metadata(db_url, sid)[2]
             assert eda["modality"] == "eda"
             assert eda["eda_signal_source"] == settings.EDA_SIGNAL_SOURCE
-            assert eda["sample_rate_hz"] == pytest.approx(
-                float(settings.SAMPLE_RATE_EDA)
-            )
+            assert eda["sample_rate_hz"] == pytest.approx(float(settings.SAMPLE_RATE_EDA))
         finally:
             _cleanup(db_url, sid)
 
@@ -113,9 +114,7 @@ class TestSignalMetadataDB:
             assert resp["modality"] == "respiration"
             assert resp["respiration_source"] == settings.RESPIRATION_SOURCE
             assert resp["is_derived"] == (settings.RESPIRATION_SOURCE in {"rsa_derived"})
-            assert resp["sample_rate_hz"] == pytest.approx(
-                float(settings.SAMPLE_RATE_RESPIRATION)
-            )
+            assert resp["sample_rate_hz"] == pytest.approx(float(settings.SAMPLE_RATE_RESPIRATION))
         finally:
             _cleanup(db_url, sid)
 

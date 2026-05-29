@@ -15,19 +15,17 @@ VALID_MANUAL_LABELS: frozenset[str] = frozenset(
 VALID_ACTOR_ROLES: frozenset[str] = frozenset(
     {"therapist", "facilitator", "coordinator", "observer"}
 )
-VALID_EVENT_TYPES: frozenset[str] = frozenset(
-    {"zone_enter", "zone_exit", "manual_marker"}
-)
+VALID_EVENT_TYPES: frozenset[str] = frozenset({"zone_enter", "zone_exit", "manual_marker"})
 
 
 @dataclass(frozen=True)
 class ECHOEvent:
     event_type: str
-    actor_id: str
+    actor_id: str | None
     actor_role: str
     zone_label: str
 
-    def as_dict(self) -> dict[str, str]:
+    def as_dict(self) -> dict:
         return {
             "event_type": self.event_type,
             "actor_id": self.actor_id,

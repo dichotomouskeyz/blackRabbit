@@ -12,6 +12,7 @@ def _build_metadata_rows(
     site_id: str,
     sponsor_id: str,
     participant_id: str,
+    capture_mode: str,
     electrode_placement: str | None,
     electrode_type: str | None,
     skin_prep: str | None,
@@ -23,6 +24,7 @@ def _build_metadata_rows(
         "sponsor_id": sponsor_id,
         "participant_id": participant_id,
         "device_id": settings.DEVICE_ID,
+        "device_type": capture_mode,
     }
     null = _null_metadata_fields()
     return [

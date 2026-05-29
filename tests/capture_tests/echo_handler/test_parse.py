@@ -28,9 +28,7 @@ class TestParseEchoMarker:
         }
 
     def test_strips_actor_id_whitespace(self):
-        result = parse_echo_marker(
-            "ECHO|zone_enter|  therapist_01  |therapist|arms_reach"
-        )
+        result = parse_echo_marker("ECHO|zone_enter|  therapist_01  |therapist|arms_reach")
         assert result is not None
         assert result["actor_id"] == "therapist_01"
 
@@ -56,12 +54,12 @@ class TestParseEchoMarker:
         assert parse_echo_marker("ECHO|zone_change|t|therapist|arms_reach") is None
 
     def test_proximity_state_change_returns_none(self):
-        assert parse_echo_marker(
-            "ECHO|proximity_state_change|t|therapist|arms_reach"
-        ) is None
+        assert parse_echo_marker("ECHO|proximity_state_change|t|therapist|arms_reach") is None
 
-    def test_empty_actor_id_returns_none(self):
-        assert parse_echo_marker("ECHO|zone_enter||therapist|arms_reach") is None
+    def test_empty_actor_id_parses_with_null_actor(self):
+        result = parse_echo_marker("ECHO|zone_enter||therapist|arms_reach")
+        assert result is not None
+        assert result["actor_id"] is None
 
     def test_empty_string_returns_none(self):
         assert parse_echo_marker("") is None

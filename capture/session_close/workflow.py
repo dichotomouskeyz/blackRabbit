@@ -47,15 +47,23 @@ Usage
 
 from pathlib import Path
 
+from batch.arc.processor import ARCPostSessionError, run_arc_post_session
 from batch.reconcile import close_session
 from capture.logger import get_logger, set_session_id
-from capture.session_close.db import connect_db, ensure_closing, validate_entry_state
+from capture.session_close.db import (
+    connect_db,
+    ensure_closing,
+    log_arc_failure_alert,
+    validate_entry_state,
+)
 from capture.session_close.reconciliation import (
     exit_code_for_report,
     read_xdf_counts_or_none,
     reconcile_session,
 )
 from config import settings
+from config.arc_watchdog import load_arc_watchdog_config
+from config.arc_watchdog.loader import DEFAULT_CONFIG_PATH
 
 settings.validate()
 
@@ -87,6 +95,63 @@ def run(session_id: str, sponsor_id: str, xdf_path: Path) -> int:
 
         ensure_closing(conn, session_id, sponsor_id, status)
         report = reconcile_session(conn, session_id, xdf_path, xdf_counts)
+        arc_config = None
+        try:
+            arc_config = load_arc_watchdog_config()
+        except Exception as exc:
+            log.error(
+                "ARC config could not be loaded",
+                extra={"session_id": session_id, "sponsor_id": sponsor_id, "error": str(exc)},
+            )
+            log_arc_failure_alert(
+                session_id,
+                sponsor_id,
+                algorithm_version="unknown",
+                algorithm_parameters={
+                    "error": str(exc),
+                    "error_type": exc.__class__.__name__,
+                    "config_path": str(DEFAULT_CONFIG_PATH),
+                },
+                message=f"ARC configuration load failed: {exc}",
+            )
+            close_session(conn, session_id, False)
+            return 1
+        try:
+            arc_result = run_arc_post_session(conn, session_id)
+        except ARCPostSessionError:
+            log_arc_failure_alert(
+                session_id,
+                sponsor_id,
+                algorithm_version=arc_config.version_label if arc_config else "unknown",
+                algorithm_parameters={
+                    "config_path": str(arc_config.path) if arc_config else "unknown",
+                    "config_version": arc_config.config_version if arc_config else "unknown",
+                    "config_sha256": arc_config.content_sha256 if arc_config else "unknown",
+                    "debounce_gap_s": 10.0,
+                },
+                message="ARC post-session processing failed",
+            )
+            log.exception(
+                "ARC post-session processing failed",
+                extra={"session_id": session_id, "sponsor_id": sponsor_id},
+            )
+            close_session(conn, session_id, False)
+            return 1
+        if arc_result.baseline_row_count == 0:
+            log.info(
+                "ARC post-session processing completed with no baseline rows",
+                extra={"session_id": session_id, "sponsor_id": sponsor_id},
+            )
+        log.info(
+            "ARC post-session processing complete",
+            extra={
+                "session_id": session_id,
+                "sponsor_id": sponsor_id,
+                "canonical_anchor_count": arc_result.canonical_anchor_count,
+                "cluster_count": arc_result.cluster_count,
+                "baseline_row_count": arc_result.baseline_row_count,
+            },
+        )
         close_session(conn, session_id, report.is_reconciled)
 
     finally:
