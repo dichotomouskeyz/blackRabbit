@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from batch.arc_preflight import (
+from batch.arc.preflight import (
     assert_arc_temporal_alignment,
     validate_arc_temporal_alignment,
 )
@@ -91,9 +91,7 @@ def _insert_eda(cursor, session_id: str, lsl_timestamp: float, sample_index: int
     )
 
 
-def _insert_respiration(
-    cursor, session_id: str, lsl_timestamp: float, sample_index: int
-) -> None:
+def _insert_respiration(cursor, session_id: str, lsl_timestamp: float, sample_index: int) -> None:
     cursor.execute(
         """
         INSERT INTO respiration_samples (
@@ -122,9 +120,7 @@ def _insert_apex_sample_set(cursor, session_id: str, lsl_timestamp: float, sampl
 
 @pytest.mark.integration
 class TestARCTemporalAlignment:
-    def test_passes_when_every_echo_anchor_has_subsecond_apex_neighbors(
-        self, cursor, db_conn
-    ):
+    def test_passes_when_every_echo_anchor_has_subsecond_apex_neighbors(self, cursor, db_conn):
         session_id = str(uuid4())
         _insert_echo(cursor, session_id, 100.20)
         _insert_echo(cursor, session_id, 101.80)
@@ -169,3 +165,66 @@ class TestARCTemporalAlignment:
     def test_rejects_thresholds_that_are_not_subsecond(self, db_conn):
         with pytest.raises(ValueError, match="sub-second"):
             validate_arc_temporal_alignment(db_conn, str(uuid4()), threshold_s=1.5)
+
+    def test_anchor_filter_excludes_non_anchor_events(self, cursor, db_conn):
+        session_id = str(uuid4())
+        # Insert zone_exit and in_room events — neither qualifies as anchor
+        for label in ("arms_reach", "in_room"):
+            cursor.execute(
+                """
+                INSERT INTO echo_events (
+                    session_id, participant_id, site_id, sponsor_id,
+                    event_type, source, actor_id, actor_role, zone_label, lsl_timestamp
+                ) VALUES (%s, %s, %s, %s, 'zone_exit', 'manual_logging',
+                          'therapist_01', 'therapist', %s, 100.0)
+                """,
+                (session_id, _PARTICIPANT_ID, _SITE_ID, _SPONSOR_ID, label),
+            )
+        _insert_apex_sample_set(cursor, session_id, 100.00, 1)
+
+        anchor_filters = (("zone_enter", "arms_reach"),)
+        report = validate_arc_temporal_alignment(db_conn, session_id, anchor_filters=anchor_filters)
+
+        assert report.echo_event_count == 0
+        assert report.is_aligned is False
+
+    def test_anchor_filter_counts_only_matching_events(self, cursor, db_conn):
+        session_id = str(uuid4())
+        # One anchor event (zone_enter/arms_reach) and one non-anchor (zone_exit/arms_reach)
+        _insert_echo(cursor, session_id, 100.0)  # zone_enter/arms_reach — anchor
+        cursor.execute(
+            """
+            INSERT INTO echo_events (
+                session_id, participant_id, site_id, sponsor_id,
+                event_type, source, actor_id, actor_role, zone_label, lsl_timestamp
+            ) VALUES (%s, %s, %s, %s, 'zone_exit', 'manual_logging',
+                      'therapist_01', 'therapist', 'arms_reach', 200.0)
+            """,
+            (session_id, _PARTICIPANT_ID, _SITE_ID, _SPONSOR_ID),
+        )
+        _insert_apex_sample_set(cursor, session_id, 100.00, 1)
+        _insert_apex_sample_set(cursor, session_id, 200.00, 2)
+
+        anchor_filters = (("zone_enter", "arms_reach"),)
+        report = validate_arc_temporal_alignment(db_conn, session_id, anchor_filters=anchor_filters)
+
+        assert report.echo_event_count == 1
+
+    def test_no_anchor_filter_counts_all_events(self, cursor, db_conn):
+        session_id = str(uuid4())
+        _insert_echo(cursor, session_id, 100.0)
+        cursor.execute(
+            """
+            INSERT INTO echo_events (
+                session_id, participant_id, site_id, sponsor_id,
+                event_type, source, actor_id, actor_role, zone_label, lsl_timestamp
+            ) VALUES (%s, %s, %s, %s, 'zone_exit', 'manual_logging',
+                      'therapist_01', 'therapist', 'arms_reach', 200.0)
+            """,
+            (session_id, _PARTICIPANT_ID, _SITE_ID, _SPONSOR_ID),
+        )
+        _insert_apex_sample_set(cursor, session_id, 100.00, 1)
+
+        report = validate_arc_temporal_alignment(db_conn, session_id)
+
+        assert report.echo_event_count == 2

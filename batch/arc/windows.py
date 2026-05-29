@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import isfinite
 
-from batch.arc_models import ARC_WINDOWS, ARCWindowName
+from batch.arc.models import ARC_WINDOWS, ARCWindowName
 
 CANONICAL_CENTERED_WINDOW_WIDTHS_S: dict[ARCWindowName, float] = {
     "w1": 30.0,

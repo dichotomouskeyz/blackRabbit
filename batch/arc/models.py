@@ -39,7 +39,7 @@ class EchoAnchorEvent:
     sponsor_id: str
     event_type: str
     source: str
-    actor_id: str
+    actor_id: str | None
     actor_role: str
     zone_label: str
     lsl_timestamp: float
@@ -59,9 +59,7 @@ class APEXResponse:
     z_score: float
     p_value: float
     effect_direction: Literal["increase", "decrease", "flat"] = "flat"
-    metadata: MappingProxyType[str, Any] = field(
-        default_factory=lambda: MappingProxyType({})
-    )
+    metadata: MappingProxyType[str, Any] = field(default_factory=lambda: MappingProxyType({}))
 
     def __post_init__(self) -> None:
         if self.baseline_std < 0:
@@ -120,8 +118,7 @@ class ARCWindowResponse:
 
     def deviation_metrics(self) -> dict[str, dict[str, Any]]:
         return {
-            response.arc_signal_id: response.to_deviation_metric()
-            for response in self.responses
+            response.arc_signal_id: response.to_deviation_metric() for response in self.responses
         }
 
 
@@ -183,7 +180,5 @@ class ARCConvergenceEvent:
         }
         for window in self.windows:
             row[REQUIRED_ECP_DENSITY_COLUMNS[window.name]] = window.convergence_density
-            row[REQUIRED_ECP_SIGNAL_COLUMNS[window.name]] = list(
-                window.participating_signals
-            )
+            row[REQUIRED_ECP_SIGNAL_COLUMNS[window.name]] = list(window.participating_signals)
         return row

@@ -2,7 +2,7 @@
 
 import pytest
 
-from batch.arc_models import (
+from batch.arc.models import (
     APEXResponse,
     ARCConvergenceEvent,
     ARCWindowResponse,
@@ -108,12 +108,11 @@ class TestARCConvergenceEvent:
         assert row["w1_participating_signals"] == ["hrv.hrv_rmssd"]
         assert row["w2_participating_signals"] == ["eda.eda_phasic_amplitude"]
         assert row["w3_participating_signals"] == []
-        assert row["deviation_metrics"]["w1"]["hrv.hrv_rmssd"]["z_score"] == pytest.approx(
-            -3.14
+        assert row["deviation_metrics"]["w1"]["hrv.hrv_rmssd"]["z_score"] == pytest.approx(-3.14)
+        assert (
+            row["deviation_metrics"]["w2"]["eda.eda_phasic_amplitude"]["effect_direction"]
+            == "increase"
         )
-        assert row["deviation_metrics"]["w2"]["eda.eda_phasic_amplitude"][
-            "effect_direction"
-        ] == "increase"
         assert row["arc_config_sha256"] == _SHA
 
     def test_requires_ordered_three_window_arc_shape(self):

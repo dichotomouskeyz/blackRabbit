@@ -2,7 +2,7 @@
 
 import pytest
 
-from batch.arc_windows import (
+from batch.arc.windows import (
     CANONICAL_CENTERED_WINDOW_WIDTHS_S,
     centered_arc_window,
     centered_arc_windows,

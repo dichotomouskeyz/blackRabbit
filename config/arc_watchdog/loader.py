@@ -1,36 +1,31 @@
-"""ARC watchdog configuration loader.
-
-The TOML file is configuration, not processing logic. In 1a it gives the
-post-session ARC path a stable, versioned contract for baseline windows,
-temporal windows, FDR policy, and signal availability rules.
-"""
-
 from __future__ import annotations
 
 import tomllib
-from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-DEFAULT_CONFIG_PATH = Path(__file__).with_name("arc_watchdog_config.toml")
+from config.arc_watchdog.models import ARCWatchdogConfig
+
+# config/arc_watchdog_config.toml lives one directory above this package
+DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "arc_watchdog_config.toml"
+
 REQUIRED_WINDOWS = ("w1", "w2", "w3")
 REQUIRED_MODALITIES = ("eeg", "hrv", "eda", "respiration")
 
-
-@dataclass(frozen=True)
-class ARCWatchdogConfig:
-    path: Path
-    raw: dict[str, Any]
-    content_sha256: str
-
-    @property
-    def config_version(self) -> str:
-        return str(self.raw["config_version"])
-
-    @property
-    def version_label(self) -> str:
-        return f"{self.path.name}@{self.config_version}"
+_VALID_EVENT_TYPES: frozenset[str] = frozenset({"zone_enter", "zone_exit", "manual_marker"})
+_VALID_ZONE_LABELS: frozenset[str] = frozenset(
+    {
+        "arms_reach",
+        "in_room",
+        "leaving_room",
+        "out_of_room",
+        "dose_administration",
+        "session_note",
+        "participant_note",
+        "environmental_note",
+    }
+)
 
 
 def load_arc_watchdog_config(path: str | Path | None = None) -> ARCWatchdogConfig:
@@ -39,7 +34,6 @@ def load_arc_watchdog_config(path: str | Path | None = None) -> ARCWatchdogConfi
     loaded = tomllib.loads(payload.decode("utf-8"))
     if not isinstance(loaded, dict):
         raise ValueError("ARC watchdog config must be a TOML mapping")
-
     _validate_config(loaded)
     return ARCWatchdogConfig(
         path=config_path,
@@ -101,7 +95,7 @@ def _validate_config(config: dict[str, Any]) -> None:
         components = signal_components.get(modality)
         if not isinstance(components, list) or not components:
             raise ValueError(f"signal_components.{modality} must be a non-empty list")
-        if not all(isinstance(component, str) and component for component in components):
+        if not all(isinstance(c, str) and c for c in components):
             raise ValueError(f"signal_components.{modality} must contain text values")
 
     sap = _require_mapping(config, "signal_availability_profile")
@@ -116,6 +110,24 @@ def _validate_config(config: dict[str, Any]) -> None:
         raise ValueError(
             "signal_availability_profile.missing_signal_policy must be 'record_available_only'"
         )
+
+    anchor = _require_mapping(config, "anchor_events")
+    include = anchor.get("include")
+    if not isinstance(include, list) or not include:
+        raise ValueError("anchor_events.include must be a non-empty list")
+    for i, entry in enumerate(include):
+        if not isinstance(entry, dict):
+            raise ValueError(f"anchor_events.include[{i}] must be a mapping")
+        et = entry.get("event_type")
+        zl = entry.get("zone_label")
+        if et not in _VALID_EVENT_TYPES:
+            raise ValueError(
+                f"anchor_events.include[{i}].event_type '{et}' is not a valid event type"
+            )
+        if zl not in _VALID_ZONE_LABELS:
+            raise ValueError(
+                f"anchor_events.include[{i}].zone_label '{zl}' is not a valid zone label"
+            )
 
 
 def _require_mapping(parent: dict[str, Any], key: str) -> dict[str, Any]:

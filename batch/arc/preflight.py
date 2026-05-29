@@ -47,9 +47,7 @@ class ARCTemporalAlignmentReport:
 
     @property
     def failed_streams(self) -> tuple[str, ...]:
-        return tuple(
-            name for name, result in sorted(self.streams.items()) if not result.is_aligned
-        )
+        return tuple(name for name, result in sorted(self.streams.items()) if not result.is_aligned)
 
     @property
     def is_aligned(self) -> bool:
@@ -97,25 +95,29 @@ def validate_arc_temporal_alignment(
     session_id: str,
     threshold_s: float = DEFAULT_MAX_ECHO_APEX_DELTA_S,
     required_streams: tuple[str, ...] = tuple(_STREAM_TABLES),
+    anchor_filters: tuple[tuple[str, str], ...] | None = None,
 ) -> ARCTemporalAlignmentReport:
     """Return ECHO/APEX timestamp alignment status for a session.
 
-    For each required APEX stream, every ECHO event is compared with the nearest
-    sample timestamp from that stream. ARC is allowed to start only when all
-    nearest deltas are strictly sub-threshold. The default threshold is 1.0s,
+    For each required APEX stream, every ECHO anchor event is compared with the
+    nearest sample timestamp from that stream. ARC is allowed to start only when
+    all nearest deltas are strictly sub-threshold. The default threshold is 1.0s,
     so the effective gate is sub-second alignment.
+
+    anchor_filters: optional sequence of (event_type, zone_label) pairs that
+        restrict which echo_events count as ARC anchors. When None, all events
+        in the session are counted (unfiltered). Pass config.anchor_events as
+        tuples to apply the config-driven filter.
     """
     if threshold_s <= 0.0 or threshold_s > 1.0:
         raise ValueError("threshold_s must be > 0.0 and <= 1.0 for sub-second ARC gating")
 
-    echo_count, first_echo, last_echo = _query_echo_bounds(conn, session_id)
+    echo_count, first_echo, last_echo = _query_echo_bounds(conn, session_id, anchor_filters)
     streams: dict[str, APEXStreamAlignment] = {}
 
     for stream_name in required_streams:
         table_name = _STREAM_TABLES[stream_name]
-        sample_count, first_sample, last_sample = _query_stream_bounds(
-            conn, table_name, session_id
-        )
+        sample_count, first_sample, last_sample = _query_stream_bounds(conn, table_name, session_id)
         max_delta = None
         if echo_count > 0 and sample_count > 0:
             max_delta = _query_max_nearest_echo_delta(conn, table_name, session_id)
@@ -144,6 +146,7 @@ def assert_arc_temporal_alignment(
     session_id: str,
     threshold_s: float = DEFAULT_MAX_ECHO_APEX_DELTA_S,
     required_streams: tuple[str, ...] = tuple(_STREAM_TABLES),
+    anchor_filters: tuple[tuple[str, str], ...] | None = None,
 ) -> ARCTemporalAlignmentReport:
     """Validate alignment and raise RuntimeError if ARC must not start."""
     report = validate_arc_temporal_alignment(
@@ -151,23 +154,37 @@ def assert_arc_temporal_alignment(
         session_id=session_id,
         threshold_s=threshold_s,
         required_streams=required_streams,
+        anchor_filters=anchor_filters,
     )
     report.raise_for_unaligned()
     return report
 
 
 def _query_echo_bounds(
-    conn: psycopg2.extensions.connection, session_id: str
+    conn: psycopg2.extensions.connection,
+    session_id: str,
+    anchor_filters: tuple[tuple[str, str], ...] | None = None,
 ) -> tuple[int, float | None, float | None]:
     with conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT COUNT(*), MIN(lsl_timestamp), MAX(lsl_timestamp)
-            FROM echo_events
-            WHERE session_id = %s
-            """,
-            (session_id,),
-        )
+        if anchor_filters:
+            cur.execute(
+                """
+                SELECT COUNT(*), MIN(lsl_timestamp), MAX(lsl_timestamp)
+                FROM echo_events
+                WHERE session_id = %s
+                AND (event_type, zone_label) IN %s
+                """,
+                (session_id, anchor_filters),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT COUNT(*), MIN(lsl_timestamp), MAX(lsl_timestamp)
+                FROM echo_events
+                WHERE session_id = %s
+                """,
+                (session_id,),
+            )
         row = cur.fetchone()
     return _coerce_bounds(row)
 
