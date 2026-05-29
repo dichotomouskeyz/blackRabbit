@@ -96,6 +96,8 @@ def validate() -> None:
         errors.append(
             f"RESPIRATION_SOURCE = {RESPIRATION_SOURCE!r} (must be belt_direct | rsa_derived)"
         )
+    if CAPTURE_MODE not in ("simulated", "hardware"):
+        errors.append(f"CAPTURE_MODE = {CAPTURE_MODE!r} (must be simulated | hardware)")
     if EEG_CHANNEL_NAMES is not None and len(EEG_CHANNEL_NAMES) != EEG_CHANNEL_COUNT:
         errors.append(
             "EEG_CHANNEL_NAMES length must match EEG_CHANNEL_COUNT "
@@ -173,11 +175,14 @@ EEG_CHANNEL_NAMES: tuple[str, ...] | None = _get_optional_csv("EEG_CHANNEL_NAMES
 DEVICE_ID: str = _get("DEVICE_ID", "00000000-0000-0000-0000-000000000001")
 
 # ---------------------------------------------------------------------------
-# Simulation
-# Set to "true" in .env during development. lsl_forwarder logs this at
-# startup so audit records clearly distinguish simulated from real sessions.
+# Capture mode
+# CAPTURE_MODE is the persisted source of truth for simulated vs hardware runs.
+# SIMULATION_MODE remains as a backward-compatible runtime alias.
+# Default stays simulated if neither env var is set.
 # ---------------------------------------------------------------------------
-SIMULATION_MODE: bool = _get("SIMULATION_MODE", "false").lower() == "true"
+_simulation_mode_env = _get("SIMULATION_MODE", "true").lower() == "true"
+CAPTURE_MODE: str = _get("CAPTURE_MODE", "simulated" if _simulation_mode_env else "hardware")
+SIMULATION_MODE: bool = CAPTURE_MODE == "simulated"
 SIMULATED_ECHO_MARKER_INTERVAL: float = float(_get("SIMULATED_ECHO_MARKER_INTERVAL", "5.0"))
 
 # ---------------------------------------------------------------------------

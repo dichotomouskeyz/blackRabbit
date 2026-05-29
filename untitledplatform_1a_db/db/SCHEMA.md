@@ -1,6 +1,6 @@
 # untitledplatform_1a — Database Schema
 
-Generated from core migrations 001–029. All IDs are UUIDs unless noted.
+Generated from core migrations 001–031. All IDs are UUIDs unless noted.
 
 ---
 
@@ -25,6 +25,7 @@ Primary clinical record. One row per recording session.
 | `site_id` | `UUID NOT NULL` | Site conducting the session |
 | `sponsor_id` | `UUID NOT NULL` | Trial sponsor |
 | `participant_id` | `UUID NOT NULL` | Pseudonymous — real identity never stored |
+| `capture_mode` | `TEXT NOT NULL` | `simulated` \| `hardware` |
 | `room_id` | `UUID` | Physical room within the site |
 | `protocol_arm` | `TEXT` | e.g. `'high_dose_25mg'`, `'placebo'` |
 | `compound` | `TEXT NOT NULL` | Must match `compound_reference.compound_id` |
@@ -152,7 +153,7 @@ Automated safety/quality alerts from `safety_monitor.py`.
 | `participant_id` | `UUID NOT NULL` | |
 | `site_id` | `UUID NOT NULL` | |
 | `sponsor_id` | `UUID NOT NULL` | |
-| `alert_type` | `TEXT NOT NULL` | `cardiac` \| `sqi` \| `respiration` \| `device_loss` \| `threshold_breach` \| `process_restart` |
+| `alert_type` | `TEXT NOT NULL` | `cardiac` \| `sqi` \| `respiration` \| `device_loss` \| `threshold_breach` \| `process_restart` \| `arc_failure` |
 | `compound` | `TEXT NOT NULL` | |
 | `compound_dose` | `FLOAT` | Nullable when dose is unknown |
 | `severity` | `TEXT NOT NULL` | `info` \| `warning` \| `critical` |
@@ -206,6 +207,7 @@ Persisted baseline values for ARC. One row per signal component per session. ARC
 | `participant_id` | `UUID NOT NULL` | Pseudonymous participant token |
 | `site_id` | `UUID NOT NULL` | |
 | `sponsor_id` | `UUID NOT NULL` | |
+| `device_type` | `TEXT NOT NULL` | `simulated` \| `hardware` |
 | `modality` | `TEXT NOT NULL` | `eeg` \| `hrv` \| `eda` \| `respiration` |
 | `signal_component` | `TEXT NOT NULL` | e.g. `hrv_rmssd`, `eda_mean`, `eeg_alpha_power` |
 | `baseline_mean` | `DOUBLE PRECISION NOT NULL` | |

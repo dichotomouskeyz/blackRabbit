@@ -33,6 +33,54 @@ class TestCheckConstraints:
                 );
             """)
 
+    def test_alert_events_accepts_arc_failure_alert_type(self, cursor):
+        cursor.execute("""
+            INSERT INTO alert_events
+                (session_id, participant_id, site_id, sponsor_id, alert_type,
+                 compound, compound_dose, severity, algorithm_name,
+                 algorithm_version, algorithm_parameters, message)
+            VALUES (
+                'a0eebc99-0000-0000-0000-000000000099',
+                'aaaa0000-0000-0000-0000-000000000001',
+                'bbbb0000-0000-0000-0000-000000000001',
+                'cccc0000-0000-0000-0000-000000000001',
+                'arc_failure', 'psilocybin', 0.0, 'critical',
+                'arc_post_session', 'demo-002',
+                '{"error": "boom"}'::jsonb,
+                'ARC post-session processing failed'
+            );
+        """)
+
+    def test_sessions_rejects_invalid_capture_mode(self, cursor):
+        with pytest.raises(psycopg2.errors.CheckViolation):
+            cursor.execute("""
+                INSERT INTO sessions
+                    (id, site_id, sponsor_id, participant_id, compound, capture_mode)
+                VALUES (
+                    'a0eebc99-0000-0000-ffff-000000000003',
+                    'bbbb0000-0000-0000-0000-000000000001',
+                    'cccc0000-0000-0000-0000-000000000001',
+                    'aaaa0000-0000-0000-0000-000000000001',
+                    'psilocybin', 'prototype'
+                );
+            """)
+
+    def test_session_signal_metadata_rejects_invalid_device_type(self, cursor):
+        with pytest.raises(psycopg2.errors.CheckViolation):
+            cursor.execute("""
+                INSERT INTO session_signal_metadata
+                    (session_id, site_id, sponsor_id, participant_id, device_id,
+                     modality, device_type)
+                VALUES (
+                    'a0eebc99-0000-0000-0000-000000000099',
+                    'bbbb0000-0000-0000-0000-000000000001',
+                    'cccc0000-0000-0000-0000-000000000001',
+                    'aaaa0000-0000-0000-0000-000000000001',
+                    'dddd0000-0000-0000-0000-000000000001',
+                    'eeg', 'prototype'
+                );
+            """)
+
     def test_sessions_rejects_removed_paused_status(self, cursor):
         with pytest.raises(psycopg2.errors.InvalidTextRepresentation):
             cursor.execute("""

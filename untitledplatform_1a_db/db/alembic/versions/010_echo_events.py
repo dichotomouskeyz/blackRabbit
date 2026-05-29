@@ -70,7 +70,7 @@ def upgrade() -> None:
                                  'manual_logging',
                                  'imu_derived'
                              )),
-            actor_id         TEXT             NOT NULL,
+            actor_id         TEXT,
             actor_role       TEXT             NOT NULL
                              CHECK (actor_role IN (
                                  'therapist',

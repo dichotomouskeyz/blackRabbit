@@ -60,6 +60,14 @@ class TestBiosignalIntegrityLog:
         assert column_exists(cursor, "biosignal_integrity_log", "reconciliation_report")
 
 
+class TestCaptureModeFields:
+    def test_sessions_capture_mode_column_exists(self, cursor):
+        assert column_exists(cursor, "sessions", "capture_mode")
+
+    def test_session_signal_metadata_device_type_column_exists(self, cursor):
+        assert column_exists(cursor, "session_signal_metadata", "device_type")
+
+
 class TestSessionSignalMetadata:
     def test_eeg_channel_names_column_exists(self, cursor):
         assert column_exists(cursor, "session_signal_metadata", "eeg_channel_names")
