@@ -41,6 +41,9 @@ hrv = ["hrv_rmssd", "hrv_sdnn", "heart_rate_bpm"]
 eda = ["eda_mean", "eda_scr_count", "eda_phasic_amplitude"]
 respiration = ["respiration_rate", "respiration_amplitude"]
 
+# Reserved config contract. The MVP does not run a separate live SAP layer;
+# ARC batch determines active signals from session metadata plus samples in
+# the analyzed window.
 [signal_availability_profile]
 min_modalities_required = 2
 require_echo_event = true

@@ -3,7 +3,9 @@
 import uuid
 from dataclasses import dataclass
 
-PAYLOAD_SCHEMA_VERSION = "1.0"
+from config import settings
+
+PAYLOAD_SCHEMA_VERSION = settings.PAYLOAD_SCHEMA_VERSION
 BUFFER_MAX_CHUNKS = 200
 DRIFT_WARN_THRESHOLD_S = 0.100
 LOG_EVERY_N_CHUNKS = 50

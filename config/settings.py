@@ -156,8 +156,8 @@ LSL_CHUNK_RESPIRATION: int = int(_get("LSL_CHUNK_RESPIRATION", "4"))
 # Sample rates (Hz) — must match device configuration
 # EEG:         250 Hz  (OpenBCI Cyton / research-grade headsets)
 # HRV:           1 Hz  (RR-interval derived stream)
-# EDA:           4 Hz  (clinical standard)
-# Respiration:   4 Hz  (clinical standard)
+# EDA:           4 Hz  (common research default)
+# Respiration:   4 Hz  (common research default)
 # ---------------------------------------------------------------------------
 SAMPLE_RATE_EEG: int = int(_get("SAMPLE_RATE_EEG", "250"))
 SAMPLE_RATE_HRV: int = int(_get("SAMPLE_RATE_HRV", "1"))
@@ -173,6 +173,7 @@ EEG_CHANNEL_NAMES: tuple[str, ...] | None = _get_optional_csv("EEG_CHANNEL_NAMES
 # Device
 # ---------------------------------------------------------------------------
 DEVICE_ID: str = _get("DEVICE_ID", "00000000-0000-0000-0000-000000000001")
+PAYLOAD_SCHEMA_VERSION: str = _get("PAYLOAD_SCHEMA_VERSION", "1.0")
 
 # ---------------------------------------------------------------------------
 # Capture mode
@@ -188,7 +189,7 @@ SIMULATED_ECHO_MARKER_INTERVAL: float = float(_get("SIMULATED_ECHO_MARKER_INTERV
 # ---------------------------------------------------------------------------
 # Watchdog — stream health monitoring
 # If no new samples arrive within WATCHDOG_TIMEOUT seconds, the forwarder
-# logs an error and alerts the coordinator via the WebSocket.
+# logs an error and records a local alert for post-session review.
 # Per-modality timeouts reflect expected inter-sample gaps:
 #   EEG:         3s  (4ms expected gap at 250 Hz — 3s = ~750 missed samples)
 #   HRV:        10s  (1s expected gap — brief pauses are normal)
