@@ -9,8 +9,8 @@ Captures EEG, HRV, EDA, and respiration via Lab Streaming Layer (LSL), writes to
 ## Prerequisites
 
 - Docker Desktop (runs TimescaleDB + pgAdmin)
-- Python 3.11+
-- Poetry (dependency management)
+- Python 3.12+
+- uv (dependency management)
 - WSL2 (Windows only)
 
 ---
@@ -43,7 +43,7 @@ Start the forwarder. It resolves LSL streams by name — whatever is publishing
 ```bash
 # In .env:  CAPTURE_MODE=hardware  (SIMULATION_MODE=false still works as a legacy alias)
 
-python -m capture.lsl_forwarder
+python -m capture.forwarder
 ```
 
 ---
@@ -62,7 +62,7 @@ python -m capture.synthetic_board
 python -m capture.synthetic_board --board ganglion --serial-port /dev/cu.usbserial-...
 
 # Terminal 2 — start forwarder (same command as real hardware)
-python -m capture.lsl_forwarder
+python -m capture.forwarder
 ```
 
 The synthetic board outputs:
@@ -125,11 +125,11 @@ Migrations live in `db/alembic/versions/`. Never modify schema outside a migrati
 ## ARC watchdog config
 
 ARC demo parameters live in `config/arc_watchdog_config.toml`. The loader in
-`config/arc_watchdog.py` validates the three ARC windows, FDR method, baseline
+`config.arc_watchdog` validates the three ARC windows, FDR method, baseline
 requirements, null model, and signal availability profile.
 
 `arc_config_version` values should use the loader's `version_label`, for example
-`arc_watchdog_config.toml@demo-001`, so every Event Composite Profile points back
+`arc_watchdog_config.toml@demo-002`, so every Event Composite Profile points back
 to the named config version that produced it. Event Composite Profiles also store
 the config content SHA-256 so replay can detect an edited file with an unchanged
 version label.

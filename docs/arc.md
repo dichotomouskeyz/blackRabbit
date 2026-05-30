@@ -1,6 +1,7 @@
 # ARC
 
-ARC is the synchronized convergence layer between ECHO and APEX.
+ARC is Agentic Response Convergence, the synchronized post-session convergence
+layer between ECHO and APEX.
 
 ## Canonical Convergence Event
 
@@ -12,7 +13,7 @@ It represents one event-locked convergence result:
 | ECHO | `EchoAnchorEvent` | The behavioral/context event that opens ARC windows. It carries the `echo_events.id` foreign key, identity fields, event vocabulary, actor context, and LSL timestamp. |
 | APEX | `APEXResponse` | One physiological component response inside one ARC window, including modality, signal component, baseline, observed value, sample count, z-score, p-value, and direction. |
 | ARC | `ARCWindowResponse` | All APEX responses for one configured window (`w1`, `w2`, `w3`) plus that window's convergence density. |
-| ARC | `ARCConvergenceEvent` | The synchronized object linking one ECHO anchor to all three APEX response windows, SAP signal lists, FDR result, temporal alignment score, and config provenance. |
+| ARC | `ARCConvergenceEvent` | The synchronized object linking one ECHO anchor to all three APEX response windows, available/participating signal lists, FDR result, temporal alignment score, and config provenance. |
 
 Required shape:
 
@@ -32,7 +33,7 @@ for `event_composite_profiles`. That row contains:
 - per-window convergence densities;
 - per-window participating signal IDs such as `hrv.hrv_rmssd`;
 - nested `deviation_metrics` keyed by window and signal ID;
-- SAP available/participating signal lists;
+- available/participating signal lists;
 - FDR, temporal alignment, and ARC config provenance.
 
 This object is intentionally processor-neutral. It defines the handoff between
@@ -55,6 +56,17 @@ The gate verifies synchronized LSL time between ECHO and APEX:
 This check is separate from clock drift logging. Drift logging records clock
 correction provenance during capture; the ARC temporal alignment gate verifies
 the actual stored ECHO/APEX timestamps that the convergence processor would use.
+
+## Signal Availability
+
+The MVP does not run a separate live signal-availability layer. For ARC batch
+processing, a signal is active when the session metadata declares the modality
+and the relevant analysis window contains samples for that modality/component.
+
+`config/arc_watchdog_config.toml` still keeps a
+`[signal_availability_profile]` section as a reserved config contract. The
+loader validates it so config files remain explicit, but the current processor
+uses complete post-session records rather than live SAP state.
 
 ## ECHO Anchor Clustering
 

@@ -106,7 +106,7 @@ Electrodermal activity (galvanic skin response).
 | Column | Type | Notes |
 |--------|------|-------|
 | `raw_conductance_us` | `FLOAT NOT NULL` | Direct hardware output — never filtered |
-| `conductance_us` | `FLOAT NOT NULL` | After software_filters |
+| `conductance_us` | `FLOAT NOT NULL` | Currently a pass-through copy of `raw_conductance_us` during capture |
 | `signal_quality` | `FLOAT` | |
 | **PK** | `(id, session_id, lsl_timestamp, db_insert_time)` | |
 
@@ -115,7 +115,7 @@ Electrodermal activity (galvanic skin response).
 | Column | Type | Notes |
 |--------|------|-------|
 | `raw_amplitude` | `FLOAT NOT NULL` | Direct hardware output |
-| `processed_amplitude` | `FLOAT NOT NULL` | After software_filters |
+| `processed_amplitude` | `FLOAT NOT NULL` | Currently a pass-through copy of `raw_amplitude` during capture |
 | `breath_phase` | `TEXT` | `inhale` \| `exhale` \| `hold` |
 | `breaths_per_min` | `FLOAT` | Derived by capture layer |
 | **PK** | `(id, session_id, lsl_timestamp, db_insert_time)` | |
@@ -183,7 +183,7 @@ ECHO proximity state events from LSL Marker Stream (manual in 1a).
 | `sponsor_id` | `UUID NOT NULL` | |
 | `event_type` | `TEXT NOT NULL` | `zone_enter` \| `zone_exit` \| `manual_marker` |
 | `source` | `TEXT NOT NULL` | `manual_logging` \| `imu_derived` |
-| `actor_id` | `TEXT NOT NULL` | Person being logged |
+| `actor_id` | `TEXT` | Person being logged; nullable for anonymous/manual markers |
 | `actor_role` | `TEXT NOT NULL` | `therapist` \| `facilitator` \| `coordinator` \| `observer` |
 | `zone_id` | `TEXT` | |
 | `zone_label` | `TEXT NOT NULL` | proximity zone or manual marker label |
@@ -199,7 +199,7 @@ ECHO proximity state events from LSL Marker Stream (manual in 1a).
 ## ARC Tables (027-028)
 
 ### `session_baselines`
-Persisted baseline values for ARC. One row per signal component per session. ARC computation is deferred in the open-source 1a MVP, so no processor writes these rows yet.
+Persisted baseline values for ARC. One row per signal component per session.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -207,7 +207,6 @@ Persisted baseline values for ARC. One row per signal component per session. ARC
 | `participant_id` | `UUID NOT NULL` | Pseudonymous participant token |
 | `site_id` | `UUID NOT NULL` | |
 | `sponsor_id` | `UUID NOT NULL` | |
-| `device_type` | `TEXT NOT NULL` | `simulated` \| `hardware` |
 | `modality` | `TEXT NOT NULL` | `eeg` \| `hrv` \| `eda` \| `respiration` |
 | `signal_component` | `TEXT NOT NULL` | e.g. `hrv_rmssd`, `eda_mean`, `eeg_alpha_power` |
 | `baseline_mean` | `DOUBLE PRECISION NOT NULL` | |
@@ -263,7 +262,7 @@ ARC reads validated ECHO + APEX records after the session watermark is verified.
 ## Vector / Feature Tables (011)
 
 ### `session_feature_vectors`
-Batch-computed features (MNE/Neurokit2). Populated post-session.
+Batch-computed feature vectors. The table is planted for future post-session feature extraction and remains unpopulated in the 1a MVP.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -334,6 +333,7 @@ One row per `(session_id, modality)` — static recording setup, not per-sample 
 | `sponsor_id` | `UUID NOT NULL` | |
 | `participant_id` | `UUID NOT NULL` | |
 | `device_id` | `UUID NOT NULL` | |
+| `device_type` | `TEXT NOT NULL` | `simulated` \| `hardware` |
 | `modality` | `TEXT NOT NULL` | `eeg` \| `hrv` \| `eda` \| `respiration` |
 | `software_filters` | `JSONB` | Object-of-objects or `"n/a"` |
 | `power_line_frequency` | `FLOAT` | For notch filter (EEG, HRV) |

@@ -1,281 +1,112 @@
 # GEMINI.md
 
+Gemini is a maintenance and documentation agent for this repository.
+
 ## Role
-Gemini is a maintenance + documentation agent.
 
 Primary responsibilities:
 - safe refactors
-- JSON → TOML conversion
 - dependency graph generation
-- README regeneration
-- documentation-as-code upkeep
+- README and docs upkeep
+- configuration format cleanup
+- small test and tooling improvements
 
-Gemini is NOT:
-- the architect
-- a product strategist
-- responsible for 1b infrastructure
-- responsible for changing scope
+Gemini is not the product owner, architect, or scope owner. If a task changes
+the platform direction, stop and document the question instead of implementing
+the change.
 
----
+## Current Target
 
-# Current Priority
+The active target is the local research-tool MVP:
+- Phase 2 capture is the working foundation.
+- Phase 3b adds baseline computation in the post-session batch path.
+- Phase 5b builds the ARC batch core and agentic interpreter.
+- Phase 4b exposes a thin CLI/notebook surface for review and export.
 
-Focus:
-# ARC convergence for the 1a MVP.
+Optimize for local execution, replayability, clear data contracts, and small
+auditable changes.
 
-Current goals:
-- ECHO/APEX synchronization
-- temporal convergence windows
-- live convergence events
-- OpenBCI integration
-- replayable simulated sessions
-- investor-demoable workflows
+Do not optimize for cloud infrastructure, generalized orchestration, regulatory
+product claims, or a large coordinator UI.
 
-Optimize for:
-- simplicity
-- reliability
-- clarity
-- local execution
+## System Shape
 
-NOT:
-- scalability
-- cloud infra
-- orchestration systems
-- generalized abstractions
-
----
-
-# Project Summary
-
-## APEX
-Physiological streams:
+APEX is the physiological layer:
 - EEG
 - HRV
 - EDA
 - respiration
 
-## ECHO
-Contextual events:
+ECHO is the contextual layer:
 - manual LSL markers
-- zones
-- facilitator/context events
+- phase, task, zone, and facilitator events
 
-## ARC
-Convergence layer.
+ARC is Agentic Response Convergence:
+- post-session ECHO/APEX alignment
+- W1/W2/W3 response windows
+- event composite profiles
+- per-session feature vectors and summaries
 
-ARC asks:
-> when something happens in the environment, did the body respond?
+## Scope Boundary
 
-ARC responsibilities:
-- synchronize ECHO + APEX
-- open W1/W2/W3 windows
-- emit convergence events
-- support visualization + replay
-
----
-
-# Previous Phases
-
-## Phase 0
-Completed:
-- VS Code workflow
-- Poetry
-- Docker
-- local AI tooling
-- architecture constraints
-- local-only 1a strategy
-
-## Phase 1
-Completed:
-- TimescaleDB/Postgres
+In scope:
+- local Docker and TimescaleDB/Postgres
+- direct DB writes from the capture processes
+- simulated LSL sessions
+- XDF backup and reconciliation
 - Alembic migrations
-- hypertables
-- audit triggers
-- watermark architecture
-- structured logging
-- echo_events
-- alert_events
-- session metadata system
+- TOML configuration
+- post-session ARC processing
 
----
+Out of scope for the MVP:
+- Kafka, Flink, AWS, and cloud deployment
+- BLE/UWB hardware integration
+- broad API backend
+- React coordinator UI
+- live safety or SQI monitor semantics
+- heavy external signal-processing stacks unless explicitly reintroduced
 
-# Current Phase
-
-## Phase 2 — Capture Layer
-Current work:
-- LSL ingestion
-- lsl_forwarder.py
-- session_init.py
-- structured logging
-- XDF reconciliation
-- clock drift tracking
-- ECHO marker ingestion
-- ARC foundations
-
----
-
-# Future Phases
-
-## Phase 3
-- live convergence
-- websocket streaming
-- safety monitoring
-- SQI monitoring
-
-## Phase 4
-- convergence visualization
-- replayable sessions
-- coordinator UI
-- investor demos
-
-## Phase 5
-- MNE
-- Neurokit2
-- ECP generation
-- session summaries
-
-## Phase 6
-- hardening
-- audit validation
-- security pass
-- demo prep
-
----
-
-# Refactor Rules
+## Refactor Rules
 
 Gemini may:
 - improve readability
 - reduce duplication
-- improve naming
-- improve structure
-- improve imports/types
-- reorganize configs/docs
+- improve imports and types
+- reorganize docs and config
+- add narrow tests for changed behavior
 
 Gemini must:
-- preserve behavior
+- preserve behavior unless the task explicitly changes it
 - prefer small diffs
 - explain changed files
-- recommend tests afterward
+- recommend or run tests afterward
 
-Do NOT:
-- rewrite architecture
-- redesign schema
-- expand scope
-- introduce unnecessary abstractions
+Do not redesign schema, rewrite architecture, expand scope, or introduce
+abstractions without a current implementation need.
 
----
-
-# JSON → TOML Rules
-
-Convert to TOML ONLY if:
-- human-edited config
-- algorithm params
-- device profiles
-- local settings
-- session defaults
-
-Keep JSON for:
-- API payloads
-- logs
-- DB JSONB
-- event serialization
-- machine-generated data
-
-Preferred:
-- tomllib for reading
-- readable sections
-- update loaders/tests/docs together
-
----
-
-# Dependency Graph Duties
-
-Generate/update:
-- docs/DEPENDENCY_GRAPH.md
-- Mermaid graphs
-- module dependency summaries
-
-Track:
-- entrypoints
-- imports
-- shared utilities
-- config usage
-- DB touchpoints
-- circular dependencies
-
----
-
-# README Duties
-
-README should reflect:
-- current Python files
-- pyproject.toml
-- Docker setup
-- scripts
-- tests
-- current phase
-- actual runnable commands
-
-README should stay:
-- practical
-- current
-- short
-- runnable
-
----
-
-# 1a Scope Boundary
-
-## IN SCOPE
-- local Docker
-- TimescaleDB/Postgres
-- direct DB writes
-- WebSockets
-- polling monitors
-- OpenBCI integration
-- replay systems
-- TOML config
-
-## OUT OF SCOPE
-- Kafka
-- Flink
-- AWS
-- MCP
-- Neo4j deployment
-- pgvector population
-- autonomous agents
-- orchestration systems
-- cloud scaling
-
-If work requires out-of-scope infra:
-STOP and document the interface only.
-
----
-
-# Non-Negotiables
+## Non-Negotiables
 
 Never:
-- write directly to audit_events
-- collapse timestamps
+- write directly to `audit_events`
+- collapse `lsl_timestamp` and `db_insert_time`
 - expose participant identity
-- hardcode config
-- bypass watermark_verified
-- use deprecated modality names
+- bypass `watermark_verified`
+- hardcode runtime configuration
+- remove XDF reconciliation
 
 Always:
-- use Alembic
+- use Alembic for schema changes
 - preserve pseudonymous IDs
 - preserve structured logging
 - preserve timestamp separation
 - preserve ECHO/APEX/ARC naming
 
----
+## Testing
 
-# Testing
+After changes, run the smallest useful checks first:
 
-After changes recommend:
 ```bash
-uv run pytest
 uv run ruff check .
+uv run pytest
 uv run ruff format --check .
+```
