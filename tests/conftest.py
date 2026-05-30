@@ -45,7 +45,7 @@ def _database_available() -> tuple[bool, str]:
         _DB_AVAILABILITY = (
             False,
             "TEST_DATABASE_URL not set in .env. "
-            "Add: TEST_DATABASE_URL=postgresql://postgres:PASSWORD@localhost:5432/consensai_test",
+            "Add: TEST_DATABASE_URL=postgresql://postgres:PASSWORD@localhost:5432/untitledplatform_test",
         )
         return _DB_AVAILABILITY
 
@@ -82,7 +82,7 @@ def db_url():
     if not url:
         pytest.skip(
             "TEST_DATABASE_URL not set in .env. "
-            "Add: TEST_DATABASE_URL=postgresql://postgres:PASSWORD@localhost:5432/consensai_test"
+            "Add: TEST_DATABASE_URL=postgresql://postgres:PASSWORD@localhost:5432/untitledplatform_test"
         )
     available, reason = _database_available()
     if not available:
