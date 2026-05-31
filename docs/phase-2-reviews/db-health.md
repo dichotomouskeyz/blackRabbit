@@ -572,3 +572,25 @@ When you fix or verify something:
 5. If a new invariant emerges (e.g., new module, new contract), add a section here with the same shape: Invariant / Current state / Open.
 
 This doc is tracked in-repo so it travels with the branch and is visible to anyone who clones. When you cut the "final Phase 2" branch, carry the verification log forward — don't reset it. The repo is private; deployment will go to a separate public repo, so review/health content here is intentional and safe to commit.
+
+---
+
+## Index — review topic → section
+
+Use this to jump straight to whichever concern you're studying.
+
+| Topic | Where it's covered |
+|---|---|
+| Concurrency | §16 (full thread map + shared-state inventory) · §1 (cursor safety) |
+| Logic | bugs.md (external — Ultraplan cloud report, 2C/1H/12M/9L/4I findings) · §13 (DB error-handling logic) |
+| SQL injection | §2 (every site uses `%s` placeholders; `sql.Identifier` for dynamic table names post `2dab714`) |
+| Threading | §16 (thread map, ordering invariants, signal-handler hazards, GIL note) · §1 (cursor safety) |
+| Security | §3 (audit triggers) · §5 (tenancy) · §8 (pseudonymous IDs + PII log guard) · plus the cloud-produced security review |
+| Connection pooling | §12 (lifecycle) — at-a-glance row is `n/a`: no pool, each thread/op owns its own connection |
+| Migration integrity | §6 (chain unbroken, optional_governance parallel tree) · §7 (up/down symmetry) |
+| Index health | §18 (per-table coverage in `023_indexes.py`, indexes added by `025`–`028`, composite-key design notes) |
+| Constraint coverage | §19 (CHECK inventory across `002`–`031`, FK list, UNIQUE gap on `echo_events` + `biosignal_integrity_log`) |
+| Timezone consistency | §20 (all `TIMESTAMPTZ NOT NULL DEFAULT NOW()`; zero naive `datetime.now()` in `capture/`; the 2 `time.time()` hits in `xdf/samples.py` explained) |
+| Hypertable chunk sizing | §17 (1-hour interval on `db_insert_time`, expected row counts per chunk per modality, compression policy at 1-day age) |
+
+Add a row here whenever a new review topic is added or a new section gets created.
