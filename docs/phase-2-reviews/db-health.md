@@ -3,7 +3,7 @@
 **Repo:** `C:\Users\jahlo\untitled_biometric_platform-1a`
 **Branch tracked:** `2R` (HEAD `b4d3111`)
 **Doc started:** 2026-05-31
-**Doc location:** tracked in repo at `docs/db-health.md`
+**Doc location:** tracked in repo at `docs/phase-2-reviews/db-health.md`
 
 A living tracker for the regulatory-grade DB invariants the platform depends on. Each section lists what the invariant is, the current state, evidence, and any open hardening items. Update the status column when something is verified or fixed.
 
@@ -30,6 +30,11 @@ A living tracker for the regulatory-grade DB invariants the platform depends on.
 | Tamper-evidence (biosignal chunks) | ⚠️ | 2026-05-31 | `biosignal_integrity_log` (migration 026) carries MD5 chunk hash. Honest about boundaries (not used for security — `usedforsecurity=False`). Gap: buffer-flush path (MED-05) and separate-transaction window (MED-06). |
 | Connection pooling | n/a | 2026-05-31 | No pool in use. Each thread/operation opens its own connection. Acceptable for current scale (≤5 capture threads + watchdog). |
 | Cursor leak on exception path | ⚠️ | 2026-05-31 | `stream_db.write_rows` and `stream_integrity.write_integrity_log` use raw `cur = conn.cursor()` / `cur.close()` instead of `with conn.cursor() as cur:`. Intra-thread leak on exception until GC. |
+| Concurrency / threading model | ✅ | 2026-05-31 | 4 `StreamThread`s + 1 `ECHOThread` per forwarder, supervised by watchdog. `XDFWriter.threading.Lock` serializes XDF writes; `stop_event` coordinates shutdown. No shared mutable DB state across threads. |
+| Hypertable chunk sizing | ✅ | 2026-05-31 | All 4 biosignal hypertables use `chunk_time_interval = INTERVAL '1 hour'` on `db_insert_time`. Reasonable for current session durations (30 min – 8 h). Auto-compression at 1-day age (migration 013). |
+| Index health | ✅ | 2026-05-31 | Core indexes in `023_indexes.py`; later migrations (025–028) each define their own indexes for tables they add. Composite `(session_id, lsl_timestamp DESC)` is the primary biosignal access pattern. |
+| Constraint coverage | ⚠️ | 2026-05-31 | Comprehensive CHECK constraints across enums + range guards. UNIQUE constraints sparse — notable miss: `echo_events` has no UNIQUE on the natural-key composite (allows duplicate backfill — bugs.md LOW-02). |
+| Timezone consistency | ✅ | 2026-05-31 | All DB timestamp columns are `TIMESTAMPTZ NOT NULL DEFAULT NOW()`. `lsl_timestamp` is `DOUBLE PRECISION` (epoch seconds, monotonic). No naive `datetime.now()` calls in `capture/`. |
 
 ---
 
@@ -321,6 +326,193 @@ cd untitledplatform_1a_db/db/alembic && alembic history --verbose
 
 ---
 
+## 16. Concurrency / threading model  ✅
+
+**Invariant:** The forwarder process owns a fixed, small thread pool with one shared shutdown signal. Every threaded actor either owns its own state or accesses shared state through an explicit synchronization primitive.
+
+**The full thread map:**
+
+| Process | Threads spawned | Synchronization shared with others |
+|---|---|---|
+| `capture.lsl_forwarder` (forwarder process) | 4 × `StreamThread` (EEG, HRV, EDA, Respiration) + 1 × `ECHOThread` | `stop_event` (threading.Event), `XDFWriter` (instance, owns its own `threading.Lock`) |
+| `capture.watchdog` (supervisor) | 0 — uses `subprocess.Popen` to manage the forwarder process | n/a (cross-process; signals + DB are the contact surface) |
+| `capture.synthetic_board` (test outlet only) | one thread per modality outlet | local `stop_event`; no DB |
+| `capture.marker_simulator` | main thread + `threading.Event` for stop | no DB |
+| `capture.session_init`, `capture.session_close`, `capture.echo_handler.runtime` (CLI) | main thread only | n/a |
+
+**Shared mutable state (and how it's protected):**
+
+| State | Type | Protection | Risk class |
+|---|---|---|---|
+| `XDFWriter._f` (single open file handle across all StreamThreads + ECHOThread) | `IO[bytes]` + `threading.Lock` | `self._lock` held around every `write_*` and `close()` (`capture/xdf/writer.py:60`) | Was high without lock; safe today. |
+| `stop_event` | `threading.Event` | Internally locked (CPython `threading.Event` uses a `Condition`). Atomic set + wait. | Safe. |
+| `thread.buffer` (one per stream thread) | `collections.deque(maxlen=200)` | Each thread owns its own buffer; no cross-thread access. | Safe by ownership. |
+| `thread._sample_index`, `thread._chunk_count`, `thread._last_drift_time` | int / float on thread instance | Each thread reads/writes only its own attributes. | Safe by ownership. |
+| DB connection per thread | `psycopg2.connection` | Each thread opens its own (`stream_db.connect_db`, `echo_handler/db.connect_db`). Never passed across threads. | Safe by ownership. See §1. |
+| Logger (`get_logger("lsl_forwarder")` shared across all stream threads) | `logging.Logger` | Python `logging` is thread-safe by design (each handler locks). | Safe. |
+
+**Signal handlers (Python-level concurrency hazard):**
+- `runtime.py:45-47` installs `SIGTERM` (and `SIGBREAK` on Windows) handlers that call `stop.set()`. Python delivers signals to the main thread only, so the handler runs there. `stop_event.set()` is atomic — no race with worker threads checking `.is_set()` on each loop iteration.
+- The watchdog's `SIGTERM` handler (`watchdog/runner.py`) sets a clean-shutdown flag, then `time.sleep(delay)` between restarts is not signal-interruptible (bugs.md LOW-03). Cosmetic — the next loop iteration checks the flag.
+
+**Cross-thread ordering invariants:**
+- **XDF before DB:** every `StreamThread` writes the XDF chunk before the DB row (`capture/forwarder/stream_thread/stream_chunks.py`). XDF is the reconciliation source of truth, so it must lead.
+- **stop_event propagation:** `b4d3111` made `run_stream_thread` set `stop_event` on RuntimeError so sibling threads wind down cleanly. Without this fix, one thread dying silently could leave the rest running — see §1 for the historical context.
+
+**Hazards that don't apply (worth knowing why):**
+- GIL: Python's GIL means at most one thread executes Python bytecode at a time. That doesn't help here because the threads spend most time in C-level I/O (LSL `pull_chunk`, psycopg2 `execute_batch`, file `write`), where the GIL is released. So real parallelism does happen — synchronization above isn't theoretical.
+- Cursor sharing across threads: addressed in §1.
+
+**Open:**
+- bugs.md MED-08: `flush_buffer` has no time budget on shutdown — could exceed watchdog `GRACEFUL_SHUTDOWN_TIMEOUT_S` and get SIGKILLed mid-flush, leaving XDF partially written.
+- bugs.md LOW-03: `time.sleep(delay)` in watchdog isn't SIGTERM-interruptible.
+
+---
+
+## 17. Hypertable chunk sizing  ✅
+
+**Invariant:** Each biosignal hypertable is partitioned on `db_insert_time` with a chunk interval that keeps individual chunks small enough for fast queries and compression but large enough that chunk metadata overhead doesn't dominate.
+
+**Current state (verified by `grep "chunk_time_interval" untitledplatform_1a_db/db/alembic/versions/`):**
+
+| Table | Chunk interval | Partition column | Expected rows per 1-hour chunk |
+|---|---|---|---|
+| `eeg_samples` | `INTERVAL '1 hour'` | `db_insert_time` | 250 Hz × 8 ch × 3600 s = **7.2 M rows** |
+| `hrv_samples` | `INTERVAL '1 hour'` | `db_insert_time` | ~1 Hz × 3600 s = **3,600 rows** |
+| `eda_samples` | `INTERVAL '1 hour'` | `db_insert_time` | 4 Hz × 3600 s = **14,400 rows** |
+| `respiration_samples` | `INTERVAL '1 hour'` | `db_insert_time` | 4 Hz × 3600 s = **14,400 rows** |
+
+**Why `db_insert_time` and not `lsl_timestamp` for partitioning:** `lsl_timestamp` is `DOUBLE PRECISION` (epoch float) and TimescaleDB hypertables need a true `TIMESTAMPTZ` column on partitioning. The PK still includes `lsl_timestamp` for natural-key uniqueness — `db_insert_time` is appended to the PK because TimescaleDB requires the partitioning column in every unique constraint (so it can enforce uniqueness within each chunk independently). See `004_eeg_samples.py:47-58` for the design note.
+
+**Why 1 hour:** for a typical 4-hour session, you get 4 chunks per table, each manageable for query planning. For an 8-hour ibogaine session, 8 chunks. For 30-minute test runs, you get one mostly-empty chunk per modality — that's fine (TimescaleDB doesn't pre-allocate disk for empty chunks). EEG chunks at 7.2M rows are large but well within Postgres + TimescaleDB's comfortable range; compression (§ below) reduces stored size by 80%+ once a chunk passes age.
+
+**Compression policy (migration 013):**
+- All 4 hypertables auto-compress chunks **older than 1 day** (`add_compression_policy(table, compress_after => INTERVAL '1 day')`).
+- Compression settings on each table (migration 012): `segmentby = (session_id, channel_id|device_id)` so per-channel queries stay fast on compressed data; `orderby = (lsl_timestamp DESC)` so "last N minutes" reads only the front of each compressed segment.
+- A session must close fully before its chunks compress (the 1-day buffer enforces this).
+- **Operational caveat (CLAUDE.md known issue #5):** writing into a compressed chunk requires decompressing first. Backfill across the 1-day boundary therefore needs a documented decompress → backfill → recompress procedure. Filed.
+
+**Open:**
+- If a session ever crosses 8 chunks (i.e., > 8 hours of capture), revisit chunk size — 8 chunks × 7.2 M rows = 57 M EEG rows is fine for query planning, but the 12+ hour scenario (rare but possible for ibogaine) starts being chunk-metadata-heavy. Not urgent.
+- No retention policy is set. Old session chunks will live forever unless dropped manually. For a local-research MVP that's correct; in a regulated deployment, retention would be policy-driven.
+
+---
+
+## 18. Index health  ✅
+
+**Invariant:** Every common query pattern is supported by an index. No table relies on a sequential scan for a query that runs more than occasionally.
+
+**Coverage in `023_indexes.py` (the bulk index migration, runs after all core tables exist):**
+
+| Table | Indexes |
+|---|---|
+| `eeg_samples` | `idx_eeg_samples_session_time` `(session_id, lsl_timestamp DESC)` · `idx_eeg_samples_tenancy` `(site_id, sponsor_id)` · `idx_eeg_session_channel_time` `(session_id, channel_id, lsl_timestamp DESC)` ← EEG-specific |
+| `hrv_samples`, `eda_samples`, `respiration_samples` | `idx_<table>_session_time` `(session_id, lsl_timestamp DESC)` · `idx_<table>_tenancy` `(site_id, sponsor_id)` |
+| `sessions` | sponsor / site / trial_arm / (sponsor_id, site_id) / (site_id, sponsor_id) / status / compound — 7 single- and composite-column indexes |
+| `alert_events`, `echo_events`, `session_feature_vectors`, `session_notes` | `idx_<table>_session` · `idx_<table>_tenancy`; plus `idx_alert_events_severity (session_id, severity)`, `idx_echo_events_session_time (session_id, lsl_timestamp)`, `idx_echo_events_actor (actor_id)`, `idx_echo_events_zone_label (zone_label)` |
+| `audit_events` | `idx_audit_events_session_time (session_id, event_timestamp DESC)` |
+| `schema_version_log` | session / alembic_version / recorded_at indexes |
+| `session_signal_metadata` | tenancy + session |
+| `data_correction_amendment_log` | session / tenancy / (table_name, record_id) |
+| `session_environment_log` | session / tenancy / (session_id, db_insert_time DESC) |
+
+**Coverage in later migrations (each adds its own indexes since they ran after 023):**
+
+| Migration | Table | Indexes |
+|---|---|---|
+| `025_clock_drift_log.py:72,75` | `clock_drift_log` | `idx_clock_drift_session`, `idx_clock_drift_tenancy` |
+| `026_biosignal_integrity_log.py:100` | `biosignal_integrity_log` | `biosignal_integrity_log_session_idx` |
+| `027_session_baselines.py:49,53,57` | `session_baselines` | session / tenancy / (modality, signal_component) |
+| `028_event_composite_profiles.py:77,81,85,89` | `event_composite_profiles` | session / echo_event / tenancy / arc_config |
+
+**Design notes (from `023_indexes.py:14-55`):**
+- Composite indexes put the equality column first, the range/sort column second — Postgres can use a `(session_id, lsl_timestamp DESC)` index for both `WHERE session_id = ?` alone and `WHERE session_id = ? ORDER BY lsl_timestamp DESC LIMIT N`.
+- EEG gets a third composite `(session_id, channel_id, lsl_timestamp DESC)` because per-channel queries are the dominant access pattern.
+- Tenancy indexes `(site_id, sponsor_id)` exist on every table for future Phase 4 API queries that filter by tenant.
+
+**Open:**
+- No spot-check of `EXPLAIN ANALYZE` output yet — query plans not verified. Worth doing once real session data exists.
+- Index bloat is not monitored. With 1-hour chunks and frequent compression, this isn't urgent, but Phase 5b should add an operational note.
+
+---
+
+## 19. Constraint coverage  ⚠️
+
+**Invariant:** Every domain value that has a closed set or a numeric range is enforced at the DB level. Natural keys that should be unique have a `UNIQUE` constraint to prevent duplicate inserts.
+
+**CHECK constraint coverage (verified by `grep "CHECK\\s*(" untitledplatform_1a_db/db/alembic/versions/`):**
+
+| Migration | Table | Constraint kind |
+|---|---|---|
+| `002_sessions` | `sessions.compound_dose_unit` | enum |
+| `007_respiration_samples` | `respiration_samples.breath_phase` | `IN ('inhale', 'exhale', 'hold')` |
+| `009_alert_events` | `alert_type`, `severity` | enum (alert_type extended in `030`) |
+| `010_echo_events` | `event_type`, `source`, `actor_role`, `zone_label`, `confidence_score` | enums + range |
+| `019_session_signal_metadata` | `modality`, `eeg_channel_count >= 0`, `hrv_signal_source`, `electrode_*`, `eda_signal_source`, `respiration_source` | enum + range |
+| `021_data_correction_amendment_log` | `correction_type` | enum |
+| `022_session_environment_log` | `humidity_percent`, `light_level`, `noise_level` | range + enum |
+| `025_clock_drift_log` | `stream_type` | enum |
+| `026_biosignal_integrity_log` | `log_type IN ('chunk_integrity', 'xdf_reconciliation')` + boundary check | enum + range |
+| `027_session_baselines` | `modality`, `baseline_std >= 0.0`, `sample_count > 0`, `baseline_window_end > baseline_window_start` | enum + range |
+| `028_event_composite_profiles` | `w*_convergence_density >= 0.0`, `jsonb_typeof = 'array'/'object'`, `null_threshold`, `fdr_q_value`, `passed_fdr IS TRUE` | range + JSONB shape + boolean gate |
+| `030_arc_failure_alert_type` | extends `alert_events.alert_type` with `'arc_failure'` | enum extension |
+| `031_capture_mode_fields` | `sessions.capture_mode`, `session_signal_metadata.device_type` ∈ `('simulated', 'hardware')` | enum |
+
+This is broad and consistent. Range guards exist where they should; JSONB typeof checks on `event_composite_profiles` even verify the shape of stored JSON.
+
+**FK constraint coverage:**
+
+| Site | Reference |
+|---|---|
+| `compound_reference.cas_number` | `UNIQUE` |
+| `sessions.compound` | FK → `compound_reference(compound_id)` (added in `003_compound_reference.py:138`) |
+| `alert_events.compound` | FK → `compound_reference(compound_id)` (`009_alert_events.py:52`) |
+| `event_composite_profiles.echo_event_id` | FK → `echo_events(id)` (`028:35`) |
+
+Lightweight — biosignal tables don't FK to `sessions` because hypertable + FK is operationally awkward in TimescaleDB (FK enforcement across chunks adds write overhead). Per-row `session_id` is `UUID NOT NULL` and is enforced by the audit/integrity trail rather than at FK level.
+
+**UNIQUE constraint coverage (gap):**
+
+| Table | Has UNIQUE on natural key? | Notes |
+|---|---|---|
+| `compound_reference.cas_number` | ✅ | enforced |
+| `event_composite_profiles (session_id, echo_event_id)` | ✅ | `028:72` |
+| `echo_events` | ❌ | bugs.md LOW-02: no UNIQUE on `(session_id, lsl_timestamp, event_type, actor_id, actor_role, zone_label)`. Backfill at session_close has to dedupe in application code, and concurrent backfills could duplicate. Filed. |
+| `biosignal_integrity_log` | ❌ | one row per chunk, but no UNIQUE on `(session_id, table_name, min_sample_index, max_sample_index)`. Re-running reconciliation could write duplicate hashes. |
+| `clock_drift_log` | ❌ | many drift samples per session per stream — UNIQUE would be wrong. Append-only by design. ✓ |
+| Biosignal hypertables | PK serves as uniqueness contract | PK is `(session_id, lsl_timestamp, channel_id|device_id, db_insert_time)` — natural-key dedup handled by PK. |
+
+**Open:**
+- bugs.md LOW-02: add UNIQUE on `echo_events` natural-key composite.
+- Consider adding UNIQUE on `biosignal_integrity_log (session_id, table_name, min_sample_index, max_sample_index)` to make reconciliation idempotent.
+
+---
+
+## 20. Timezone consistency  ✅
+
+**Invariant:** Every persisted datetime is timezone-aware. No naive `datetime` flows from application to DB. `lsl_timestamp` (LSL clock) and `db_insert_time` (wall clock) are always distinct and never derived from each other.
+
+**Schema side (verified by `grep "TIMESTAMP\\b\\|TIMESTAMPTZ\\b" untitledplatform_1a_db/db/alembic/versions/`):**
+
+- **All** persisted datetime columns are `TIMESTAMPTZ NOT NULL DEFAULT NOW()` — confirmed across `sessions`, `eeg_samples`, `hrv_samples`, `eda_samples`, `respiration_samples`, `audit_events`, `alert_events`, `echo_events`, `session_feature_vectors`, `session_notes`, `schema_version_log`, `session_signal_metadata`, `data_correction_amendment_log`, `session_environment_log`, `clock_drift_log`, `biosignal_integrity_log`, `session_baselines`, `event_composite_profiles`, `pgvector_columns` migration.
+- Zero hits for bare `TIMESTAMP` (without `TZ`) — no chance of a naive column.
+- `lsl_timestamp` is `DOUBLE PRECISION NOT NULL` (epoch seconds from LSL's monotonic clock — intentionally not a timezone-aware type because it's a *clock offset*, not a wall-clock time).
+
+**Application side (verified by `grep "datetime\\.now\\(\\)\\|datetime\\.utcnow\\(\\)\\|datetime\\(\\|time\\.time\\(\\)" capture/`):**
+
+- Only 2 hits: `capture/xdf/samples.py:13, 30` — both `struct.pack("<d", time.time())`. These write LSL-style epoch-second timestamps into the binary XDF chunk header. `time.time()` returns POSIX seconds since the epoch (UTC by definition), which is the correct value for that field. Not a naive-datetime hazard.
+- **Zero** uses of `datetime.now()` (which would default to local time) or `datetime.utcnow()` (deprecated as of Python 3.12, returns naive) in `capture/`.
+- DB-side `NOW()` is timezone-aware (TIMESTAMPTZ result type), so `db_insert_time` columns always carry the server timezone.
+
+**The "two timestamps, never collapsed" rule:**
+- Every biosignal row has both `lsl_timestamp` (DOUBLE PRECISION from `pylsl.local_clock()`) and `db_insert_time` (TIMESTAMPTZ from `NOW()`).
+- Row builders never derive one from the other — `capture/forwarder/rows.py` populates `lsl_timestamp` from LSL directly and lets `db_insert_time` default to `NOW()` server-side.
+- Audit trigger function `audit_trigger_full_func()` records the original `NEW.session_id` + payload; it never overwrites `lsl_timestamp` with `event_timestamp` or vice versa.
+
+**Open:** none today. Re-verify if any new datetime column or app-side timestamp is added.
+
+---
+
 ## Open items rollup (single source of truth for follow-up)
 
 | # | Area | Severity | Source | Status |
@@ -339,6 +531,12 @@ cd untitledplatform_1a_db/db/alembic && alembic history --verbose
 | 12 | `audit_trigger_smart_func` matches live DB (COALESCE + TG_TABLE_NAME + NULL handler) | Deployment | CLAUDE.md known issue #3 | 🔍 deployment-side |
 | 13 | `row_to_json` PII exclusion if any real-PII column ever lands | Future-proofing | CLAUDE.md known issue #4 | 🔍 conditional |
 | 14 | Hypertable compression + backfill procedure documented | Operational doc | CLAUDE.md known issue #5 | 📝 deferred |
+| 15 | `flush_buffer` time budget on shutdown (could SIGKILL mid-flush) | Bug / shutdown safety | bugs.md MED-08 | 📝 filed |
+| 16 | watchdog `time.sleep(delay)` not SIGTERM-interruptible | Hygiene | bugs.md LOW-03 | 📝 filed |
+| 17 | `echo_events` missing UNIQUE on natural key | Constraint coverage | bugs.md LOW-02 | 📝 filed |
+| 18 | `biosignal_integrity_log` UNIQUE for idempotent reconciliation | Constraint coverage | this doc §19 | 📝 new |
+| 19 | EXPLAIN ANALYZE spot-check on real session data | Index validation | this doc §18 | 🔍 pending |
+| 20 | Retention policy for old session chunks | Operational doc | this doc §17 | 📝 deferred (MVP scope) |
 
 ---
 
@@ -355,6 +553,11 @@ cd untitledplatform_1a_db/db/alembic && alembic history --verbose
 | 2026-05-29 | Local session | bugs.md HIGH-01 fix | `b4d3111`: `run_stream_thread` catches RuntimeError, sets stop_event, logs CRITICAL. 65 tests pass. |
 | 2026-05-29 | Local session | session_close imports clean | `uv run python -m capture.session_close --help` succeeds — both Criticals from bugs.md pre-resolved. |
 | 2026-05-29 | Ultraplan cloud session | `2dab714 fix(security): harden metadata logging and static checks` | PII guard in logger, HTML escape in XDF metadata, `sql.Identifier` for dynamic table names. |
+| 2026-05-31 | Claude Opus 4.7 (local session) | Concurrency / threading model (§16) | 5 worker threads under forwarder (4 StreamThread + 1 ECHOThread). Shared state: XDFWriter (lock), stop_event (atomic), logger (thread-safe). No cross-thread DB state. Threading uses C-level I/O, so GIL doesn't serialize real work. |
+| 2026-05-31 | Claude Opus 4.7 (local session) | Hypertable chunk sizing (§17) | All 4 biosignal hypertables use `chunk_time_interval = INTERVAL '1 hour'` partitioned on `db_insert_time`. Compression policy at 1-day age (013). Reasonable for current session durations. |
+| 2026-05-31 | Claude Opus 4.7 (local session) | Index health (§18) | 023 covers core tables; 025, 026, 027, 028 each add their own indexes for tables they introduced. Composite `(session_id, lsl_timestamp DESC)` is the universal biosignal access index. |
+| 2026-05-31 | Claude Opus 4.7 (local session) | Constraint coverage (§19) | CHECK constraints are comprehensive across enums + range guards. UNIQUE coverage sparse: `echo_events` and `biosignal_integrity_log` lack UNIQUE on their natural-key composites. Filed as items 17 + 18 in rollup. |
+| 2026-05-31 | Claude Opus 4.7 (local session) | Timezone consistency (§20) | All persisted datetime columns are `TIMESTAMPTZ NOT NULL DEFAULT NOW()` — zero bare TIMESTAMP hits. Application side: zero naive `datetime.now()` / `datetime.utcnow()` in `capture/`. Two `time.time()` hits in `capture/xdf/samples.py` are correct (binary XDF chunk header epoch). |
 
 ---
 
