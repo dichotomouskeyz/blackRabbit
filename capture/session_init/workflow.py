@@ -22,6 +22,8 @@ def create_session(
     electrode_placement: str | None = None,
     electrode_type: str | None = None,
     skin_prep: str | None = None,
+    eeg_electrode_type: str | None = None,
+    eeg_skin_prep: str | None = None,
 ) -> str:
     """Insert session anchor row, write 4 signal metadata rows, return session UUID."""
     settings.validate()
@@ -58,6 +60,8 @@ def create_session(
             electrode_placement=electrode_placement,
             electrode_type=electrode_type,
             skin_prep=skin_prep,
+            eeg_electrode_type=eeg_electrode_type,
+            eeg_skin_prep=eeg_skin_prep,
         ):
             cur.execute(_METADATA_INSERT, row)
 

@@ -16,6 +16,8 @@ def _build_metadata_rows(
     electrode_placement: str | None,
     electrode_type: str | None,
     skin_prep: str | None,
+    eeg_electrode_type: str | None,
+    eeg_skin_prep: str | None,
 ) -> list[dict]:
     """Return 4 dicts ready for _METADATA_INSERT, one per modality."""
     base = {
@@ -28,7 +30,7 @@ def _build_metadata_rows(
     }
     null = _null_metadata_fields()
     return [
-        _eeg_metadata(base, null),
+        _eeg_metadata(base, null, eeg_electrode_type, eeg_skin_prep),
         _hrv_metadata(base, null),
         _eda_metadata(base, null, electrode_placement, electrode_type, skin_prep),
         _respiration_metadata(base, null),
@@ -46,6 +48,8 @@ def _null_metadata_fields() -> dict:
         "eeg_channel_names": None,
         "cap_manufacturer": None,
         "cap_manufacturer_model_name": None,
+        "eeg_electrode_type": None,
+        "eeg_skin_prep": None,
         "hrv_signal_source": None,
         "beat_detection_algorithm": None,
         "beat_detection_version": None,
@@ -61,7 +65,12 @@ def _null_metadata_fields() -> dict:
     }
 
 
-def _eeg_metadata(base: dict, null: dict) -> dict:
+def _eeg_metadata(
+    base: dict,
+    null: dict,
+    eeg_electrode_type: str | None,
+    eeg_skin_prep: str | None,
+) -> dict:
     return {
         **base,
         **null,
@@ -75,6 +84,8 @@ def _eeg_metadata(base: dict, null: dict) -> dict:
         else None,
         "cap_manufacturer": settings.CAP_MANUFACTURER,
         "cap_manufacturer_model_name": settings.CAP_MANUFACTURER_MODEL_NAME,
+        "eeg_electrode_type": eeg_electrode_type,
+        "eeg_skin_prep": eeg_skin_prep,
     }
 
 

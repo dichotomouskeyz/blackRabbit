@@ -60,6 +60,7 @@ def _query_metadata(db_url: str, session_id: str) -> list[dict]:
                power_line_frequency, sample_rate_hz,
                eeg_reference, sampling_frequency, eeg_channel_count, eeg_channel_names,
                cap_manufacturer, cap_manufacturer_model_name,
+               eeg_electrode_type, eeg_skin_prep,
                hrv_signal_source, beat_detection_algorithm, beat_detection_version,
                electrode_placement, electrode_type, skin_prep,
                eda_signal_source, eda_range_min_us, eda_range_max_us,

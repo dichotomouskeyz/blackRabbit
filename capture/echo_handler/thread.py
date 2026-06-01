@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import threading
-from typing import Any
+from typing import Any, Callable
 
 from capture.echo_handler import db
 from capture.echo_handler.inlet import resolve_inlet
@@ -18,6 +18,24 @@ from capture.logger import get_logger
 log = get_logger("echo_handler")
 
 
+def _default_write_failure_prompt(failure_round: int) -> str:
+    if failure_round == 1:
+        print("\n[ECHO] DB writes are failing. Try again? [y/n]: ", end="", flush=True)
+        ans = input().strip().lower()
+        return "retry" if ans == "y" else "continue"
+    else:
+        print(
+            "\n[ECHO] Marker events are not writing to the database.\n"
+            "  [c] Continue session without ECHO DB writes (XDF still recording)\n"
+            "  [x] Cancel session\n"
+            "Choice [c/x]: ",
+            end="",
+            flush=True,
+        )
+        ans = input().strip().lower()
+        return "cancel" if ans == "x" else "continue"
+
+
 class ECHOThread(threading.Thread):
     """LSL Marker Stream listener — writes proximity state events to echo_events.
 
@@ -29,12 +47,35 @@ class ECHOThread(threading.Thread):
     capture continues unaffected.
     """
 
-    def __init__(self, cfg, stop_event: threading.Event, xdf_writer) -> None:
+    def __init__(
+        self,
+        cfg,
+        stop_event: threading.Event,
+        xdf_writer,
+        on_write_failure: Callable[[int], str] | None = None,
+    ) -> None:
         super().__init__(name="fwd_echo", daemon=True)
         self._cfg = cfg
         self._stop_event = stop_event
         self._xdf = xdf_writer
         self._writer = ECHOWriter()
+        self._on_write_failure = on_write_failure or _default_write_failure_prompt
+        self._db_disabled = False
+
+    def handle_write_failure(self, failure_round: int):
+        """Prompt the user and act on their response. Returns a new conn or None."""
+        response = self._on_write_failure(failure_round)
+        if response == "retry":
+            log.info("ECHO write failure — user requested retry", extra={"round": failure_round})
+            return db.connect_db(self._stop_event)
+        elif response == "cancel":
+            log.error("ECHO write failure — user cancelled session")
+            self._stop_event.set()
+            return None
+        else:  # "continue"
+            log.warning("ECHO write failure — continuing without DB writes (XDF only)")
+            self._db_disabled = True
+            return None
 
     def run(self) -> None:
         try:

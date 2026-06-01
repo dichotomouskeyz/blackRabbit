@@ -85,6 +85,13 @@ WHY EEG METADATA FIELDS:
     for the batch layer to select the correct electrode coordinate file.
   cap_manufacturer_model_name (TEXT): e.g., 'actiCAP snap', 'Ultracortex
     Mark IV'. Different models have different electrode layouts.
+  eeg_electrode_type (TEXT): ag_agcl (wet/gel) vs dry. Wet Ag/AgCl
+    electrodes have a ~100x lower noise floor. The SQI monitor applies
+    different impedance thresholds depending on electrode type.
+  eeg_skin_prep (TEXT): scalp preparation before cap electrode placement.
+    Abrasion and cleaning reduce contact impedance significantly. Two
+    sessions with identical caps but different skin prep produce
+    non-comparable signal quality baselines.
 
 WHY HRV METADATA FIELDS:
   hrv_signal_source (TEXT): the physical signal from which R-R intervals
@@ -186,6 +193,18 @@ def upgrade() -> None:
                                         ),
             cap_manufacturer            TEXT,
             cap_manufacturer_model_name TEXT,
+            eeg_electrode_type          TEXT
+                                        CHECK (eeg_electrode_type IS NULL OR
+                                               eeg_electrode_type IN (
+                                                   'ag_agcl', 'dry', 'other'
+                                               )),
+            eeg_skin_prep               TEXT
+                                        CHECK (eeg_skin_prep IS NULL OR
+                                               eeg_skin_prep IN (
+                                                   'cleaned', 'abraded',
+                                                   'cleaned_and_abraded',
+                                                   'none', 'unknown'
+                                               )),
 
             -- HRV-specific recording metadata
             hrv_signal_source           TEXT

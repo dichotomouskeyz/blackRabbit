@@ -143,6 +143,24 @@ class TestSignalMetadataDB:
         finally:
             _cleanup(db_url, sid)
 
+    def test_eeg_electrode_args_stored(self, db_url):
+        sid = _call(db_url, eeg_electrode_type="ag_agcl", eeg_skin_prep="cleaned")
+        try:
+            eeg = _query_metadata(db_url, sid)[0]
+            assert eeg["eeg_electrode_type"] == "ag_agcl"
+            assert eeg["eeg_skin_prep"] == "cleaned"
+        finally:
+            _cleanup(db_url, sid)
+
+    def test_eeg_electrode_args_null_by_default(self, db_url):
+        sid = _call(db_url)
+        try:
+            eeg = _query_metadata(db_url, sid)[0]
+            assert eeg["eeg_electrode_type"] is None
+            assert eeg["eeg_skin_prep"] is None
+        finally:
+            _cleanup(db_url, sid)
+
     def test_metadata_rolled_back_with_session_on_failure(self):
         from unittest.mock import MagicMock, patch
 
