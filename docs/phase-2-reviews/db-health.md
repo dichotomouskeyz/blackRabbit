@@ -78,7 +78,7 @@ A study artifact + living tracker. Each section pairs an abstract database conce
 | 5.5 | Disk capacity / data growth | ⚠️ | 2026-05-31 | ~600 MB compressed per 4 h session (per migration 012 design note). No monitoring, no alert. |
 | 5.6 | Failure recovery procedures | ⚠️ | 2026-05-31 | Process crash → watchdog restart. DB crash → reconcile from XDF on close. Disk loss → undefined. |
 | 5.7 | Trigger firing order | ✅ | 2026-05-31 | `sessions` has audit (INSERT) + watermark (UPDATE) triggers — different events, no collision. Documented for future-Jay. |
-| 5.8 | Schema version visibility at runtime | ❌ | 2026-05-31 | `schema_version_log` table exists (migration 015) but **is never populated** — `grep` for `schema_version_log` across `capture/`, `batch/`, `ingestion/` returns 0 hits. Real gap discovered during this rewrite. |
+| 5.8 | Schema version visibility at runtime | ⚠️ | 2026-06-07 | `schema_version_log` population implemented in `capture.session_init`; follow-up tests still need to be written. Startup-time schema compatibility check remains open. |
 
 ---
 
@@ -800,7 +800,7 @@ Why 1 hour:
 
 ---
 
-### §5.8 Schema version visibility at runtime  ❌
+### §5.8 Schema version visibility at runtime  ⚠️
 
 **Concept.** A running application that talks to a database should verify, at startup, that the schema version it expects matches the schema version the DB is actually on. Without this check, you can deploy new code against an un-migrated DB (and get cryptic "column doesn't exist" errors) or run old code against a newer DB (and silently corrupt new schema). The standard pattern: a migration tool writes a "current version" marker into the DB (Alembic uses the `alembic_version` table); the application reads that marker at startup and refuses to run if it doesn't match expectations.
 
@@ -808,13 +808,13 @@ Why 1 hour:
 
 - Migration `015_schema_version_metadata.py` creates `schema_version_log` — designed to capture, per session: `alembic_version`, `app_version`, `python_version`, `postgres_version`, `timescaledb_version`, `pgvector_version`, `mne_version`, `neurokit2_version`, `pylsl_version`, `recorded_at`.
 - The migration's docstring (`015:49-52`) says: *"session_init.py (Phase 2) writes one row to this table at session start, alongside the config_snapshot audit event. It reads the current Alembic head and the APP_VERSION env var automatically."*
-- **Reality (verified by `grep`):** `capture/session_init/workflow.py` writes only to `sessions` and `session_signal_metadata`. There is **no INSERT into `schema_version_log` anywhere in the codebase**. `grep -rn "schema_version_log\|alembic_version" capture/ batch/ ingestion/` returns **0 hits**.
+- **Implementation update (2026-06-07):** `capture/session_init/workflow.py:create_session` now writes one `schema_version_log` row in the same transaction as the session row and signal metadata rows. It records the current Alembic script head, `settings.APP_VERSION`, Python version, `SELECT version()`, and TimescaleDB/pgvector extension versions from `pg_extension`.
 - There is also no startup-time check that the live Alembic head matches the version `config/settings.py` was written against. The forwarder will happily run against an older or newer DB schema and discover the mismatch only when a write fails.
 
-**Status.** ❌ Real gap. The table exists but is never populated; the runtime cross-check it was designed for doesn't happen.
+**Status.** ⚠️ Session-time schema provenance write implemented; tests and startup-time compatibility check remain open.
 
 **Open.**
-- Implement the `schema_version_log` write inside `capture/session_init/workflow.py:create_session` per the migration docstring. Read the current Alembic head via `alembic.script.ScriptDirectory.from_config(...).get_current_head()` or equivalent. Read `APP_VERSION` from `config/settings.py`. Read Postgres + extension versions via `SELECT version()` and `SELECT extversion FROM pg_extension`.
+- Write follow-up tests for one `schema_version_log` row per `create_session`, rollback when provenance insert fails, populated Alembic/app/Postgres/extension fields, and optional library columns left `NULL`.
 - Add a startup-time assertion: forwarder / batch / session_close all verify that the live `alembic_version` matches an expected value baked into `config/settings.py`; refuse to run if mismatched.
 - Add this as a new rollup item.
 
@@ -849,7 +849,7 @@ Why 1 hour:
 | 23 | `pg_dump` automation + DR procedure | Operational / DR | this doc §5.4 | ⚠️ deferred to Phase 4 |
 | 24 | Disk capacity monitoring + alerting | Operational | this doc §5.5 | ⚠️ deferred |
 | 25 | Failure recovery runbooks documented | Operational | this doc §5.6 | 📝 needed before UCSF |
-| 26 | `schema_version_log` is never populated by app code | Bug | this doc §5.8 | ❌ real gap — found 2026-05-31 |
+| 26 | `schema_version_log` is never populated by app code | Bug | this doc §5.8 | ⚠️ implementation added 2026-06-07; tests still needed |
 | 27 | Startup-time check that live Alembic head matches expected | Operational safety | this doc §5.8 | 📝 new |
 | 28 | Continuous aggregates evaluated when ARC batch becomes latency-bound | Performance / future | this doc §4.3 | 📝 deferred |
 | 29 | Vault / rotation story for DATABASE_URL secret | Security / deployment | this doc §5.3 | 📝 deferred to Phase 4+ |
@@ -876,6 +876,7 @@ Why 1 hour:
 | 2026-05-31 | Claude Opus 4.7 (local session) | Timezone consistency (§3.8) | All persisted timestamps `TIMESTAMPTZ NOT NULL DEFAULT NOW()` — zero bare TIMESTAMP. Application: zero naive `datetime.now()` in `capture/`. |
 | 2026-05-31 | Claude Opus 4.7 (local session) | Transactions & isolation level (§1.3) | `autocommit = False` set on every connection; isolation level is Postgres default `READ COMMITTED`. Documented as the contract. |
 | 2026-05-31 | Claude Opus 4.7 (local session) | Schema version visibility (§5.8) | `schema_version_log` table exists (migration 015) but **never populated** — 0 hits for `schema_version_log` / `alembic_version` in `capture/`, `batch/`, `ingestion/`. Filed as rollup #26 + #27. |
+| 2026-06-07 | Codex | Schema version visibility (§5.8) | Implemented `schema_version_log` write in `capture.session_init.create_session`; follow-up tests still need to be written. Startup-time compatibility check remains open. |
 | 2026-05-31 | Claude Opus 4.7 (local session) | Trigger firing order (§5.7) | `sessions` has 2 triggers but different events (INSERT vs UPDATE). No collision. |
 | 2026-05-31 | Claude Opus 4.7 (local session) | TLS in transit (§5.2) | `DATABASE_URL` in `.env.example` lacks `sslmode=`. Localhost-safe today; production needs explicit `require`+. |
 | 2026-05-31 | Claude Opus 4.7 (local session) | Secrets management (§5.3) | `.env` + `python-dotenv` + `.gitignore` + pre-commit `no-env-files` hook. Chain is intact for MVP scope. |
@@ -934,6 +935,6 @@ Use this to jump to whichever concern you're studying.
 | Disk capacity / growth | 5 | §5.5 (~600 MB compressed per 4-h session; no monitoring) |
 | Failure recovery | 5 | §5.6 (process / DB-connection / DB-crash recovery procedures) |
 | Trigger firing order | 5 | §5.7 (alphabetical; sessions has 2 triggers on different events) |
-| Schema version visibility | 5 | §5.8 (`schema_version_log` exists but never populated — real gap) |
+| Schema version visibility | 5 | §5.8 (`schema_version_log` population implemented; tests + startup check still open) |
 
 Add a row here whenever a new topic enters the doc or a new section gets created.

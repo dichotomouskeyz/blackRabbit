@@ -173,6 +173,7 @@ EEG_CHANNEL_NAMES: tuple[str, ...] | None = _get_optional_csv("EEG_CHANNEL_NAMES
 # Device
 # ---------------------------------------------------------------------------
 DEVICE_ID: str = _get("DEVICE_ID", "00000000-0000-0000-0000-000000000001")
+APP_VERSION: str = _get("APP_VERSION", "unknown")
 PAYLOAD_SCHEMA_VERSION: str = _get("PAYLOAD_SCHEMA_VERSION", "1.0")
 
 # ---------------------------------------------------------------------------

@@ -87,6 +87,7 @@ def _cleanup(db_url: str, *session_ids: str) -> None:
     cur = conn.cursor()
     for sid in session_ids:
         cur.execute("DELETE FROM session_signal_metadata WHERE session_id = %s", (sid,))
+        cur.execute("DELETE FROM schema_version_log WHERE session_id = %s", (sid,))
         cur.execute("DELETE FROM audit_events WHERE session_id = %s", (sid,))
         cur.execute("DELETE FROM sessions WHERE id = %s", (sid,))
     cur.close()

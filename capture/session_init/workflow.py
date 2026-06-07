@@ -1,12 +1,55 @@
 """Session creation workflow."""
 
+import sys
 import uuid
 
 import psycopg2
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 from capture.session_init.metadata import _build_metadata_rows
-from capture.session_init.sql import _METADATA_INSERT, SESSION_ACTIVATE, SESSION_INSERT
+from capture.session_init.sql import (
+    _METADATA_INSERT,
+    _SCHEMA_VERSION_INSERT,
+    SESSION_ACTIVATE,
+    SESSION_INSERT,
+)
 from config import settings
+
+
+def _current_alembic_head() -> str:
+    alembic_cfg = Config("alembic.ini")
+    script = ScriptDirectory.from_config(alembic_cfg)
+    return script.get_current_head()
+
+
+def _postgres_version(cur) -> str:
+    cur.execute("SELECT version()")
+    row = cur.fetchone()
+    return str(row[0]) if row else "unknown"
+
+
+def _extension_version(cur, extension_name: str) -> str | None:
+    cur.execute("SELECT extversion FROM pg_extension WHERE extname = %s", (extension_name,))
+    row = cur.fetchone()
+    return str(row[0]) if row else None
+
+
+def _build_schema_version_row(cur, session_id: str, site_id: str, sponsor_id: str) -> dict:
+    return {
+        "session_id": session_id,
+        "site_id": site_id,
+        "sponsor_id": sponsor_id,
+        "alembic_version": _current_alembic_head(),
+        "app_version": settings.APP_VERSION,
+        "python_version": sys.version,
+        "postgres_version": _postgres_version(cur),
+        "timescaledb_version": _extension_version(cur, "timescaledb"),
+        "pgvector_version": _extension_version(cur, "vector"),
+        "mne_version": None,
+        "neurokit2_version": None,
+        "pylsl_version": None,
+    }
 
 
 def create_session(
@@ -64,6 +107,11 @@ def create_session(
             eeg_skin_prep=eeg_skin_prep,
         ):
             cur.execute(_METADATA_INSERT, row)
+
+        cur.execute(
+            _SCHEMA_VERSION_INSERT,
+            _build_schema_version_row(cur, session_id, site_id, sponsor_id),
+        )
 
         conn.commit()
         cur.close()

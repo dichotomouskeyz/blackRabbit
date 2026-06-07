@@ -85,7 +85,7 @@ class TestCreateSessionUnit:
         mock_conn.rollback.assert_called_once()
         mock_conn.commit.assert_not_called()
 
-    def test_execute_called_six_times_on_success(self):
+    def test_execute_called_ten_times_on_success(self):
         mock_conn = MagicMock()
         mock_cur = MagicMock()
         mock_conn.cursor.return_value = mock_cur
@@ -93,7 +93,7 @@ class TestCreateSessionUnit:
         with patch("capture.session_init.workflow.psycopg2.connect", return_value=mock_conn):
             create_session(_COMPOUND, _SITE, _SPONSOR, _PART)
 
-        assert mock_cur.execute.call_count == 6
+        assert mock_cur.execute.call_count == 10
 
     def test_valid_compounds_matches_compound_reference(self):
         assert set(VALID_COMPOUNDS) == {

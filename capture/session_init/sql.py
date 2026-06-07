@@ -43,3 +43,17 @@ _METADATA_INSERT = """
         %(respiration_source)s, %(is_derived)s, %(respiration_unit)s
     )
 """
+
+_SCHEMA_VERSION_INSERT = """
+    INSERT INTO schema_version_log (
+        session_id, site_id, sponsor_id,
+        alembic_version, app_version, python_version,
+        postgres_version, timescaledb_version, pgvector_version,
+        mne_version, neurokit2_version, pylsl_version
+    ) VALUES (
+        %(session_id)s, %(site_id)s, %(sponsor_id)s,
+        %(alembic_version)s, %(app_version)s, %(python_version)s,
+        %(postgres_version)s, %(timescaledb_version)s, %(pgvector_version)s,
+        %(mne_version)s, %(neurokit2_version)s, %(pylsl_version)s
+    )
+"""

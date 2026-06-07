@@ -102,11 +102,12 @@ class TestCreateSessionDB:
         sid = _call(db_url)
         try:
             audit = _query_audit(db_url, sid)
-            assert len(audit) == 6
+            assert len(audit) == 7
             tables = [r[1] for r in audit]
             assert tables.count("sessions") == 2
             assert tables.count("session_signal_metadata") == 4
-            assert [r[0] for r in audit].count("INSERT") == 5
+            assert tables.count("schema_version_log") == 1
+            assert [r[0] for r in audit].count("INSERT") == 6
             assert ("session_status_transition", "sessions") in audit
         finally:
             _cleanup(db_url, sid)
