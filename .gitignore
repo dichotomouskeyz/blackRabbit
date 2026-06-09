@@ -25,3 +25,6 @@ CLAUDE.local.md
 # pytest
 .pytest_cache/
 .pytest_tmp/
+
+# Serena MCP working data
+.serena/
