@@ -36,8 +36,6 @@ def write_rows_and_integrity(thread, conn, rows: list[dict]):
         conn = thread.flush_buffer(conn)
     if conn is not None:
         conn = thread.write_rows(conn, rows)
-    if conn is not None:
-        thread.write_integrity_log(conn, rows)
     return conn
 
 

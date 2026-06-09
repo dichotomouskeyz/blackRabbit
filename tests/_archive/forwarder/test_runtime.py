@@ -5,7 +5,7 @@ from unittest.mock import ANY, MagicMock, patch
 import pytest
 
 from capture.forwarder.models import SessionConfig
-from capture.forwarder.runtime import join_threads, run_forwarder
+from capture.forwarder.runtime import join_threads, raise_if_thread_failed, run_forwarder
 
 
 def test_join_threads_logs_error_when_thread_does_not_stop():
@@ -36,6 +36,22 @@ def test_join_threads_does_not_log_when_thread_stops():
 
     thread.join.assert_called_once_with(timeout=0.01)
     log_error.assert_not_called()
+
+
+def test_raise_if_thread_failed_raises_on_fatal_stream_error():
+    thread = MagicMock()
+    thread.name = "fwd_eeg"
+    thread.fatal_error = RuntimeError("integrity log failed")
+
+    with pytest.raises(RuntimeError, match="fatal stream thread error"):
+        raise_if_thread_failed([thread])
+
+
+def test_raise_if_thread_failed_ignores_clean_threads():
+    thread = MagicMock()
+    thread.fatal_error = None
+
+    raise_if_thread_failed([thread])
 
 
 def test_run_forwarder_closes_xdf_when_join_loop_fails():
@@ -104,6 +120,7 @@ def test_run_forwarder_loads_session_config_once():
         ) as build_threads,
         patch("capture.forwarder.runtime.wait_for_stop"),
         patch("capture.forwarder.runtime.join_threads"),
+        patch("capture.forwarder.runtime.raise_if_thread_failed"),
     ):
         run_forwarder(cfg)
 

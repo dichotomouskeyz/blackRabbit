@@ -3,6 +3,7 @@
 import psycopg2
 import psycopg2.extras
 
+from capture.forwarder.stream_thread.stream_integrity import write_integrity_log
 from capture.logger import get_logger
 from config import settings
 
@@ -48,6 +49,7 @@ def write_rows(thread, conn: psycopg2.extensions.connection, rows: list[dict]):
     try:
         cur = conn.cursor()
         psycopg2.extras.execute_batch(cur, thread._insert_sql, rows)
+        write_integrity_log(thread, cur, rows)
         conn.commit()
         cur.close()
         return conn
@@ -56,16 +58,18 @@ def write_rows(thread, conn: psycopg2.extensions.connection, rows: list[dict]):
             f"{thread._stream_type} DB write failed - connection dropped",
             extra={"error": str(exc), "rows_lost_to_buffer": len(rows)},
         )
+        rollback_quietly(conn)
         close_after_write_error(thread, conn)
-        thread.buffer.append(rows)
         return None
     except psycopg2.Error as exc:
         log.error(
-            f"{thread._stream_type} DB insert error - chunk permanently dropped",
-            extra={"error": str(exc), "rows_dropped": len(rows)},
+            f"{thread._stream_type} DB chunk write failed - stopping forwarder",
+            extra={"error": str(exc), "rows_rolled_back": len(rows)},
         )
         rollback_quietly(conn)
-        return conn
+        raise RuntimeError(
+            f"{thread._stream_type} sample chunk and integrity log write failed"
+        ) from exc
 
 
 def close_after_write_error(thread, conn) -> None:

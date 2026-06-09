@@ -62,6 +62,7 @@ def run_stream_thread(thread) -> None:
     try:
         _run_stream_thread_inner(thread)
     except RuntimeError as exc:
+        thread._fatal_error = exc
         log.critical(
             f"{thread._stream_type} thread shutting down forwarder after fatal RuntimeError",
             extra={

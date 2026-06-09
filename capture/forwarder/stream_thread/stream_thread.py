@@ -53,6 +53,7 @@ class StreamThread(threading.Thread):
         self._sample_index = 0
         self._chunk_count = 0
         self._last_drift_time = 0.0
+        self._fatal_error: RuntimeError | None = None
 
     def run(self) -> None:
         run_stream_thread(self)
@@ -88,10 +89,10 @@ class StreamThread(threading.Thread):
 
     def write_integrity_log(
         self,
-        conn: psycopg2.extensions.connection,
+        cur,
         rows: list[dict],
     ) -> None:
-        write_integrity_log(self, conn, rows)
+        write_integrity_log(self, cur, rows)
 
     def log_chunk_summary(self, sample_count: int, timestamps: list[float]) -> None:
         log_chunk_summary(self, sample_count, timestamps)
@@ -103,6 +104,10 @@ class StreamThread(threading.Thread):
     @property
     def buffer(self) -> collections.deque[list[dict]]:
         return self._buffer
+
+    @property
+    def fatal_error(self) -> RuntimeError | None:
+        return self._fatal_error
 
     _resolve_inlet = resolve_inlet
     _connect_db = connect_db

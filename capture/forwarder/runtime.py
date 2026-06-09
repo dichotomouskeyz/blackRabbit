@@ -57,6 +57,7 @@ def run_forwarder(cfg: SessionConfig) -> None:
         join_threads(threads)
     finally:
         xdf.close()
+    raise_if_thread_failed(threads)
     log.info("forwarder stopped")
 
 
@@ -86,5 +87,28 @@ def _wait_for_stop(session_id: str, stop: threading.Event) -> None:
         stop.set()
 
 
+def _raise_if_thread_failed(threads: list[threading.Thread]) -> None:
+    fatal_threads = [
+        thread
+        for thread in threads
+        if getattr(thread, "fatal_error", None) is not None
+    ]
+    if not fatal_threads:
+        return
+
+    first = fatal_threads[0]
+    error = getattr(first, "fatal_error")
+    log.critical(
+        "forwarder stopped after fatal stream thread error",
+        extra={
+            "thread_name": first.name,
+            "fatal_thread_count": len(fatal_threads),
+            "error": str(error),
+        },
+    )
+    raise RuntimeError(f"forwarder failed after fatal stream thread error: {error}") from error
+
+
 join_threads = _join_threads
 wait_for_stop = _wait_for_stop
+raise_if_thread_failed = _raise_if_thread_failed

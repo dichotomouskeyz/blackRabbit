@@ -9,7 +9,7 @@ import pytest
 from capture.forwarder.models import BUFFER_MAX_CHUNKS, SessionConfig
 from capture.forwarder.rows import build_eeg_rows
 from capture.forwarder.sql import EEG_INSERT
-from capture.forwarder.stream_thread.stream_chunks import buffer_chunk
+from capture.forwarder.stream_thread.stream_chunks import buffer_chunk, process_chunk
 from capture.forwarder.stream_thread.stream_thread import StreamThread
 
 _SESSION = "f1d00008-0000-4444-aaaa-000000000001"
@@ -72,13 +72,15 @@ class TestStreamThreadUnit:
     def test_write_rows_returns_conn_on_success(self):
         t = _make_thread()
         mock_conn = MagicMock()
-        mock_conn.cursor.return_value = MagicMock()
+        mock_cur = MagicMock()
+        mock_conn.cursor.return_value = mock_cur
 
         rows = build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.0, 0)
         with patch("psycopg2.extras.execute_batch"):
             result = t.write_rows(mock_conn, rows)
 
         assert result is mock_conn
+        mock_cur.execute.assert_called_once()
         mock_conn.commit.assert_called_once()
 
     def test_write_rows_buffers_on_operational_error(self):
@@ -94,8 +96,8 @@ class TestStreamThreadUnit:
             result = t.write_rows(mock_conn, rows)
 
         assert result is None
-        assert len(t.buffer) == 1
-        assert t.buffer[0] is rows
+        assert len(t.buffer) == 0
+        mock_conn.rollback.assert_called_once()
         mock_conn.close.assert_called_once()
 
     def test_write_rows_rolls_back_on_non_connection_error(self):
@@ -108,10 +110,52 @@ class TestStreamThreadUnit:
             "psycopg2.extras.execute_batch",
             side_effect=psycopg2.IntegrityError("duplicate key"),
         ):
-            result = t.write_rows(mock_conn, rows)
+            with pytest.raises(RuntimeError, match="sample chunk and integrity log"):
+                t.write_rows(mock_conn, rows)
 
-        assert result is mock_conn
         mock_conn.rollback.assert_called_once()
+        mock_conn.commit.assert_not_called()
+
+    def test_write_rows_rolls_back_and_buffers_on_integrity_operational_error(self):
+        t = _make_thread()
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value = MagicMock()
+        t.try_reconnect = lambda: None
+
+        with (
+            patch("psycopg2.extras.execute_batch"),
+            patch(
+                "capture.forwarder.stream_thread.stream_db.write_integrity_log",
+                side_effect=psycopg2.OperationalError("deadlock detected"),
+            ),
+        ):
+            result = process_chunk(t, mock_conn, [_EEG_SAMPLE], [1000.0])
+
+        assert result is None
+        assert len(t.buffer) == 1
+        assert len(t.buffer[0]) == 8
+        mock_conn.rollback.assert_called_once()
+        mock_conn.close.assert_called_once()
+        mock_conn.commit.assert_not_called()
+
+    def test_write_rows_rolls_back_and_raises_on_integrity_db_error(self):
+        t = _make_thread()
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value = MagicMock()
+
+        rows = build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.0, 0)
+        with (
+            patch("psycopg2.extras.execute_batch"),
+            patch(
+                "capture.forwarder.stream_thread.stream_db.write_integrity_log",
+                side_effect=psycopg2.IntegrityError("bad integrity row"),
+            ),
+        ):
+            with pytest.raises(RuntimeError, match="sample chunk and integrity log"):
+                t.write_rows(mock_conn, rows)
+
+        mock_conn.rollback.assert_called_once()
+        mock_conn.commit.assert_not_called()
 
     def test_flush_buffer_drains_all_chunks(self):
         t = _make_thread()
@@ -224,11 +268,9 @@ class TestStreamThreadUnit:
     def test_write_integrity_log_records_hash_method(self):
         t = _make_thread()
         rows = build_eeg_rows(_EEG_SAMPLE, _CFG, 1000.0, 0)
-        mock_conn = MagicMock()
         mock_cur = MagicMock()
-        mock_conn.cursor.return_value = mock_cur
 
-        t.write_integrity_log(mock_conn, rows)
+        t.write_integrity_log(mock_cur, rows)
 
         mock_cur.execute.assert_called_once()
         sql, params = mock_cur.execute.call_args.args
@@ -236,4 +278,3 @@ class TestStreamThreadUnit:
         assert "hash_method" in sql
         assert params[4] == "chunk_integrity"
         assert params[-1] == "md5"
-        mock_conn.commit.assert_called_once()
