@@ -66,4 +66,5 @@ repos:
         name: Block .env files from being committed
         entry: bash -c "echo ERROR .env commit blocked && exit 1"
         language: system
-        files: \.env$
+        files: (^|/)\.env(\..*)?$
+        exclude: (^|/)\.env\.example$
