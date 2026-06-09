@@ -52,7 +52,10 @@ Phase 2 is the capture layer: session init, LSL forwarder, ECHO marker capture,
 XDF backup, clock drift logging, watchdog lifecycle, and session close.
 
 Phase 3b is baseline-in-batch: compute reproducible baseline records from the
-complete post-session dataset rather than live monitoring.
+complete post-session dataset rather than live monitoring. Phase 3b also
+includes the SQI (Signal Quality Index) monitor: post-session signal quality
+assessment per modality, flagging noisy or artifact-contaminated windows before
+ARC processes them.
 
 Phase 5b is ARC batch core: ECHO anchor filtering/clustering, APEX window
 queries, baseline comparisons, convergence event contracts, and durable ARC
@@ -61,9 +64,9 @@ outputs.
 Phase 4b is a thin user surface: CLI/notebook workflows for researchers. A full
 web app is deferred.
 
-Deferred from the MVP: live safety monitor, SQI monitor, WebSocket coordinator
-UI, React frontend, broad FastAPI app, MNE/Neurokit2 feature jobs, BLE/UWB
-hardware, cloud infrastructure, Kafka/Flink, and full regulatory workflows.
+Deferred from the MVP: live safety monitor, WebSocket coordinator UI, React
+frontend, broad FastAPI app, MNE/Neurokit2 feature jobs, BLE/UWB hardware,
+cloud infrastructure, Kafka/Flink, and full regulatory workflows.
 
 ## Engineering Rules
 
@@ -79,9 +82,10 @@ hardware, cloud infrastructure, Kafka/Flink, and full regulatory workflows.
 
 ## Database Rules
 
-The active migration chain is the source of truth. `SCHEMA.md` documents that
-chain, but migrations decide behavior. Optional governance migrations under
-`optional_governance/` are reference material for deployments that need them.
+The active migration chain is the source of truth.
+`untitledplatform_1a_db/db/SCHEMA.md` documents that chain, but migrations
+decide behavior. Optional governance migrations under `optional_governance/`
+are reference material for deployments that need them.
 
 Every table that carries session data includes tenant identity (`site_id`,
 `sponsor_id`) and pseudonymous subject identity where applicable. Application
@@ -95,6 +99,7 @@ queries should preserve those boundaries.
 - Pytest is the test runner.
 - Logs use `capture.logger.get_logger`.
 - Prefer structured APIs and parameterized SQL.
+- Keep literal table names in dynamic SQL from closed internal mappings.
 - Keep comments short and useful.
 
 ## Contributor Workflow

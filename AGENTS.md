@@ -1,8 +1,8 @@
 # AGENTS.md - Codex Context
 
-This file is the Codex-facing operating contract for this repository. It mirrors
-the current MVP frame in `.claude/CLAUDE.md` and points phase work to the
-specialized playbooks in `.codex/agents/`.
+This file is the canonical AI-agent operating contract for this repository.
+Tool-specific files in `.codex/` and `.claude/` should mirror this context, not
+replace it.
 
 ## Product Frame
 
@@ -44,9 +44,25 @@ Never:
 Always:
 - use `config/settings.py` for runtime configuration
 - use Alembic for schema changes
+- use parameterized SQL for values
+- keep literal table names in dynamic SQL from closed internal mappings
+- preserve separate EEG, HRV, EDA, and respiration tables
+- preserve structured JSON logging
 - preserve pseudonymous IDs
 - preserve raw APEX/ECHO records
+- preserve replayability
+- preserve ECHO/APEX/ARC terminology
 - add focused tests when behavior changes
+
+## Coding Rules
+
+- Use Python 3.12+ and `uv`.
+- Keep module changes scoped to the subsystem being changed.
+- Prefer explicit dataclasses and small functions over broad service objects.
+- Use Ruff for linting and formatting checks.
+- Do not commit `.env`, logs, data artifacts, caches, or XDF files.
+- Unit tests should avoid a DB unless behavior requires one.
+- DB-backed tests use `@pytest.mark.integration` and `TEST_DATABASE_URL`.
 
 ## Working Style
 

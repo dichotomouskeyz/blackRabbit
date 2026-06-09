@@ -36,3 +36,15 @@
   replayable. If an API is introduced later, it should wrap existing contracts
   instead of replacing them.
 - **Date:** April 2026; reframed May 2026
+
+## Local Model Agent Neutrality
+
+- **Decision:** The repo does not hardwire a local-model coding agent.
+- **Rationale:** Local model work may use LM Studio, LiteLLM, Continue, Claude
+  Code, Codex, or another coding agent while the workflow is still being tested.
+- **Current behavior:** Repo docs only record the common local endpoint shape:
+  LM Studio serving an OpenAI-compatible API at `http://localhost:1234/v1`.
+- **Code impact:** Keep model/provider config out of application code. User-level
+  files such as `C:\Users\jahlo\.continue\config.yaml` and
+  `C:\Users\jahlo\.claude\litellm\config.yaml` stay outside repo ownership.
+- **Date:** June 2026

@@ -28,3 +28,9 @@ or ECHO tables.
 
 Deferred systems include live safety/SQI monitoring, full API/UI surfaces, cloud
 infrastructure, and external feature libraries.
+
+## Agent Surfaces
+
+Root `AGENTS.md` is the canonical AI-agent contract. `.codex/` and `.claude/`
+are tool-specific compatibility surfaces. Local model tooling is intentionally
+agent-neutral until a coding-agent stack is chosen.
