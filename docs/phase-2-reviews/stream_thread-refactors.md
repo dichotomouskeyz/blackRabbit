@@ -72,3 +72,106 @@ Move the logic from the helper files (`stream_db.py`, `stream_chunks.py`, `strea
     - **Encapsulation**: Logic lives where the data lives.
     - **Type Safety**: The IDE and linter can validate method calls at development time.
     - **Readability**: Reduces the need to jump between 5+ files to understand the lifecycle of a single thread.
+
+## Package-Level Refactor: Reduce `StreamThread` Data-Bag Coupling
+
+### Current State
+
+The `stream_thread` subpackage has already started separating static stream
+construction data via `StreamThreadConfig`, but `StreamThread` still acts as a
+broad data bag for helper modules.
+
+Helpers in `stream_chunks.py`, `stream_db.py`, `stream_drift.py`,
+`stream_inlet.py`, `stream_integrity.py`, and `stream_runtime.py` still reach
+into private fields such as:
+
+- `_stream_type`
+- `_stream_name`
+- `_chunk_size`
+- `_row_builder`
+- `_cfg`
+- `_stop_event`
+- `_xdf`
+- `_insert_sql`
+- `_table_name`
+- `_hash_fields`
+- `_hash_sort_keys`
+- `_buffer`
+- `_sample_index`
+- `_chunk_count`
+- `_last_drift_time`
+- `_fatal_error`
+
+This makes future changes brittle because helper modules depend on the private
+internal shape of `StreamThread`.
+
+### Refactor Goal
+
+Separate the major categories currently mixed inside `StreamThread`:
+
+- **Static modality config**: what kind of stream this is.
+- **Session runtime context**: which session is being captured and how shutdown is signaled.
+- **Mutable thread state**: buffer, counters, drift timestamps, fatal errors.
+- **Actions**: inlet resolution, chunk processing, DB writes, integrity logging, drift logging.
+
+The goal is not to introduce a large new architecture. Avoid
+`PersistenceManager`, `PrimarySink`, `QuerySink`, or generic backup abstractions
+for now.
+
+### Proposed Approach
+
+1. Keep `build_stream_threads(cfg, stop, xdf)` unchanged.
+2. Keep `StreamThreadConfig` as the static modality definition.
+3. Add a small mutable `StreamThreadState` dataclass for:
+   - `buffer`
+   - `sample_index`
+   - `chunk_count`
+   - `last_drift_time`
+   - `fatal_error`
+4. Add read-only properties on `StreamThread` for helper dependencies.
+5. Add narrow mutation methods for state changes:
+   - `advance_sample_index()`
+   - `increment_chunk_count()`
+   - `mark_drift_recorded(now)`
+   - `set_fatal_error(exc)`
+6. Update helper modules to use those properties/methods instead of direct
+   `_private_attr` access.
+
+### Suggested Commit Order
+
+1. Introduce `StreamThreadState` and explicit properties/mutation methods.
+2. Update `stream_inlet.py`, `stream_drift.py`, and `stream_runtime.py` to stop
+   using private fields.
+3. Update `stream_integrity.py` and `stream_db.py` to pass explicit hash/write
+   inputs where practical.
+4. Update `stream_chunks.py` to use explicit properties and state methods.
+5. Remove obsolete compatibility wrappers only if no references still require
+   them.
+
+### Non-Goals
+
+- Do not change XDF-first ordering.
+- Do not change DB retry, buffering, or fail-closed behavior.
+- Do not change `build_stream_threads(cfg, stop, xdf)`.
+- Do not merge all helper logic into `StreamThread`.
+- Do not introduce persistence/sink abstractions yet.
+- Do not add tests until the test suite redesign is complete.
+
+### Verification
+
+Use lightweight checks only until the test suite is redesigned:
+
+```bash
+uv run ruff check capture/forwarder/stream_thread
+```
+
+Optionally run import/construction smoke checks to confirm
+`build_stream_threads` still returns:
+
+```text
+fwd_eeg
+fwd_hrv
+fwd_eda
+fwd_respiration
+fwd_echo
+```
