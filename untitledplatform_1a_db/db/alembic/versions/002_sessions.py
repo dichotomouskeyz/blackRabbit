@@ -68,6 +68,12 @@ WHY room_id:
   factors correlate with outcomes. It is site-scoped (a room_id is
   only meaningful within a given site_id).
 
+WHY capture_source:
+  capture_source records whether the session's signals were produced by the
+  local simulator or by real LSL-compatible hardware. This is session-level
+  provenance, not an ingest/write-path marker. XDF replay or backfill provenance
+  belongs closer to reconciliation/chunk write records.
+
 WHY INDEXES ON sponsor_id, site_id, protocol_arm:
   Every API query filters by sponsor_id to avoid cross-sponsor data
   leakage. site_id is the next most common
@@ -115,6 +121,10 @@ def upgrade() -> None:
             site_id             UUID            NOT NULL,
             sponsor_id          UUID            NOT NULL,
             participant_id      UUID            NOT NULL,
+            capture_source      TEXT            NOT NULL DEFAULT 'simulated'
+                                            CHECK (capture_source IN (
+                                                'simulated', 'hardware'
+                                            )),
             room_id             UUID,
             protocol_arm        TEXT,
             compound            TEXT            NOT NULL,

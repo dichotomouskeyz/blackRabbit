@@ -57,20 +57,23 @@ def create_session(
     site_id: str,
     sponsor_id: str,
     participant_id: str,
-    capture_mode: str | None = None,
+    capture_source: str | None = None,
     compound_dose: float | None = None,
     compound_dose_unit: str | None = None,
     protocol_arm: str | None = None,
     room_id: str | None = None,
-    electrode_placement: str | None = None,
-    electrode_type: str | None = None,
-    skin_prep: str | None = None,
+    eeg_sensor_form: str | None = None,
+    eeg_electrode_system: str | None = None,
     eeg_electrode_type: str | None = None,
-    eeg_skin_prep: str | None = None,
+    hrv_electrode_placement: str | None = None,
+    hrv_electrode_type: str | None = None,
+    eda_electrode_placement: str | None = None,
+    eda_electrode_type: str | None = None,
+    eda_skin_prep: str | None = None,
 ) -> str:
     """Insert session anchor row, write 4 signal metadata rows, return session UUID."""
     settings.validate()
-    capture_mode = capture_mode or settings.CAPTURE_MODE
+    capture_source = capture_source or settings.CAPTURE_SOURCE
     session_id = str(uuid.uuid4())
 
     conn = psycopg2.connect(settings.DATABASE_URL)
@@ -84,7 +87,7 @@ def create_session(
                 "site_id": site_id,
                 "sponsor_id": sponsor_id,
                 "participant_id": participant_id,
-                "capture_mode": capture_mode,
+                "capture_source": capture_source,
                 "compound": compound,
                 "compound_dose": compound_dose,
                 "compound_dose_unit": compound_dose_unit,
@@ -99,12 +102,15 @@ def create_session(
             site_id=site_id,
             sponsor_id=sponsor_id,
             participant_id=participant_id,
-            capture_mode=capture_mode,
-            electrode_placement=electrode_placement,
-            electrode_type=electrode_type,
-            skin_prep=skin_prep,
+            capture_source=capture_source,
+            eeg_sensor_form=eeg_sensor_form,
+            eeg_electrode_system=eeg_electrode_system,
             eeg_electrode_type=eeg_electrode_type,
-            eeg_skin_prep=eeg_skin_prep,
+            hrv_electrode_placement=hrv_electrode_placement,
+            hrv_electrode_type=hrv_electrode_type,
+            eda_electrode_placement=eda_electrode_placement,
+            eda_electrode_type=eda_electrode_type,
+            eda_skin_prep=eda_skin_prep,
         ):
             cur.execute(_METADATA_INSERT, row)
 

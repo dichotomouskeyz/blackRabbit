@@ -1,6 +1,6 @@
 # untitledplatform_1a — Database Schema
 
-Generated from core migrations 001–031. All IDs are UUIDs unless noted.
+Generated from core migrations 001-030. All IDs are UUIDs unless noted.
 
 ---
 
@@ -25,7 +25,7 @@ Primary clinical record. One row per recording session.
 | `site_id` | `UUID NOT NULL` | Site conducting the session |
 | `sponsor_id` | `UUID NOT NULL` | Trial sponsor |
 | `participant_id` | `UUID NOT NULL` | Pseudonymous — real identity never stored |
-| `capture_mode` | `TEXT NOT NULL` | `simulated` \| `hardware` |
+| `capture_source` | `TEXT NOT NULL` | `simulated` \| `hardware` |
 | `room_id` | `UUID` | Physical room within the site |
 | `protocol_arm` | `TEXT` | e.g. `'high_dose_25mg'`, `'placebo'` |
 | `compound` | `TEXT NOT NULL` | Must match `compound_reference.compound_id` |
@@ -333,23 +333,28 @@ One row per `(session_id, modality)` — static recording setup, not per-sample 
 | `sponsor_id` | `UUID NOT NULL` | |
 | `participant_id` | `UUID NOT NULL` | |
 | `device_id` | `UUID NOT NULL` | |
-| `device_type` | `TEXT NOT NULL` | `simulated` \| `hardware` |
+| `capture_source` | `TEXT NOT NULL` | `simulated` \| `hardware` |
 | `modality` | `TEXT NOT NULL` | `eeg` \| `hrv` \| `eda` \| `respiration` |
 | `software_filters` | `JSONB` | Object-of-objects or `"n/a"` |
 | `power_line_frequency` | `FLOAT` | For notch filter (EEG, HRV) |
 | `sample_rate_hz` | `FLOAT` | EDA, respiration |
 | `eeg_reference` | `TEXT` | e.g. `'average'`, `'Cz'` |
+| `eeg_sensor_form` | `TEXT` | `cap` \| `individual_electrodes` \| `dry_headset` \| `other` \| `unknown` |
+| `eeg_electrode_system` | `TEXT` | `ten_twenty` \| `ten_ten` \| `custom` \| `unknown` |
+| `eeg_electrode_type` | `TEXT` | `wet` \| `dry` \| `sponge` \| `other` \| `unknown` |
 | `sampling_frequency` | `FLOAT` | EEG Hz |
 | `eeg_channel_count` | `INTEGER` | |
 | `eeg_channel_names` | `JSONB` | Canonical channel labels, stored as an array when available |
 | `cap_manufacturer` | `TEXT` | |
 | `cap_manufacturer_model_name` | `TEXT` | |
 | `hrv_signal_source` | `TEXT` | `ecg` \| `pcg` \| `ppg` |
+| `hrv_electrode_placement` | `TEXT` | `chest` \| `limb_leads` \| `wrist` \| `finger` \| `ear` \| `other` \| `not_applicable` \| `unknown` |
+| `hrv_electrode_type` | `TEXT` | `ag_agcl` \| `dry` \| `textile` \| `optical` \| `piezo` \| `other` \| `not_applicable` \| `unknown` |
 | `beat_detection_algorithm` | `TEXT` | |
 | `beat_detection_version` | `TEXT` | |
-| `electrode_placement` | `TEXT` | `palmar` \| `thenar` \| `plantar` \| `other` |
-| `electrode_type` | `TEXT` | `ag_agcl` \| `dry` \| `other` |
-| `skin_prep` | `TEXT` | `cleaned` \| `abraded` \| `cleaned_and_abraded` \| `none` \| `unknown` |
+| `eda_electrode_placement` | `TEXT` | `palmar` \| `thenar` \| `plantar` \| `other` |
+| `eda_electrode_type` | `TEXT` | `ag_agcl` \| `dry` \| `other` |
+| `eda_skin_prep` | `TEXT` | `cleaned` \| `abraded` \| `cleaned_and_abraded` \| `none` \| `unknown` |
 | `eda_signal_source` | `TEXT` | `combined` \| `scl` \| `scr` |
 | `eda_range_min_us` | `FLOAT` | |
 | `eda_range_max_us` | `FLOAT` | |

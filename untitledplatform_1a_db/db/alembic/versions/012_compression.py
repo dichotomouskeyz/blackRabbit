@@ -78,8 +78,8 @@ def upgrade() -> None:
         );
     """)
 
-    # EDA: segment by session + device (electrode_placement moved to
-    # session_signal_metadata in migration 022)
+    # EDA: segment by session + device (EDA electrode setup moved to
+    # session_signal_metadata in migration 019)
     op.execute("""
         ALTER TABLE eda_samples SET (
             timescaledb.compress,
@@ -89,7 +89,7 @@ def upgrade() -> None:
     """)
 
     # Respiration: segment by session + device (source/is_derived moved to
-    # session_signal_metadata in migration 022)
+    # session_signal_metadata in migration 019)
     op.execute("""
         ALTER TABLE respiration_samples SET (
             timescaledb.compress,

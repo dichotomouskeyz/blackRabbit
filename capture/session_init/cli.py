@@ -32,27 +32,75 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--compound-dose", type=float, default=None)
     p.add_argument("--compound-dose-unit", choices=VALID_DOSE_UNITS, default=None)
     p.add_argument(
-        "--capture-mode",
+        "--capture-source",
         choices=("simulated", "hardware"),
-        default=settings.CAPTURE_MODE,
-        help="Persisted capture mode for the session (default: %(default)s)",
+        default=settings.CAPTURE_SOURCE,
+        help="Persisted capture source for the session (default: %(default)s)",
     )
     p.add_argument("--protocol-arm", default=None)
     p.add_argument("--room-id", type=_parse_uuid, default=None, help="Room UUID")
     p.add_argument(
-        "--electrode-placement",
+        "--eeg-sensor-form",
+        choices=("cap", "individual_electrodes", "dry_headset", "other", "unknown"),
+        default=None,
+        help="EEG physical collection form",
+    )
+    p.add_argument(
+        "--eeg-electrode-system",
+        choices=("ten_twenty", "ten_ten", "custom", "unknown"),
+        default=None,
+        help="EEG electrode layout/nomenclature system",
+    )
+    p.add_argument(
+        "--eeg-electrode-type",
+        choices=("wet", "dry", "sponge", "other", "unknown"),
+        default=None,
+        help="EEG electrode contact type",
+    )
+    p.add_argument(
+        "--hrv-electrode-placement",
+        choices=(
+            "chest",
+            "limb_leads",
+            "wrist",
+            "finger",
+            "ear",
+            "other",
+            "not_applicable",
+            "unknown",
+        ),
+        default=None,
+        help="HRV sensor or electrode placement",
+    )
+    p.add_argument(
+        "--hrv-electrode-type",
+        choices=(
+            "ag_agcl",
+            "dry",
+            "textile",
+            "optical",
+            "piezo",
+            "other",
+            "not_applicable",
+            "unknown",
+        ),
+        default=None,
+        help="HRV sensor or electrode type",
+    )
+    p.add_argument(
+        "--eda-electrode-placement",
         choices=("palmar", "thenar", "plantar", "other"),
         default=None,
         help="EDA electrode placement site",
     )
     p.add_argument(
-        "--electrode-type",
+        "--eda-electrode-type",
         choices=("ag_agcl", "dry", "other"),
         default=None,
         help="EDA electrode material",
     )
     p.add_argument(
-        "--skin-prep",
+        "--eda-skin-prep",
         choices=("cleaned", "abraded", "cleaned_and_abraded", "none", "unknown"),
         default=None,
         help="Skin preparation before EDA electrode placement",
@@ -69,8 +117,8 @@ def main() -> None:
             "compound": args.compound,
             "site_id": args.site_id,
             "sponsor_id": args.sponsor_id,
-            "capture_mode": args.capture_mode,
-            "simulation_mode": args.capture_mode == "simulated",
+            "capture_source": args.capture_source,
+            "simulation_mode": args.capture_source == "simulated",
         },
     )
 
@@ -79,14 +127,19 @@ def main() -> None:
         site_id=args.site_id,
         sponsor_id=args.sponsor_id,
         participant_id=args.participant_id,
-        capture_mode=args.capture_mode,
+        capture_source=args.capture_source,
         compound_dose=args.compound_dose,
         compound_dose_unit=args.compound_dose_unit,
         protocol_arm=args.protocol_arm,
         room_id=args.room_id,
-        electrode_placement=args.electrode_placement,
-        electrode_type=args.electrode_type,
-        skin_prep=args.skin_prep,
+        eeg_sensor_form=args.eeg_sensor_form,
+        eeg_electrode_system=args.eeg_electrode_system,
+        eeg_electrode_type=args.eeg_electrode_type,
+        hrv_electrode_placement=args.hrv_electrode_placement,
+        hrv_electrode_type=args.hrv_electrode_type,
+        eda_electrode_placement=args.eda_electrode_placement,
+        eda_electrode_type=args.eda_electrode_type,
+        eda_skin_prep=args.eda_skin_prep,
     )
 
     set_session_id(session_id)

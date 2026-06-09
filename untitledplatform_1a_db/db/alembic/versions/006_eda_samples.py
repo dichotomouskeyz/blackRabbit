@@ -25,7 +25,7 @@ WHY COMPOSITE PRIMARY KEY (id, session_id, lsl_timestamp, db_insert_time):
 
 --- RECORDING-LEVEL METADATA ---
 
-WHY electrode_placement:
+WHY eda_electrode_placement:
   EDA electrode placement is a first-class clinical variable, not
   device metadata. Palmar (fingers/palm), thenar (thumb base), and
   plantar (foot sole) placements produce systematically different
@@ -36,7 +36,7 @@ WHY electrode_placement:
   than in device config because placement can change across sessions
   at the same site.
 
-WHY electrode_type (Ag/AgCl vs dry):
+WHY eda_electrode_type (Ag/AgCl vs dry):
   Wet Ag/AgCl electrodes have a far lower noise floor than dry
   electrodes — typically 0.001 µS vs 0.1 µS. This 100x difference
   changes the minimum detectable skin conductance response threshold.
@@ -45,7 +45,7 @@ WHY electrode_type (Ag/AgCl vs dry):
   looks "clean" may be masking small phasic responses that a wet
   electrode would have captured.
 
-WHY skin_prep:
+WHY eda_skin_prep:
   Skin preparation before electrode placement is a legitimate clinical
   protocol variable — not housekeeping. Abrading the stratum corneum
   (the outer dead skin layer) reduces skin impedance by 10-100x,

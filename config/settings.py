@@ -92,12 +92,56 @@ def validate() -> None:
         errors.append(f"HRV_SIGNAL_SOURCE = {HRV_SIGNAL_SOURCE!r} (must be ecg | pcg | ppg)")
     if EDA_SIGNAL_SOURCE not in ("combined", "scl", "scr"):
         errors.append(f"EDA_SIGNAL_SOURCE = {EDA_SIGNAL_SOURCE!r} (must be combined | scl | scr)")
+    if EEG_SENSOR_FORM not in ("cap", "individual_electrodes", "dry_headset", "other", "unknown"):
+        errors.append(
+            "EEG_SENSOR_FORM = "
+            f"{EEG_SENSOR_FORM!r} "
+            "(must be cap | individual_electrodes | dry_headset | other | unknown)"
+        )
+    if EEG_ELECTRODE_SYSTEM not in ("ten_twenty", "ten_ten", "custom", "unknown"):
+        errors.append(
+            f"EEG_ELECTRODE_SYSTEM = {EEG_ELECTRODE_SYSTEM!r} "
+            "(must be ten_twenty | ten_ten | custom | unknown)"
+        )
+    if EEG_ELECTRODE_TYPE not in ("wet", "dry", "sponge", "other", "unknown"):
+        errors.append(
+            f"EEG_ELECTRODE_TYPE = {EEG_ELECTRODE_TYPE!r} "
+            "(must be wet | dry | sponge | other | unknown)"
+        )
+    if HRV_ELECTRODE_PLACEMENT not in (
+        "chest",
+        "limb_leads",
+        "wrist",
+        "finger",
+        "ear",
+        "other",
+        "not_applicable",
+        "unknown",
+    ):
+        errors.append(
+            f"HRV_ELECTRODE_PLACEMENT = {HRV_ELECTRODE_PLACEMENT!r} "
+            "(must be chest | limb_leads | wrist | finger | ear | other | not_applicable | unknown)"
+        )
+    if HRV_ELECTRODE_TYPE not in (
+        "ag_agcl",
+        "dry",
+        "textile",
+        "optical",
+        "piezo",
+        "other",
+        "not_applicable",
+        "unknown",
+    ):
+        errors.append(
+            f"HRV_ELECTRODE_TYPE = {HRV_ELECTRODE_TYPE!r} "
+            "(must be ag_agcl | dry | textile | optical | piezo | other | not_applicable | unknown)"
+        )
     if RESPIRATION_SOURCE not in ("belt_direct", "rsa_derived"):
         errors.append(
             f"RESPIRATION_SOURCE = {RESPIRATION_SOURCE!r} (must be belt_direct | rsa_derived)"
         )
-    if CAPTURE_MODE not in ("simulated", "hardware"):
-        errors.append(f"CAPTURE_MODE = {CAPTURE_MODE!r} (must be simulated | hardware)")
+    if CAPTURE_SOURCE not in ("simulated", "hardware"):
+        errors.append(f"CAPTURE_SOURCE = {CAPTURE_SOURCE!r} (must be simulated | hardware)")
     if EEG_CHANNEL_NAMES is not None and len(EEG_CHANNEL_NAMES) != EEG_CHANNEL_COUNT:
         errors.append(
             "EEG_CHANNEL_NAMES length must match EEG_CHANNEL_COUNT "
@@ -177,14 +221,14 @@ APP_VERSION: str = _get("APP_VERSION", "unknown")
 PAYLOAD_SCHEMA_VERSION: str = _get("PAYLOAD_SCHEMA_VERSION", "1.0")
 
 # ---------------------------------------------------------------------------
-# Capture mode
-# CAPTURE_MODE is the persisted source of truth for simulated vs hardware runs.
-# SIMULATION_MODE remains as a backward-compatible runtime alias.
+# Capture source
+# CAPTURE_SOURCE is the persisted source of truth for simulated vs hardware runs.
+# SIMULATION_MODE remains a runtime convenience alias.
 # Default stays simulated if neither env var is set.
 # ---------------------------------------------------------------------------
 _simulation_mode_env = _get("SIMULATION_MODE", "true").lower() == "true"
-CAPTURE_MODE: str = _get("CAPTURE_MODE", "simulated" if _simulation_mode_env else "hardware")
-SIMULATION_MODE: bool = CAPTURE_MODE == "simulated"
+CAPTURE_SOURCE: str = _get("CAPTURE_SOURCE", "simulated" if _simulation_mode_env else "hardware")
+SIMULATION_MODE: bool = CAPTURE_SOURCE == "simulated"
 SIMULATED_ECHO_MARKER_INTERVAL: float = float(_get("SIMULATED_ECHO_MARKER_INTERVAL", "5.0"))
 
 # ---------------------------------------------------------------------------
@@ -229,12 +273,17 @@ SQI_MONITOR_POLL_INTERVAL: float = float(_get("SQI_MONITOR_POLL_INTERVAL", "5.0"
 
 # EEG
 EEG_REFERENCE: str = _get("EEG_REFERENCE", "average")
+EEG_SENSOR_FORM: str = _get("EEG_SENSOR_FORM", "cap")
+EEG_ELECTRODE_SYSTEM: str = _get("EEG_ELECTRODE_SYSTEM", "ten_twenty")
+EEG_ELECTRODE_TYPE: str = _get("EEG_ELECTRODE_TYPE", "unknown")
 POWER_LINE_FREQUENCY: float = float(_get("POWER_LINE_FREQUENCY", "60.0"))
 CAP_MANUFACTURER: str | None = _get_optional("CAP_MANUFACTURER")
 CAP_MANUFACTURER_MODEL_NAME: str | None = _get_optional("CAP_MANUFACTURER_MODEL_NAME")
 
 # HRV — hrv_signal_source must match DB CHECK: ecg | pcg | ppg
 HRV_SIGNAL_SOURCE: str = _get("HRV_SIGNAL_SOURCE", "ecg")
+HRV_ELECTRODE_PLACEMENT: str = _get("HRV_ELECTRODE_PLACEMENT", "unknown")
+HRV_ELECTRODE_TYPE: str = _get("HRV_ELECTRODE_TYPE", "unknown")
 BEAT_DETECTION_ALGORITHM: str | None = _get_optional("BEAT_DETECTION_ALGORITHM")
 BEAT_DETECTION_VERSION: str | None = _get_optional("BEAT_DETECTION_VERSION")
 

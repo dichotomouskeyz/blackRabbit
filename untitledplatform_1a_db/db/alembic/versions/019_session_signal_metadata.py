@@ -7,8 +7,8 @@ Create Date: 2026-05-02
 WHY THIS TABLE EXISTS:
   Every biosignal sample table (eeg_samples, hrv_samples, eda_samples,
   respiration_samples) previously carried recording-level metadata on
-  every row. Fields like eeg_reference, sampling_frequency, electrode
-  placement, and beat detection algorithm are constants — they describe
+  every row. Fields like eeg_reference, sampling_frequency, modality-specific
+  electrode setup, and beat detection algorithm are constants — they describe
   how a recording was set up, not what the signal value was at a given
   moment.
 
@@ -26,6 +26,12 @@ WHY THIS TABLE EXISTS:
 
   session_signal_metadata holds exactly one row per (session_id, modality).
   The four sample hypertables hold only what varies per sample.
+
+WHY capture_source:
+  capture_source repeats the session-level signal origin on each modality row so
+  downstream exports and ARC jobs can filter per-modality provenance without
+  joining back to sessions. It records simulated vs hardware origin only; ingest
+  provenance such as XDF backfill is tracked separately.
 
 WHY (session_id, modality) AS PRIMARY KEY:
   session_id scopes a recording to a single clinical encounter.
@@ -73,6 +79,13 @@ WHY EEG METADATA FIELDS:
   eeg_reference (TEXT): electrode reference scheme — e.g., 'average',
     'Cz', 'linked-mastoids'. Reference choice produces systematically
     different voltage values. MNE must know this to re-reference.
+  eeg_sensor_form (TEXT): physical EEG collection form. A cap, individual
+    cup electrodes, and a dry headset all have different contact mechanics and
+    artifact profiles.
+  eeg_electrode_system (TEXT): site nomenclature/layout system — e.g. 10-20,
+    10-10, or a custom device layout.
+  eeg_electrode_type (TEXT): wet, dry, sponge, or other. EEG measures scalp
+    voltage differences in microvolts, so impedance/contact mechanics matter.
   sampling_frequency (FLOAT): Hz rate for all EEG channels. MNE's
     create_info() requires it as its first argument.
   eeg_channel_count (INTEGER): total channels declared in this recording.
@@ -99,20 +112,24 @@ WHY HRV METADATA FIELDS:
     (optical). PPG intervals cannot be directly compared to ECG intervals
     without correcting for pulse transit time. The batch layer branches
     on this value.
+  hrv_electrode_placement / hrv_electrode_type (TEXT): where and how the HRV
+    source was sensed. ECG uses electrical electrodes and stores R-R intervals
+    derived from cardiac voltage; PPG/PCG may use optical or acoustic sensors
+    and can mark electrode fields as not_applicable.
   beat_detection_algorithm / beat_detection_version (TEXT): reproducible
     HRV features need a known extraction algorithm and version. This is
     the HRV equivalent of the algorithm_name / algorithm_version columns
     on alert_events.
 
 WHY EDA METADATA FIELDS:
-  electrode_placement (TEXT): palmar / thenar / plantar / other.
+  eda_electrode_placement (TEXT): palmar / thenar / plantar / other.
     Different placements produce different baseline conductance values.
     cvxEDA normalization requires placement to apply correct reference
     ranges.
-  electrode_type (TEXT): ag_agcl vs dry. Wet Ag/AgCl electrodes have
+  eda_electrode_type (TEXT): ag_agcl vs dry. Wet Ag/AgCl electrodes have
     a 100x lower noise floor. The SQI monitor applies different
     thresholds depending on electrode type.
-  skin_prep (TEXT): abrading or cleaning skin before electrode placement
+  eda_skin_prep (TEXT): abrading or cleaning skin before electrode placement
     changes impedance dramatically. Two sessions with identical
     electrodes but different skin prep produce non-comparable baselines.
   eda_signal_source (TEXT): 'combined' (raw, batch layer runs cvxEDA)
@@ -166,6 +183,10 @@ def upgrade() -> None:
             sponsor_id                  UUID        NOT NULL,
             participant_id              UUID        NOT NULL,
             device_id                   UUID        NOT NULL,
+            capture_source              TEXT        NOT NULL DEFAULT 'simulated'
+                                        CHECK (capture_source IN (
+                                            'simulated', 'hardware'
+                                        )),
             modality                    TEXT        NOT NULL
                                         CHECK (modality IN (
                                             'eeg', 'hrv', 'eda', 'respiration'
@@ -183,6 +204,24 @@ def upgrade() -> None:
 
             -- EEG-specific recording metadata
             eeg_reference               TEXT,
+            eeg_sensor_form             TEXT
+                                        CHECK (eeg_sensor_form IS NULL OR
+                                               eeg_sensor_form IN (
+                                                   'cap', 'individual_electrodes',
+                                                   'dry_headset', 'other', 'unknown'
+                                               )),
+            eeg_electrode_system        TEXT
+                                        CHECK (eeg_electrode_system IS NULL OR
+                                               eeg_electrode_system IN (
+                                                   'ten_twenty', 'ten_ten',
+                                                   'custom', 'unknown'
+                                               )),
+            eeg_electrode_type          TEXT
+                                        CHECK (eeg_electrode_type IS NULL OR
+                                               eeg_electrode_type IN (
+                                                   'wet', 'dry', 'sponge',
+                                                   'other', 'unknown'
+                                               )),
             sampling_frequency          FLOAT,
             eeg_channel_count           INTEGER
                                         CHECK (eeg_channel_count IS NULL OR eeg_channel_count >= 0),
@@ -210,23 +249,37 @@ def upgrade() -> None:
             hrv_signal_source           TEXT
                                         CHECK (hrv_signal_source IS NULL OR
                                                hrv_signal_source IN ('ecg', 'pcg', 'ppg')),
+            hrv_electrode_placement     TEXT
+                                        CHECK (hrv_electrode_placement IS NULL OR
+                                               hrv_electrode_placement IN (
+                                                   'chest', 'limb_leads', 'wrist',
+                                                   'finger', 'ear', 'other',
+                                                   'not_applicable', 'unknown'
+                                               )),
+            hrv_electrode_type          TEXT
+                                        CHECK (hrv_electrode_type IS NULL OR
+                                               hrv_electrode_type IN (
+                                                   'ag_agcl', 'dry', 'textile',
+                                                   'optical', 'piezo', 'other',
+                                                   'not_applicable', 'unknown'
+                                               )),
             beat_detection_algorithm    TEXT,
             beat_detection_version      TEXT,
 
             -- EDA-specific recording metadata
-            electrode_placement         TEXT
-                                        CHECK (electrode_placement IS NULL OR
-                                               electrode_placement IN (
+            eda_electrode_placement     TEXT
+                                        CHECK (eda_electrode_placement IS NULL OR
+                                               eda_electrode_placement IN (
                                                    'palmar', 'thenar', 'plantar', 'other'
                                                )),
-            electrode_type              TEXT
-                                        CHECK (electrode_type IS NULL OR
-                                               electrode_type IN (
+            eda_electrode_type          TEXT
+                                        CHECK (eda_electrode_type IS NULL OR
+                                               eda_electrode_type IN (
                                                    'ag_agcl', 'dry', 'other'
                                                )),
-            skin_prep                   TEXT
-                                        CHECK (skin_prep IS NULL OR
-                                               skin_prep IN (
+            eda_skin_prep               TEXT
+                                        CHECK (eda_skin_prep IS NULL OR
+                                               eda_skin_prep IN (
                                                    'cleaned', 'abraded',
                                                    'cleaned_and_abraded',
                                                    'none', 'unknown'
