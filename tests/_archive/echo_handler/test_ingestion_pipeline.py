@@ -119,7 +119,7 @@ def test_write_row_persists_and_logs_structured_event():
     assert conn.cursor_obj.executed[0][1] == row
 
     info.assert_called_once()
-    message, = info.call_args.args
+    (message,) = info.call_args.args
     assert message == "ECHO event persisted"
     extra = info.call_args.kwargs["extra"]
     assert extra["session_id"] == row["session_id"]

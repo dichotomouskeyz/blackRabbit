@@ -22,9 +22,7 @@ def test_load_session_config_attaches_eeg_channel_names():
     with patch("capture.forwarder.preflight.psycopg2.connect", return_value=conn):
         loaded = load_session_config(cfg)
 
-    assert loaded.eeg_channel_names == tuple(
-        f"Fp{i}" for i in range(settings.EEG_CHANNEL_COUNT)
-    )
+    assert loaded.eeg_channel_names == tuple(f"Fp{i}" for i in range(settings.EEG_CHANNEL_COUNT))
 
 
 def test_load_session_config_returns_input_when_names_missing():

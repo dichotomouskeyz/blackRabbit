@@ -37,10 +37,14 @@ dev = [
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+testpaths = ["tests"]
 markers = [
     "integration: tests that require a running database (TEST_DATABASE_URL must be set)",
 ]
-addopts = "--basetemp=.pytest_tmp"
+addopts = "--basetemp=.pytest_tmp --ignore=tests/_archive"
+
+[tool.coverage.report]
+fail_under = 60
 
 [tool.ruff]
 line-length = 100

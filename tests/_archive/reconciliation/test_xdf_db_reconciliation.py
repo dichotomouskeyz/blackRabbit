@@ -82,8 +82,17 @@ class TestXDFMatchesTimescaleDB:
                        (session_id, participant_id, site_id, sponsor_id, device_id,
                         channel_id, voltage, lsl_timestamp, sample_index)
                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                    (_REC_SESSION, _REC_PART, _REC_SITE, _REC_SPONSOR, _INT_DEVICE,
-                     f"ch_{ch}", float(si), float(si), si),
+                    (
+                        _REC_SESSION,
+                        _REC_PART,
+                        _REC_SITE,
+                        _REC_SPONSOR,
+                        _INT_DEVICE,
+                        f"ch_{ch}",
+                        float(si),
+                        float(si),
+                        si,
+                    ),
                 )
         for si in range(_REC_HRV_N):
             cursor.execute(
@@ -91,8 +100,16 @@ class TestXDFMatchesTimescaleDB:
                    (session_id, participant_id, site_id, sponsor_id, device_id,
                     rr_interval_ms, lsl_timestamp, sample_index)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-                (_REC_SESSION, _REC_PART, _REC_SITE, _REC_SPONSOR, _INT_DEVICE,
-                 800.0 + si, float(si), si),
+                (
+                    _REC_SESSION,
+                    _REC_PART,
+                    _REC_SITE,
+                    _REC_SPONSOR,
+                    _INT_DEVICE,
+                    800.0 + si,
+                    float(si),
+                    si,
+                ),
             )
         for si in range(_REC_EDA_N):
             cursor.execute(
@@ -100,8 +117,17 @@ class TestXDFMatchesTimescaleDB:
                    (session_id, participant_id, site_id, sponsor_id, device_id,
                     raw_conductance_us, conductance_us, lsl_timestamp, sample_index)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                (_REC_SESSION, _REC_PART, _REC_SITE, _REC_SPONSOR, _INT_DEVICE,
-                 5.0 + si * 0.1, 5.0 + si * 0.1, float(si), si),
+                (
+                    _REC_SESSION,
+                    _REC_PART,
+                    _REC_SITE,
+                    _REC_SPONSOR,
+                    _INT_DEVICE,
+                    5.0 + si * 0.1,
+                    5.0 + si * 0.1,
+                    float(si),
+                    si,
+                ),
             )
         for si in range(_REC_RESP_N):
             cursor.execute(
@@ -109,8 +135,17 @@ class TestXDFMatchesTimescaleDB:
                    (session_id, participant_id, site_id, sponsor_id, device_id,
                     raw_amplitude, processed_amplitude, lsl_timestamp, sample_index)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                (_REC_SESSION, _REC_PART, _REC_SITE, _REC_SPONSOR, _INT_DEVICE,
-                 0.5 + si * 0.01, 0.5 + si * 0.01, float(si), si),
+                (
+                    _REC_SESSION,
+                    _REC_PART,
+                    _REC_SITE,
+                    _REC_SPONSOR,
+                    _INT_DEVICE,
+                    0.5 + si * 0.01,
+                    0.5 + si * 0.01,
+                    float(si),
+                    si,
+                ),
             )
 
         xdf_counts = read_xdf_counts(xdf_path)
@@ -178,8 +213,16 @@ class TestXDFMatchesTimescaleDB:
                        (session_id, participant_id, site_id, sponsor_id, device_id,
                         channel_id, voltage, lsl_timestamp, sample_index)
                        VALUES (%s, %s, %s, %s, %s, %s, 0.0, %s, %s)""",
-                    (_REC_SESSION, _REC_PART, _REC_SITE, _REC_SPONSOR, _INT_DEVICE,
-                     f"ch_{ch}", float(si), si),
+                    (
+                        _REC_SESSION,
+                        _REC_PART,
+                        _REC_SITE,
+                        _REC_SPONSOR,
+                        _INT_DEVICE,
+                        f"ch_{ch}",
+                        float(si),
+                        si,
+                    ),
                 )
 
         xdf_counts = read_xdf_counts(w.path)
@@ -211,8 +254,16 @@ class TestXDFMatchesTimescaleDB:
                        (session_id, participant_id, site_id, sponsor_id, device_id,
                         channel_id, voltage, lsl_timestamp, sample_index)
                        VALUES (%s, %s, %s, %s, %s, %s, 0.0, %s, %s)""",
-                    (_REC_SESSION, _REC_PART, _REC_SITE, _REC_SPONSOR, _INT_DEVICE,
-                     f"ch_{ch}", float(si), si),
+                    (
+                        _REC_SESSION,
+                        _REC_PART,
+                        _REC_SITE,
+                        _REC_SPONSOR,
+                        _INT_DEVICE,
+                        f"ch_{ch}",
+                        float(si),
+                        si,
+                    ),
                 )
         for si in range(_REC_HRV_N):
             cursor.execute(

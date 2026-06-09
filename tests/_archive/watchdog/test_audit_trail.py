@@ -191,10 +191,14 @@ class TestWatchdogAuditTrail:
                 "argv",
                 [
                     "watchdog",
-                    "--session-id", _SID_E2E,
-                    "--participant-id", "aaaa0003-0000-0000-0000-000000000003",
-                    "--site-id", "bbbb0000-0000-0000-0000-000000000001",
-                    "--sponsor-id", _SPONSOR_UUID,
+                    "--session-id",
+                    _SID_E2E,
+                    "--participant-id",
+                    "aaaa0003-0000-0000-0000-000000000003",
+                    "--site-id",
+                    "bbbb0000-0000-0000-0000-000000000001",
+                    "--sponsor-id",
+                    _SPONSOR_UUID,
                 ],
             )
 

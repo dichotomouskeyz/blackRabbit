@@ -141,8 +141,15 @@ class TestXDFBackfillSimulation:
                              channel_id, voltage, lsl_timestamp, sample_index)
                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                         (
-                            _BF_SESSION, _BF_PARTICIPANT, _BF_SITE, _BF_SPONSOR, _BF_DEVICE,
-                            f"ch_{ch}", float(si), float(si), si,
+                            _BF_SESSION,
+                            _BF_PARTICIPANT,
+                            _BF_SITE,
+                            _BF_SPONSOR,
+                            _BF_DEVICE,
+                            f"ch_{ch}",
+                            float(si),
+                            float(si),
+                            si,
                         ),
                     )
 
@@ -152,8 +159,16 @@ class TestXDFBackfillSimulation:
                         (session_id, participant_id, site_id, sponsor_id, device_id,
                          rr_interval_ms, lsl_timestamp, sample_index)
                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-                    (_BF_SESSION, _BF_PARTICIPANT, _BF_SITE, _BF_SPONSOR, _BF_DEVICE,
-                     800.0 + si, float(si), si),
+                    (
+                        _BF_SESSION,
+                        _BF_PARTICIPANT,
+                        _BF_SITE,
+                        _BF_SPONSOR,
+                        _BF_DEVICE,
+                        800.0 + si,
+                        float(si),
+                        si,
+                    ),
                 )
 
             for si in range(20):
@@ -162,8 +177,17 @@ class TestXDFBackfillSimulation:
                         (session_id, participant_id, site_id, sponsor_id, device_id,
                          raw_conductance_us, conductance_us, lsl_timestamp, sample_index)
                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                    (_BF_SESSION, _BF_PARTICIPANT, _BF_SITE, _BF_SPONSOR, _BF_DEVICE,
-                     5.0 + si * 0.1, 5.0 + si * 0.1, float(si), si),
+                    (
+                        _BF_SESSION,
+                        _BF_PARTICIPANT,
+                        _BF_SITE,
+                        _BF_SPONSOR,
+                        _BF_DEVICE,
+                        5.0 + si * 0.1,
+                        5.0 + si * 0.1,
+                        float(si),
+                        si,
+                    ),
                 )
 
             for si in range(5):
@@ -172,8 +196,17 @@ class TestXDFBackfillSimulation:
                         (session_id, participant_id, site_id, sponsor_id, device_id,
                          raw_amplitude, processed_amplitude, lsl_timestamp, sample_index)
                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                    (_BF_SESSION, _BF_PARTICIPANT, _BF_SITE, _BF_SPONSOR, _BF_DEVICE,
-                     0.5 + si * 0.01, 0.5 + si * 0.01, float(si), si),
+                    (
+                        _BF_SESSION,
+                        _BF_PARTICIPANT,
+                        _BF_SITE,
+                        _BF_SPONSOR,
+                        _BF_DEVICE,
+                        0.5 + si * 0.01,
+                        0.5 + si * 0.01,
+                        float(si),
+                        si,
+                    ),
                 )
 
             cursor.execute(

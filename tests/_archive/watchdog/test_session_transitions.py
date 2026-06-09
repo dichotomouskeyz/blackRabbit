@@ -37,9 +37,7 @@ _OTHER_SPONSOR = "f1d00009-0000-4444-dddd-000000000099"
 @pytest.mark.integration
 class TestWatchdogSessionTransitions:
     def test_mark_session_closing_sets_status(self, monkeypatch):
-        monkeypatch.setattr(
-            settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
-        )
+        monkeypatch.setattr(settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL"))
         _insert_session(_SID_CLOSING, status="active")
         try:
             watchdog_db.mark_session_closing(_SID_CLOSING, _SPONSOR_UUID)
@@ -53,9 +51,7 @@ class TestWatchdogSessionTransitions:
             _cleanup_session(_SID_CLOSING)
 
     def test_mark_session_closing_is_noop_if_already_closing(self, monkeypatch):
-        monkeypatch.setattr(
-            settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
-        )
+        monkeypatch.setattr(settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL"))
         _insert_session(_SID_NOOP_CLOSING, status="closing")
         try:
             watchdog_db.mark_session_closing(_SID_NOOP_CLOSING, _SPONSOR_UUID)
@@ -65,9 +61,7 @@ class TestWatchdogSessionTransitions:
             _cleanup_session(_SID_NOOP_CLOSING)
 
     def test_mark_session_failed_sets_status_and_fires_trigger(self, monkeypatch):
-        monkeypatch.setattr(
-            settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
-        )
+        monkeypatch.setattr(settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL"))
         _insert_session(_SID_FAILED, status="active")
         try:
             watchdog_db.mark_session_failed(_SID_FAILED, _SPONSOR_UUID)
@@ -80,9 +74,7 @@ class TestWatchdogSessionTransitions:
             _cleanup_session(_SID_FAILED)
 
     def test_mark_session_failed_is_noop_on_closed_session(self, monkeypatch):
-        monkeypatch.setattr(
-            settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
-        )
+        monkeypatch.setattr(settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL"))
         _insert_session(_SID_NOOP_CLOSED, status="closed")
         try:
             watchdog_db.mark_session_failed(_SID_NOOP_CLOSED, _SPONSOR_UUID)
@@ -92,9 +84,7 @@ class TestWatchdogSessionTransitions:
             _cleanup_session(_SID_NOOP_CLOSED)
 
     def test_mark_session_closing_wrong_sponsor_is_noop(self, monkeypatch):
-        monkeypatch.setattr(
-            settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
-        )
+        monkeypatch.setattr(settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL"))
         _insert_session(_SID_WRONG_SPONSOR, status="active")
         try:
             watchdog_db.mark_session_closing(_SID_WRONG_SPONSOR, _OTHER_SPONSOR)
@@ -104,9 +94,7 @@ class TestWatchdogSessionTransitions:
             _cleanup_session(_SID_WRONG_SPONSOR)
 
     def test_mark_session_failed_wrong_sponsor_is_noop(self, monkeypatch):
-        monkeypatch.setattr(
-            settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
-        )
+        monkeypatch.setattr(settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL"))
         _insert_session(_SID_WRONG_SPONSOR, status="active")
         try:
             watchdog_db.mark_session_failed(_SID_WRONG_SPONSOR, _OTHER_SPONSOR)
@@ -116,9 +104,7 @@ class TestWatchdogSessionTransitions:
             _cleanup_session(_SID_WRONG_SPONSOR)
 
     def test_max_restarts_marks_session_failed_end_to_end(self, monkeypatch):
-        monkeypatch.setattr(
-            settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL")
-        )
+        monkeypatch.setattr(settings, "DATABASE_URL", os.getenv("TEST_DATABASE_URL"))
         monkeypatch.setattr(watchdog_models, "MAX_RESTARTS", 1)
         monkeypatch.setattr(watchdog_models, "RESTART_DELAY_BASE_S", 0.0)
 
@@ -133,10 +119,14 @@ class TestWatchdogSessionTransitions:
             "argv",
             [
                 "watchdog",
-                "--session-id", _SID_MAXRETRY,
-                "--participant-id", _PART_UUID,
-                "--site-id", _SITE_UUID,
-                "--sponsor-id", _SPONSOR_UUID,
+                "--session-id",
+                _SID_MAXRETRY,
+                "--participant-id",
+                _PART_UUID,
+                "--site-id",
+                _SITE_UUID,
+                "--sponsor-id",
+                _SPONSOR_UUID,
             ],
         )
 
