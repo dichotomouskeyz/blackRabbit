@@ -1,6 +1,6 @@
 """Standalone ECHO marker stream simulator.
 
-Publishes the ECHOMarkers LSL stream with a realistic mix of zone
+Publishes the ECHO Markers LSL stream with a realistic mix of zone
 enter/exit events and manual coordinator markers.
 Use alongside synthetic_board (biosignals) or real hardware when the
 coordinator tablet is absent.

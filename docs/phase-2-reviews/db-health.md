@@ -72,6 +72,16 @@ A study artifact + living tracker. Each section pairs an abstract database conce
 | § | Concept | Status | Last verified | One-line |
 |---|---|---|---|---|
 | 5.1 | DB role / privilege architecture | ❌ | 2026-05-31 | Single superuser today. CLAUDE.md known issue #1 — required before UCSF deployment. |
+
+### Tier 6 — Spec-vs-implementation compliance (findings from spec-driven TDD, 2026-06-09)
+
+| § | Concept | Status | Last verified | One-line |
+|---|---|---|---|---|
+| 6.1 | `create_session` pre-DB input validation | ❌ | 2026-06-09 | Spec requires ValueError before DB connect; code connects first. R-002/003/004 stay red. |
+| 6.2 | `CAPTURE_MODE` → `CAPTURE_SOURCE` naming | ✅ | 2026-06-09 | Pure rename; identical semantics. Tests target real name and pass. |
+| 6.3 | `StreamResult` / `ReconciliationReport` computed vs stored fields | ✅ | 2026-06-09 | `gap` and `is_reconciled` are stored fields; `build_report` owns the computation. Integration R-015 covers it. |
+| 6.4 | `centered_arc_window` empty-dict fallback | ✅ | 2026-06-09 | Empty `widths_s` falls back to canonical defaults; only a non-empty dict missing a key raises. |
+
 | 5.2 | TLS in transit | ⚠️ | 2026-05-31 | DSN has no `sslmode=` — defaults to libpq `prefer`. Fine for localhost Docker; must be `require`+ for any remote target. |
 | 5.3 | Secrets management for `DATABASE_URL` | ✅ | 2026-05-31 | `.env` + `python-dotenv` + `.gitignore` + pre-commit `no-env-files` hook. No rotation story yet. |
 | 5.4 | Backup / DR | ⚠️ | 2026-05-31 | XDF parallel backup covers biosignals only. `audit_events`, `sessions`, integrity logs have no application-level backup. No PITR. |
@@ -820,6 +830,103 @@ Why 1 hour:
 
 ---
 
+## Tier 6 — Spec-vs-implementation compliance
+
+Findings surfaced during the spec-driven TDD rewrite (2026-06-09). Tests were written from
+`.correctless/specs/` as a black box; any divergence between spec text and shipped code is
+recorded here. ✅ items had tests adapted; ❌ items have tests left red (report-only policy).
+
+### §6.1 `create_session` pre-DB input validation  ❌
+
+**Concept.** A spec-mandated pre-condition: the public API should validate its inputs and raise a domain error *before* acquiring any external resource (DB connection, file handle). This is the "fail-fast without side effects" principle — a caller that passes a bad compound name should get a `ValueError` immediately, not a `psycopg2` error after a TCP handshake.
+
+**In this pipeline.**
+- `session-init.md` R-002/R-003/R-004 state that `create_session` must raise `ValueError` for an invalid `compound`, a non-UUID-v4 `participant_id`, and an invalid `compound_dose_unit` — all *before* touching the DB.
+- `capture/session_init/workflow.py:create_session` calls `settings.validate()` then immediately calls `psycopg2.connect(settings.DATABASE_URL)` (~line 79). No input validation runs before the connection is opened.
+- There is also no `db_factory` seam, so the unit-test variants of R-001/R-002/R-003/R-004 cannot run without a live DB.
+
+**Failing tests (2026-06-09).**
+
+All three tests in `tests/capture_tests/session_init/test_unit.py::TestCreateSessionValidation`:
+
+```
+FAILED test_r002_invalid_compound_raises_before_db
+FAILED test_r003_invalid_participant_uuid_raises_before_db
+FAILED test_r004_invalid_dose_unit_raises
+```
+
+Each test passes an invalid argument and expects `ValueError` before any DB work. What actually happens:
+
+1. `create_session` skips validation and opens a real DB connection.
+2. It reaches `cur.execute(SESSION_INSERT, {...})` at `capture/session_init/workflow.py:83`.
+3. The DB rejects the query with:
+
+```
+psycopg2.errors.UndefinedColumn:
+    column "capture_source" of relation "sessions" does not exist
+    LINE 4: capture_source, compound, compound_dose, compound_do...
+                ^
+```
+
+There are two compounding problems:
+- **Primary (spec drift):** `create_session` has no pre-DB input validation. Fix: add validation before `psycopg2.connect`.
+- **Secondary (stale test DB):** the test DB is missing migration `031_capture_mode_fields`, which adds the `capture_source` column. Fix: run `uv run alembic upgrade head` against the test DB (also unblocks the 53 integration test errors in the wider suite).
+
+The tests would still fail after the DB migration — because the primary issue (no `ValueError` raised) is a code problem, not a schema problem. Both need fixing for these tests to go green.
+
+**Status.** ❌ Three unit tests left red (R-002, R-003, R-004 in `tests/capture_tests/session_init/test_unit.py`).
+
+**Open.**
+- Rollup #30: add pre-DB validation for `compound`, `participant_id`, `compound_dose_unit` in `create_session` and expose a `db_factory` injection seam so the unit tests can run without a DB.
+- Also run `uv run alembic upgrade head` against the test DB to clear the stale-schema error and unblock the 53 integration test collection errors.
+
+---
+
+### §6.2 `CAPTURE_MODE` → `CAPTURE_SOURCE` naming drift  ✅
+
+**Concept.** A pure naming inconsistency between the spec and the implementation — identical semantics, different identifier.
+
+**In this pipeline.**
+- `settings.md` R-015/R-019/R-020/R-021 refer to the setting as `CAPTURE_MODE`.
+- `config/settings.py` uses `CAPTURE_SOURCE` (values: `simulated` | `hardware`). Derived boolean `SIMULATION_MODE = (CAPTURE_SOURCE == "simulated")` exists as specified.
+
+**Status.** ✅ Tests renamed to target `CAPTURE_SOURCE`; all pass.
+
+**Open.**
+- Rollup #31: either rename the setting to match the spec (`CAPTURE_MODE`) or update the spec to match the code (`CAPTURE_SOURCE`). Either is fine; the inconsistency is just a doc-drift hazard for future readers.
+
+---
+
+### §6.3 `StreamResult` / `ReconciliationReport` computed vs stored fields  ✅
+
+**Concept.** The spec implies that `StreamResult.gap` and `ReconciliationReport.is_reconciled` are computed properties derived from their sibling fields. The implementation stores them as plain dataclass fields that are populated by `build_report` at construction time.
+
+**In this pipeline.**
+- `batch/reconciliation/models.py`: `StreamResult(xdf_count, db_count, gap)` — `gap` is a positional argument, not `xdf_count - db_count`. `ReconciliationReport` carries `is_reconciled` as an explicit boolean field.
+- The computation logic lives in `batch/reconciliation/backfill.py:build_report`, which calculates gap and is_reconciled and passes them in at construction.
+- Integration test R-015 covers the `build_report` path end-to-end.
+
+**Status.** ✅ Tests written to the real API; all pass. No behavioral difference visible from outside.
+
+**Open.**
+- Rollup #32: consider making `gap` a `@property` on `StreamResult` (`xdf_count - db_count`) and `is_reconciled` a `@property` on `ReconciliationReport` (`all(s.gap == 0 for s in streams.values())`). Eliminates the risk of passing an inconsistent `gap` value at construction. Minor refactor.
+
+---
+
+### §6.4 `centered_arc_window` empty-dict fallback  ✅
+
+**Concept.** The spec's R-011 implied that passing an empty `widths_s` mapping to `centered_arc_window` should raise, treating it as a misconfiguration. The implementation treats it as "use canonical defaults," which is a more lenient and arguably more useful contract.
+
+**In this pipeline.**
+- `batch/arc/windows.py:centered_arc_window(echo_ts, name, width_s, widths_s={})` — an empty dict causes the function to fall back to the built-in canonical window widths (W1=30s, W2=120s, W3=300s). Only a non-empty dict that is *missing* the requested `name` key raises `KeyError`.
+
+**Status.** ✅ Test adapted to the real contract; passes.
+
+**Open.**
+- Rollup #33: update `arc-windows.md` R-011 to document the actual fallback contract so future readers don't re-derive it.
+
+---
+
 ## Open items rollup
 
 | # | Area | Severity | Source | Status |
@@ -853,6 +960,10 @@ Why 1 hour:
 | 27 | Startup-time check that live Alembic head matches expected | Operational safety | this doc §5.8 | 📝 new |
 | 28 | Continuous aggregates evaluated when ARC batch becomes latency-bound | Performance / future | this doc §4.3 | 📝 deferred |
 | 29 | Vault / rotation story for DATABASE_URL secret | Security / deployment | this doc §5.3 | 📝 deferred to Phase 4+ |
+| 30 | `create_session` has no pre-DB input validation; no `db_factory` seam | Spec compliance / testability | this doc §6.1 | ❌ 3 unit tests left red |
+| 31 | `CAPTURE_MODE` vs `CAPTURE_SOURCE` name drift between spec and code | Spec compliance / doc | this doc §6.2 | ⚠️ reconcile spec or code name |
+| 32 | `StreamResult.gap` / `ReconciliationReport.is_reconciled` as stored vs computed fields | Spec compliance / design | this doc §6.3 | 📝 consider @property refactor |
+| 33 | `arc-windows.md` R-011 documents wrong raise contract for empty `widths_s` | Spec compliance / doc | this doc §6.4 | 📝 update spec to match code |
 
 ---
 
@@ -936,5 +1047,10 @@ Use this to jump to whichever concern you're studying.
 | Failure recovery | 5 | §5.6 (process / DB-connection / DB-crash recovery procedures) |
 | Trigger firing order | 5 | §5.7 (alphabetical; sessions has 2 triggers on different events) |
 | Schema version visibility | 5 | §5.8 (`schema_version_log` population implemented; tests + startup check still open) |
+
+| Spec compliance — session-init validation | 6 | §6.1 (`create_session` pre-DB validation absent, R-002/3/4 red) |
+| Spec compliance — settings naming | 6 | §6.2 (`CAPTURE_MODE` vs `CAPTURE_SOURCE`) |
+| Spec compliance — reconciliation models | 6 | §6.3 (`gap` / `is_reconciled` stored vs computed) |
+| Spec compliance — arc-windows fallback | 6 | §6.4 (empty `widths_s` falls back, doesn't raise) |
 
 Add a row here whenever a new topic enters the doc or a new section gets created.
