@@ -12,7 +12,7 @@ from batch.reconcile import (
     read_xdf_counts,
     run_backfill,
 )
-from batch.reconciliation.db import write_reconciliation_log
+from batch.reconciliation import db as reconciliation_db
 from capture.logger import get_logger
 
 log = get_logger("session_close")
@@ -46,8 +46,8 @@ def reconcile_session(conn, session_id: str, xdf_path: Path, xdf_counts: dict):
     if not report.is_reconciled:
         any_positive_gap = any(row.gap > 0 for row in report.streams.values())
         if any_positive_gap:
-            backfill_results = run_backfill(conn, report, meta)
-            log.info("backfill finished", extra={"rows_by_stream": backfill_results})
+            rows_backfilled = run_backfill(conn, report, meta=meta)
+            log.info("backfill finished", extra={"rows_backfilled": rows_backfilled})
 
             db_counts_after = query_db_counts(conn, session_id)
             max_clock_drift_s = query_max_clock_drift_s(conn, session_id)
@@ -60,7 +60,8 @@ def reconcile_session(conn, session_id: str, xdf_path: Path, xdf_counts: dict):
             )
             log.info("post-backfill reconciliation", extra=report.as_dict())
 
-    write_reconciliation_log(conn, meta, report)
+    # Module-attribute call: keeps the binding late so it can be swapped/patched.
+    reconciliation_db.write_reconciliation_log(conn, report, meta)
     return report
 
 

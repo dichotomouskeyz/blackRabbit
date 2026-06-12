@@ -37,7 +37,7 @@ def seeded_recon_session(cursor, db_conn):
             (SESSION_ID, PARTICIPANT_ID, SITE_ID, SPONSOR_ID, DEVICE_ID, 1000.0 + idx, idx),
         )
     db_conn.commit()
-    return {
+    yield {
         "session_id": SESSION_ID,
         "participant_id": PARTICIPANT_ID,
         "site_id": SITE_ID,
@@ -45,3 +45,8 @@ def seeded_recon_session(cursor, db_conn):
         "device_id": DEVICE_ID,
         "eeg_count": 3,
     }
+    db_conn.rollback()  # clear any aborted transaction left by the test
+    cursor.execute("DELETE FROM eeg_samples WHERE session_id = %s::uuid", (SESSION_ID,))
+    cursor.execute("DELETE FROM biosignal_integrity_log WHERE session_id = %s::uuid", (SESSION_ID,))
+    cursor.execute("DELETE FROM sessions WHERE id = %s::uuid", (SESSION_ID,))
+    db_conn.commit()

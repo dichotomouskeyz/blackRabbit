@@ -79,14 +79,23 @@ def build_report(
 def close_session(
     conn: psycopg2.extensions.connection,
     session_id: str,
-    is_reconciled: bool,
+    sponsor_id: str | None = None,
+    is_reconciled: bool = False,
 ) -> None:
-    """Set sessions.status and closed_at; DB trigger emits watermark event."""
+    """Set sessions.status and closed_at; DB trigger emits watermark event.
+
+    sponsor_id: tenancy guard — when provided, the UPDATE also filters by
+    sponsor_id so a session is never closed under the wrong sponsor.
+    """
     new_status = "closed" if is_reconciled else "failed"
     cur = conn.cursor()
     cur.execute(
-        "UPDATE sessions SET status = %s, closed_at = NOW() WHERE id = %s",
-        (new_status, session_id),
+        """
+        UPDATE sessions SET status = %s, closed_at = NOW()
+        WHERE id = %s
+        AND (%s::uuid IS NULL OR sponsor_id = %s::uuid)
+        """,
+        (new_status, session_id, sponsor_id, sponsor_id),
     )
     conn.commit()
     cur.close()
@@ -94,10 +103,15 @@ def close_session(
 
 def write_reconciliation_log(
     conn: psycopg2.extensions.connection,
-    meta: SessionMeta,
     report: ReconciliationReport,
+    meta: SessionMeta | None = None,
 ) -> None:
-    """Write an XDF reconciliation summary row into biosignal_integrity_log."""
+    """Write an XDF reconciliation summary row into biosignal_integrity_log.
+
+    When meta is omitted, session identity is fetched from the sessions table.
+    """
+    if meta is None:
+        meta = fetch_session_meta(conn, report.session_id)
     cur = conn.cursor()
     cur.execute(
         """
@@ -137,7 +151,7 @@ def fetch_session_meta(conn: psycopg2.extensions.connection, session_id: str) ->
 
 
 def fetch_existing_sample_indices(
-    conn: psycopg2.extensions.connection, table: str, session_id: str
+    conn: psycopg2.extensions.connection, session_id: str, table: str
 ) -> frozenset[int]:
     """Return sample_index values already present in a biosignal table."""
     cur = conn.cursor()

@@ -231,6 +231,14 @@ CAPTURE_SOURCE: str = _get("CAPTURE_SOURCE", "simulated" if _simulation_mode_env
 SIMULATION_MODE: bool = CAPTURE_SOURCE == "simulated"
 SIMULATED_ECHO_MARKER_INTERVAL: float = float(_get("SIMULATED_ECHO_MARKER_INTERVAL", "5.0"))
 
+# Modalities that must have session_signal_metadata rows before capture starts.
+# Comma-separated env override (e.g. for a future eye-tracking modality).
+REQUIRED_MODALITIES: frozenset[str] = frozenset(
+    m.strip()
+    for m in _get("REQUIRED_MODALITIES", "eeg,hrv,eda,respiration").split(",")
+    if m.strip()
+)
+
 # ---------------------------------------------------------------------------
 # Watchdog — stream health monitoring
 # If no new samples arrive within WATCHDOG_TIMEOUT seconds, the forwarder

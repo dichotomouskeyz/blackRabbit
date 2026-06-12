@@ -48,9 +48,13 @@ def log_restart(
             "uptime_s": round(uptime_s, 2),
         }
     )
-    conn = psycopg2.connect(settings.DATABASE_URL)
-    compound, compound_dose = lookup_compound(conn, session_id, sponsor_id)
     try:
+        conn = psycopg2.connect(settings.DATABASE_URL)
+    except Exception as exc:
+        log.error("failed to write restart alert", extra={"error": str(exc)})
+        return
+    try:
+        compound, compound_dose = lookup_compound(conn, session_id, sponsor_id)
         with conn.cursor() as cur:
             cur.execute(
                 """

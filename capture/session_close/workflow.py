@@ -70,8 +70,13 @@ settings.validate()
 log = get_logger("session_close")
 
 
-def run(session_id: str, sponsor_id: str, xdf_path: Path) -> int:
-    """Core logic. Returns the exit code."""
+def run(session_id: str, sponsor_id: str, xdf_path: str | Path) -> int:
+    """Core logic. Returns the exit code.
+
+    xdf_path accepts any path-like value — callers beyond the CLI
+    (future UI/API) hand over string paths.
+    """
+    xdf_path = Path(xdf_path)
     set_session_id(session_id)
 
     log.info(
@@ -114,10 +119,10 @@ def run(session_id: str, sponsor_id: str, xdf_path: Path) -> int:
                 },
                 message=f"ARC configuration load failed: {exc}",
             )
-            close_session(conn, session_id, False)
+            close_session(conn, session_id, sponsor_id, is_reconciled=False)
             return 1
         try:
-            arc_result = run_arc_post_session(conn, session_id)
+            arc_result = run_arc_post_session(conn, session_id, sponsor_id)
         except ARCPostSessionError:
             log_arc_failure_alert(
                 session_id,
@@ -135,7 +140,7 @@ def run(session_id: str, sponsor_id: str, xdf_path: Path) -> int:
                 "ARC post-session processing failed",
                 extra={"session_id": session_id, "sponsor_id": sponsor_id},
             )
-            close_session(conn, session_id, False)
+            close_session(conn, session_id, sponsor_id, is_reconciled=False)
             return 1
         if arc_result.baseline_row_count == 0:
             log.info(
@@ -152,7 +157,7 @@ def run(session_id: str, sponsor_id: str, xdf_path: Path) -> int:
                 "baseline_row_count": arc_result.baseline_row_count,
             },
         )
-        close_session(conn, session_id, report.is_reconciled)
+        close_session(conn, session_id, sponsor_id, is_reconciled=report.is_reconciled)
 
     finally:
         conn.close()

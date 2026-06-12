@@ -7,6 +7,7 @@ import psycopg2
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
+from capture.session_init.constants import VALID_COMPOUNDS, VALID_DOSE_UNITS
 from capture.session_init.metadata import _build_metadata_rows
 from capture.session_init.sql import (
     _METADATA_INSERT,
@@ -20,7 +21,10 @@ from config import settings
 def _current_alembic_head() -> str:
     alembic_cfg = Config("alembic.ini")
     script = ScriptDirectory.from_config(alembic_cfg)
-    return script.get_current_head()
+    head = script.get_current_head()
+    if head is None:
+        raise RuntimeError("Alembic migration history has no current head")
+    return head
 
 
 def _postgres_version(cur) -> str:
@@ -71,7 +75,19 @@ def create_session(
     eda_electrode_type: str | None = None,
     eda_skin_prep: str | None = None,
 ) -> str:
-    """Insert session anchor row, write 4 signal metadata rows, return session UUID."""
+    """Insert session anchor row, write 4 signal metadata rows, return session UUID.
+
+    Validates inputs before any DB connection is opened (spec R-002/003/004).
+    """
+    if compound not in VALID_COMPOUNDS:
+        raise ValueError(f"compound {compound!r} is not in VALID_COMPOUNDS")
+    try:
+        uuid.UUID(participant_id)
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise ValueError(f"participant_id {participant_id!r} is not a valid UUID") from exc
+    if compound_dose_unit is not None and compound_dose_unit not in VALID_DOSE_UNITS:
+        raise ValueError(f"compound_dose_unit {compound_dose_unit!r} is not in VALID_DOSE_UNITS")
+
     settings.validate()
     capture_source = capture_source or settings.CAPTURE_SOURCE
     session_id = str(uuid.uuid4())

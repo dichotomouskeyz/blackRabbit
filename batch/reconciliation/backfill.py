@@ -8,6 +8,7 @@ import psycopg2.extras
 from batch.reconciliation.db import (
     fetch_existing_echo_keys,
     fetch_existing_sample_indices,
+    fetch_session_meta,
 )
 from batch.reconciliation.models import (
     _BACKFILL_LOG_EVERY_N_COMMITS,
@@ -86,22 +87,33 @@ _BACKFILL_INSERT: dict[str, str] = {
 }
 
 
+def _meta_field(meta, key: str, default=None):
+    """Read a field from a SessionMeta object or a plain mapping."""
+    if isinstance(meta, dict):
+        return meta.get(key, default)
+    return getattr(meta, key, default)
+
+
 def _build_backfill_rows(
     stream_name: str,
-    session_id: str,
+    meta: SessionMeta | dict,
     sample_index: int,
-    lsl_ts: float,
+    lsl_timestamp: float,
     vals: list[float],
-    meta: SessionMeta,
+    session_id: str | None = None,
 ) -> list[dict]:
-    """Reconstruct DB row dicts from XDF biosignal sample data."""
+    """Reconstruct DB row dicts from XDF biosignal sample data.
+
+    meta carries session identity (SessionMeta or a mapping that may also
+    include session_id/device_id); an explicit session_id overrides it.
+    """
     base = {
-        "session_id": session_id,
-        "participant_id": meta.participant_id,
-        "site_id": meta.site_id,
-        "sponsor_id": meta.sponsor_id,
-        "device_id": settings.DEVICE_ID,
-        "lsl_timestamp": lsl_ts,
+        "session_id": session_id or _meta_field(meta, "session_id"),
+        "participant_id": _meta_field(meta, "participant_id"),
+        "site_id": _meta_field(meta, "site_id"),
+        "sponsor_id": _meta_field(meta, "sponsor_id"),
+        "device_id": _meta_field(meta, "device_id") or settings.DEVICE_ID,
+        "lsl_timestamp": lsl_timestamp,
         "sample_index": sample_index,
     }
 
@@ -151,7 +163,7 @@ def backfill_echo_markers(
     conn: psycopg2.extensions.connection,
     session_id: str,
     xdf_path: Path,
-    meta: SessionMeta,
+    meta: SessionMeta | dict,
     chunk_size: int = BACKFILL_CHUNK_SIZE_ROWS,
 ) -> int:
     """Replay ECHO markers from XDF into echo_events."""
@@ -194,9 +206,9 @@ def backfill_echo_markers(
         pending.append(
             {
                 "session_id": session_id,
-                "participant_id": meta.participant_id,
-                "site_id": meta.site_id,
-                "sponsor_id": meta.sponsor_id,
+                "participant_id": _meta_field(meta, "participant_id"),
+                "site_id": _meta_field(meta, "site_id"),
+                "sponsor_id": _meta_field(meta, "sponsor_id"),
                 "lsl_timestamp": lsl_ts,
                 **parsed,
             }
@@ -265,13 +277,13 @@ def backfill_stream(
     stream_name: str,
     session_id: str,
     xdf_path: Path,
-    meta: SessionMeta,
+    meta: SessionMeta | dict,
     chunk_size: int = BACKFILL_CHUNK_SIZE_ROWS,
 ) -> int:
     """Insert missing biosignal rows by replaying samples from XDF."""
     table = _STREAM_TABLES[stream_name]
     insert_sql = _BACKFILL_INSERT[stream_name]
-    existing = fetch_existing_sample_indices(conn, table, session_id)
+    existing = fetch_existing_sample_indices(conn, session_id, table)
 
     log.info(
         "backfill starting",
@@ -293,7 +305,7 @@ def backfill_stream(
             continue
 
         pending.extend(
-            _build_backfill_rows(stream_name, session_id, sample_index, lsl_ts, vals, meta)
+            _build_backfill_rows(stream_name, meta, sample_index, lsl_ts, vals, session_id)
         )
 
         if len(pending) >= chunk_size:
@@ -340,10 +352,18 @@ def backfill_stream(
 def run_backfill(
     conn: psycopg2.extensions.connection,
     report: ReconciliationReport,
-    meta: SessionMeta,
+    xdf_path: str | Path | None = None,
+    meta: SessionMeta | dict | None = None,
     chunk_size: int = BACKFILL_CHUNK_SIZE_ROWS,
-) -> dict[str, int]:
-    """Run backfill for every stream where XDF has more samples than DB."""
+) -> int:
+    """Run backfill for every stream where XDF has more samples than DB.
+
+    Returns the total number of rows inserted across all streams.
+    xdf_path defaults to the report's recorded path.
+    """
+    xdf_path = Path(xdf_path) if xdf_path is not None else report.xdf_path
+    if meta is None:
+        meta = fetch_session_meta(conn, report.session_id)
     results: dict[str, int] = {}
 
     for stream_name, result in report.streams.items():
@@ -376,7 +396,7 @@ def run_backfill(
             rows = backfill_echo_markers(
                 conn=conn,
                 session_id=report.session_id,
-                xdf_path=report.xdf_path,
+                xdf_path=xdf_path,
                 meta=meta,
                 chunk_size=chunk_size,
             )
@@ -385,10 +405,11 @@ def run_backfill(
                 conn=conn,
                 stream_name=stream_name,
                 session_id=report.session_id,
-                xdf_path=report.xdf_path,
+                xdf_path=xdf_path,
                 meta=meta,
                 chunk_size=chunk_size,
             )
         results[stream_name] = rows
 
-    return results
+    log.info("backfill rows by stream", extra={"rows_by_stream": results})
+    return sum(results.values())

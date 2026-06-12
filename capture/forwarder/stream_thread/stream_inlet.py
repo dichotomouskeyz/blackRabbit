@@ -10,21 +10,19 @@ log = get_logger("lsl_forwarder")
 
 def resolve_inlet(thread) -> pylsl.StreamInlet | None:
     log.info(
-        f"{thread._stream_type} resolving stream",
+        f"{thread.stream_type} resolving stream",
         extra={
-            "stream_name": thread._stream_name,
+            "stream_name": thread.stream_name,
             "timeout_s": settings.LSL_RESOLVE_TIMEOUT,
         },
     )
-    streams = pylsl.resolve_byprop(
-        "name", thread._stream_name, timeout=settings.LSL_RESOLVE_TIMEOUT
-    )
+    streams = pylsl.resolve_byprop("name", thread.stream_name, timeout=settings.LSL_RESOLVE_TIMEOUT)
     if not streams:
         return None
     inlet = pylsl.StreamInlet(streams[0], max_buflen=int(settings.LSL_MAX_BUFSIZE))
     info = inlet.info()
     log.info(
-        f"{thread._stream_type} inlet connected",
+        f"{thread.stream_type} inlet connected",
         extra={
             "stream_name": info.name(),
             "stream_type": info.type(),

@@ -24,9 +24,12 @@ def seeded_active_session(cursor, db_conn):
         (SESSION_ID, SITE_ID, SPONSOR_ID, PARTICIPANT_ID),
     )
     db_conn.commit()
-    return {
+    yield {
         "session_id": SESSION_ID,
         "participant_id": PARTICIPANT_ID,
         "site_id": SITE_ID,
         "sponsor_id": SPONSOR_ID,
     }
+    cursor.execute("DELETE FROM alert_events WHERE session_id = %s::uuid", (SESSION_ID,))
+    cursor.execute("DELETE FROM sessions WHERE id = %s::uuid", (SESSION_ID,))
+    db_conn.commit()

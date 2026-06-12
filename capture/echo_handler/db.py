@@ -120,3 +120,4 @@ def write_row(conn, row: dict):
                 )
                 close_quietly(conn)
                 return None, False
+    return None, False

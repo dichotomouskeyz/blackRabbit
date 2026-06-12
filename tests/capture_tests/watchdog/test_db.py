@@ -24,7 +24,10 @@ class TestWatchdogDB:
 
     def test_r011_log_restart_writes_alert_row(self, db_conn, seeded_active_session):
         wdb.log_restart(
-            seeded_active_session,
+            seeded_active_session["session_id"],
+            seeded_active_session["participant_id"],
+            seeded_active_session["site_id"],
+            seeded_active_session["sponsor_id"],
             exit_code=1,
             restart_count=1,
             uptime_s=12.5,
@@ -45,7 +48,15 @@ class TestWatchdogDB:
         assert params["uptime_s"] == 12.5
 
     def test_r012_alert_carries_tenancy(self, db_conn, seeded_active_session):
-        wdb.log_restart(seeded_active_session, exit_code=1, restart_count=1, uptime_s=1.0)
+        wdb.log_restart(
+            seeded_active_session["session_id"],
+            seeded_active_session["participant_id"],
+            seeded_active_session["site_id"],
+            seeded_active_session["sponsor_id"],
+            exit_code=1,
+            restart_count=1,
+            uptime_s=1.0,
+        )
         with db_conn.cursor() as cur:
             cur.execute(
                 "SELECT participant_id, site_id, sponsor_id "
@@ -79,9 +90,15 @@ class TestWatchdogDB:
     def test_r015_log_restart_failure_is_nonfatal(self, seeded_active_session):
         # Missing session / bad tenancy should not crash the caller.
         # (Spec notes this currently fails due to BUG-003.)
-        bad = dict(seeded_active_session)
-        bad["session_id"] = "00000000-0000-4000-8000-0000000000ff"
         try:
-            wdb.log_restart(bad, exit_code=1, restart_count=1, uptime_s=1.0)
+            wdb.log_restart(
+                "00000000-0000-4000-8000-0000000000ff",
+                seeded_active_session["participant_id"],
+                seeded_active_session["site_id"],
+                seeded_active_session["sponsor_id"],
+                exit_code=1,
+                restart_count=1,
+                uptime_s=1.0,
+            )
         except Exception as exc:  # noqa: BLE001 - documenting BUG-003
             pytest.fail(f"log_restart raised instead of being non-fatal: {exc!r}")

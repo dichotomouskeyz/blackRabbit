@@ -40,7 +40,7 @@ def arc_seeded_session(cursor, db_conn):
     echo_specs = [
         ("manual_marker", "dose_administration"),
         ("manual_marker", "dose_administration"),
-        ("zone_enter", "therapy_chair"),
+        ("zone_enter", "in_room"),
     ]
     for ts, (event_type, zone_label) in zip(_ANCHOR_TS, echo_specs):
         cursor.execute(
@@ -83,12 +83,16 @@ def arc_seeded_session(cursor, db_conn):
 
     db_conn.commit()
 
-    return {
+    yield {
         "echo_count": len(_ANCHOR_TS),
         "matching_filters": [_MATCHING_FILTER],
         "matching_count": 2,
         "aligned_stream": "eeg",
     }
+    cursor.execute("DELETE FROM eeg_samples WHERE session_id = %s::uuid", (SESSION_ID,))
+    cursor.execute("DELETE FROM echo_events WHERE session_id = %s::uuid", (SESSION_ID,))
+    cursor.execute("DELETE FROM sessions WHERE id = %s::uuid", (SESSION_ID,))
+    db_conn.commit()
 
 
 @pytest.fixture
@@ -120,7 +124,10 @@ def arc_sparse_session(cursor, db_conn):
             (SESSION_ID, PARTICIPANT_ID, SITE_ID, SPONSOR_ID, DEVICE_ID, ts, idx),
         )
     db_conn.commit()
-    return {"sample_count": 2}
+    yield {"sample_count": 2}
+    cursor.execute("DELETE FROM eeg_samples WHERE session_id = %s::uuid", (SESSION_ID,))
+    cursor.execute("DELETE FROM sessions WHERE id = %s::uuid", (SESSION_ID,))
+    db_conn.commit()
 
 
 @pytest.fixture

@@ -103,19 +103,29 @@ class ARCPostSessionResult:
 
 
 def _anchor_filter_pairs(
-    anchor_filters: Sequence[AnchorEventFilter] | None,
+    anchor_filters: Sequence[AnchorEventFilter | tuple[str, str]] | None,
 ) -> tuple[tuple[str, str], ...] | None:
     if not anchor_filters:
         return None
-    return tuple((anchor.event_type, anchor.zone_label) for anchor in anchor_filters)
+    return tuple(
+        (anchor.event_type, anchor.zone_label)
+        if isinstance(anchor, AnchorEventFilter)
+        else (anchor[0], anchor[1])
+        for anchor in anchor_filters
+    )
 
 
 def load_echo_anchor_rows(
     conn: psycopg2.extensions.connection,
     session_id: str,
+    sponsor_id: str | None = None,
     anchor_filters: Sequence[AnchorEventFilter] | None = None,
 ) -> tuple[EchoAnchorRow, ...]:
-    """Load anchor-eligible ECHO rows for a session, ordered by timestamp."""
+    """Load anchor-eligible ECHO rows for a session, ordered by timestamp.
+
+    sponsor_id: tenancy guard — when provided, rows are also filtered by
+    sponsor_id, so a session queried under the wrong sponsor yields no rows.
+    """
     filter_pairs = _anchor_filter_pairs(anchor_filters)
 
     with conn.cursor() as cur:
@@ -127,10 +137,11 @@ def load_echo_anchor_rows(
                        lsl_timestamp
                 FROM echo_events
                 WHERE session_id = %s
+                  AND (%s::uuid IS NULL OR sponsor_id = %s::uuid)
                   AND (event_type, zone_label) IN %s
                 ORDER BY lsl_timestamp ASC, id ASC
                 """,
-                (session_id, filter_pairs),
+                (session_id, sponsor_id, sponsor_id, filter_pairs),
             )
         else:
             cur.execute(
@@ -140,9 +151,10 @@ def load_echo_anchor_rows(
                        lsl_timestamp
                 FROM echo_events
                 WHERE session_id = %s
+                  AND (%s::uuid IS NULL OR sponsor_id = %s::uuid)
                 ORDER BY lsl_timestamp ASC, id ASC
                 """,
-                (session_id,),
+                (session_id, sponsor_id, sponsor_id),
             )
         rows = cur.fetchall()
 
@@ -195,17 +207,19 @@ def cluster_echo_anchor_rows(
 def load_echo_anchor_clusters(
     conn: psycopg2.extensions.connection,
     session_id: str,
+    sponsor_id: str | None = None,
     anchor_filters: Sequence[AnchorEventFilter] | None = None,
     debounce_gap_s: float = DEFAULT_ECHO_CLUSTER_DEBOUNCE_S,
 ) -> tuple[EchoAnchorCluster, ...]:
     """Load clustered ARC anchor candidates for a session."""
-    rows = load_echo_anchor_rows(conn, session_id, anchor_filters=anchor_filters)
+    rows = load_echo_anchor_rows(conn, session_id, sponsor_id, anchor_filters=anchor_filters)
     return cluster_echo_anchor_rows(rows, debounce_gap_s=debounce_gap_s)
 
 
 def load_canonical_echo_anchors(
     conn: psycopg2.extensions.connection,
     session_id: str,
+    sponsor_id: str | None = None,
     anchor_filters: Sequence[AnchorEventFilter] | None = None,
     debounce_gap_s: float = DEFAULT_ECHO_CLUSTER_DEBOUNCE_S,
 ) -> tuple[EchoAnchorRow, ...]:
@@ -215,6 +229,7 @@ def load_canonical_echo_anchors(
         for cluster in load_echo_anchor_clusters(
             conn,
             session_id,
+            sponsor_id,
             anchor_filters=anchor_filters,
             debounce_gap_s=debounce_gap_s,
         )
@@ -306,11 +321,16 @@ def upsert_session_baselines(
 def _query_session_meta(
     conn: psycopg2.extensions.connection,
     session_id: str,
+    sponsor_id: str | None = None,
 ) -> tuple[str, str, str]:
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT participant_id, site_id, sponsor_id FROM sessions WHERE id = %s",
-            (session_id,),
+            """
+            SELECT participant_id, site_id, sponsor_id FROM sessions
+            WHERE id = %s
+            AND (%s::uuid IS NULL OR sponsor_id = %s::uuid)
+            """,
+            (session_id, sponsor_id, sponsor_id),
         )
         row = cur.fetchone()
     if not row:
@@ -632,11 +652,12 @@ def _build_baseline_row(
 def compute_session_baseline_rows(
     conn: psycopg2.extensions.connection,
     session_id: str,
+    sponsor_id: str | None = None,
     config_path: str | None = None,
 ) -> tuple[SessionBaselineRow, ...]:
     """Compute ARC baselines from raw biosignal tables."""
     config = load_arc_watchdog_config(config_path)
-    participant_id, site_id, sponsor_id = _query_session_meta(conn, session_id)
+    participant_id, site_id, sponsor_id = _query_session_meta(conn, session_id, sponsor_id)
     baseline_start = _query_biosignal_window_start(conn, session_id)
     if baseline_start is None:
         return ()
@@ -754,6 +775,7 @@ def compute_session_baseline_rows(
 def run_arc_post_session(
     conn: psycopg2.extensions.connection,
     session_id: str,
+    sponsor_id: str | None = None,
     config_path: str | None = None,
     debounce_gap_s: float = DEFAULT_ECHO_CLUSTER_DEBOUNCE_S,
 ) -> ARCPostSessionResult:
@@ -763,12 +785,14 @@ def run_arc_post_session(
         clusters = load_echo_anchor_clusters(
             conn,
             session_id,
+            sponsor_id,
             anchor_filters=config.anchor_events,
             debounce_gap_s=debounce_gap_s,
         )
         baseline_rows = compute_session_baseline_rows(
             conn,
             session_id,
+            sponsor_id,
             config_path=config_path,
         )
         if baseline_rows:

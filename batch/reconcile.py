@@ -155,8 +155,8 @@ def main() -> None:
         meta = fetch_session_meta(conn, args.session_id)
 
         if args.backfill and not report.is_reconciled:
-            backfill_results = run_backfill(conn, report, meta, chunk_size=args.chunk_size)
-            log.info("backfill finished", extra={"rows_by_stream": backfill_results})
+            rows_backfilled = run_backfill(conn, report, meta=meta, chunk_size=args.chunk_size)
+            log.info("backfill finished", extra={"rows_backfilled": rows_backfilled})
 
             db_counts_after = query_db_counts(conn, args.session_id)
             max_clock_drift_s = query_max_clock_drift_s(conn, args.session_id)
@@ -168,8 +168,8 @@ def main() -> None:
                 max_clock_drift_s=max_clock_drift_s,
             )
 
-        write_reconciliation_log(conn, meta, report)
-        close_session(conn, args.session_id, report.is_reconciled)
+        write_reconciliation_log(conn, report, meta)
+        close_session(conn, args.session_id, args.sponsor_id, is_reconciled=report.is_reconciled)
     finally:
         conn.close()
 
