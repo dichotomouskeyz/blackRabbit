@@ -1,6 +1,6 @@
 # Architecture — untitled_biometric_platform-1a
 
-> Last quick-scan: 2026-06-11
+> Last quick-scan: 2026-06-12
 
 ## Key Components
 
@@ -15,6 +15,7 @@
 | XDF writer | `capture/xdf/` | Writes Lab Streaming Layer data to XDF backup format before DB insert |
 | Logger | `capture/logger.py` | Structured JSON logger factory; PII blocklist enforced at serialization time |
 | Settings | `config/settings.py` | All runtime config; loads `.env` at import, fails fast on missing/invalid vars via `validate()` |
+| Operator API | `api/` | Thin FastAPI surface (M0): capability-gated endpoints wrapping backend contracts; read-only direct SQL via a SELECT-only role; WS scaffolded |
 | Schema migrations | `untitledplatform_1a_db/db/alembic/versions/` | Active migration chain — source of truth for schema |
 
 ## Design Patterns
@@ -33,7 +34,10 @@
 
 ### PAT-003: Named SQL Parameters
 - `%(name)s` style with psycopg2, values passed as dicts — `cursor.execute(SQL, row_dict)`
-- SQL strings stored as module-level constants in `sql.py` files alongside the module that uses them
+- SQL strings stored as module-level constants in `sql.py` files alongside the module
+  that uses them (`capture/session_init/sql.py`, `capture/forwarder/sql.py`,
+  `capture/echo_handler/sql.py`); the read-only operator API keeps its `*_SQL`
+  constants at module level in the route module itself (`api/sessions.py`, `api/arc.py`)
 - No ORM — raw psycopg2 only
 - Violated when: f-strings or `%` formatting used in SQL, or SQL strings scattered inline in functions
 
@@ -76,6 +80,52 @@
 - Violated when: helper modules create competing mutable ownership or return a
   connection that the thread does not store
 
+### PAT-010: API Wraps Backend Contracts
+- The operator API (`api/`) calls existing contracts for all writes:
+  `session_init.workflow`, `capture.forwarder.runtime.ForwarderEngine`,
+  `session_close.workflow`, `batch.arc.processor` — it never reimplements their
+  logic and never introduces a `SessionRepository`/ORM
+- The API's direct SQL is **read-only**: it connects as a `GRANT SELECT`-only
+  Postgres role so any write raises `InsufficientPrivilege` at the driver
+- Read SQL lives in module-level constants (PAT-003), each matching `^(SELECT|WITH)`
+- Violated when: `api/` issues write/DDL SQL on any path, reimplements a workflow,
+  or its DB role can write
+- Enforced by: read-only DB role (structural); CI test that a write on the API role
+  raises `InsufficientPrivilege`; closed-SQL-constant scan
+
+### PAT-011: Capability-Status Gating
+- Operator-surface capabilities carry a status: `implemented` (wired + tested),
+  `scaffolded` (UI surface present, endpoint present but returns capability-status,
+  no backend work), or `blocked` (endpoint present, returns capability-status,
+  disabled tool)
+- A `blocked`/`scaffolded` endpoint is **present** and returns a structured
+  `409 Capability unavailable` body (`{error:"capability_unavailable", capability,
+  status, blocked_reason, gate}`) **unconditionally and first** — before any
+  validation, DB connection, or backend call — so no side effect occurs en route to
+  refusing. A scaffolded WebSocket **refuses the upgrade** with a capability-status
+  close reason. Capability state is discoverable via `GET /capabilities`.
+- The client-side (Next.js/AI-SDK) disabled-tool flag is **UX only**; the
+  load-bearing control is the server response. Hiding buttons/tools is insufficient.
+- Violated when: a blocked/scaffolded endpoint performs work, opens a DB connection,
+  validates before refusing, is absent (404 with no status), or its safety depends
+  on the client-side flag
+- Enforced by: CI test hitting each blocked/scaffolded path with a raw HTTP client
+  (not the agent), asserting `409` + structured capability body + no DB connection +
+  backend-not-called; the WS test asserts upgrade-refused with a capability reason
+
+### PAT-012: Patchable Factories via Module-Attribute Access
+- **Pattern**: Injected/patchable factories are called through their owning
+  module — `deps.get_readonly_connection()`, `sessions.create_session(...)` —
+  never name-bound at import (`from api.deps import get_readonly_connection`)
+- **Rule**: any factory a test may patch is accessed as a module attribute so
+  `monkeypatch.setattr(api.deps, ...)` rebinds the call site; import-time
+  binding creates a stale shadow the patch never reaches
+- **Violated when**: an `api/` module imports a patchable factory by name and
+  calls the local binding
+- **Test**: grep `api/` for `from api.deps import` / `from api.sessions import`
+  of factory names; the no-DB fixtures in `tests/api_tests/conftest.py` only
+  work when this holds
+
 ## Trust Boundaries
 
 ### TB-001: Environment → Application Config
@@ -95,6 +145,17 @@
 - **Violated when**: an ARC query reads session-scoped data using only
   `session_id`, or derived processing bypasses the sponsor boundary.
 
+### TB-004: Client → API (browser/LLM → FastAPI)
+- **Crosses**: untrusted browser + Next.js AI-SDK agent (model-generated tool calls) → FastAPI `api/` (HTTP + WebSocket)
+- **Invariant**: All input is validated fail-closed before any DB call (UUIDs, closed enums/allow-lists, ranges, constrained filesystem paths). Tenant context (`sponsor_id`/`site_id`) is server-injected from a named `settings.*` value, never from the request or a model tool arg. Responses serialize only allow-listed fields (no PII). The agent is constrained by the server: FastAPI exposes exactly the registry's endpoints, 404s unknown paths, and validates every argument regardless of which tool produced it. Session-derived text rendered into the agent context is data, not instruction.
+- **Violated when**: a client/model supplies `sponsor_id`/SQL/endpoint-path/filesystem-path, unvalidated input reaches a DB call, an unlisted field serializes out, or a non-registry side effect is reachable.
+- **Note**: no authentication in 1a (localhost-bound, client co-located); tenancy filtering is a correctness scaffold, not access control, until auth lands.
+
+### TB-005: LSL → WS Read Tap → Browser
+- **Crosses**: live LSL streams → an independent FastAPI WebSocket inlet tap → browser (uPlot)
+- **Invariant**: The tap opens its **own** LSL inlets (never shares/mutates the forwarder's inlets or connection, never holds a `StreamThread` — composes with PAT-009) and closes them on disconnect. Frames use `lsl_timestamp` as the time axis (PAT-004), never `db_insert_time` or a server clock. A bounded buffer drops on backpressure (counted) rather than growing unbounded. Distinct from TB-002, which is the LSL→DB **write** path (XDF-first); this read tap carries none of TB-002's write/ordering invariants.
+- **Violated when**: the tap reuses forwarder resources, leaks inlets, emits a non-LSL time base, or buffers unbounded. Non-interference with the forwarder's clock-offset/chunk timing must be validated before this boundary goes live, not assumed.
+
 ## Conventions
 
 - Python 3.12+; `uv` manages dependencies and task running
@@ -110,5 +171,7 @@
 
 - No live safety monitor in MVP (deferred)
 - No real-time SQI monitor in MVP (deferred)
-- No web UI — CLI/notebook surface only (Phase 4b)
+- Operator UI is API-only in M0 (`api/`, capability-gated); the Next.js visual
+  shell is deferred (see `docs/2R/backlog.md` "Operator UI — Deferred / Skipped
+  Register"); write/exec capabilities blocked pending OQ-001/OQ-004
 - `jq` required for workflow-advance.sh state machine but not installed by default on Windows

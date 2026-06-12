@@ -1,6 +1,6 @@
 # Agent Context — untitled_biometric_platform-1a
 
-> Last updated: 2026-06-11
+> Last updated: 2026-06-12
 >
 > Detailed invariants and trust boundaries live in
 > [`.correctless/ARCHITECTURE.md`](ARCHITECTURE.md).
@@ -24,6 +24,7 @@ backup, and runs post-session ARC convergence analysis.
 | ARC processor | `batch/arc/processor.py` | Post-session convergence: ECHO anchors → APEX response windows (W1/W2/W3), FDR, durable outputs |
 | Logger | `capture/logger.py` | Structured JSON logger factory; PII blocklist enforced at serialization time |
 | Settings | `config/settings.py` | All runtime config; loads `.env` at import, fails fast on missing required vars |
+| Operator API | `api/` | Thin capability-gated FastAPI surface (M0 read/create only); wraps backend contracts; direct SQL on a SELECT-only role; blocked capabilities 409 before any DB call |
 | Arc watchdog config | `config/arc_watchdog/` | TOML config for ARC windows, FDR params, anchor event definitions |
 | Schema migrations | `untitledplatform_1a_db/db/alembic/` | Active migration chain — source of truth for schema |
 
@@ -48,6 +49,8 @@ backup, and runs post-session ARC convergence analysis.
 - **Integration test marker**: tests requiring a live database are marked `@pytest.mark.integration`. Unit tests carry no marker and must not touch the DB.
 
 - **Test constants with underscore prefix**: `_UNIT_CFG`, `_INT_SESSION` etc. Unit-test constants use `_UNIT_*`, integration constants use `_INT_*`. Shared fixtures live in `support.py` per test subdirectory.
+
+- **Patchable factories via module-attribute access (api/)**: call injected factories through their owning module — `deps.get_readonly_connection()`, never `from api.deps import get_readonly_connection` — so test patches on `api.deps` rebind the call site (PAT-012).
 
 ## Common Pitfalls
 
@@ -75,6 +78,8 @@ backup, and runs post-session ARC convergence analysis.
 | Run tests verbose | `uv run pytest -v` |
 | Run integration tests only | `uv run pytest -m integration` |
 | Run unit tests only | `uv run pytest -m "not integration"` |
+| Run operator API tests | `uv run pytest tests/api_tests` |
+| Run the operator API | `uv run uvicorn api.app:app --host 127.0.0.1 --port 8000` |
 | Run coverage | `uv run pytest --cov` |
 | Lint | `uv run ruff check .` |
 | Format | `uv run ruff format .` |

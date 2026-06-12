@@ -7,6 +7,7 @@
   },
   "commands": {
     "test": "uv run pytest",
+    "_test_gate_note": "Full-suite gate restored 2026-06-12 after operator-ui reached documented. The gate stays red (10 pre-existing capture-layer failures) until the backend debt is paid — see docs/decisions.md 'Operator UI Pipeline — Backend Debt Deferred' and docs/2R/backlog.md 'User-Gated Test Work'.",
     "test_verbose": "uv run pytest -v",
     "coverage": "uv run pytest --cov",
     "lint": "uv run ruff check .",

@@ -1,5 +1,89 @@
 # Decisions
 
+## Operator UI — Staged Agentic Surface
+
+- **Decision:** Build a researcher operator UI as a staged agentic surface:
+  Next.js chat GUI (Vercel AI SDK, pinned tools) → thin FastAPI (`api/`) →
+  existing `capture.*` / `batch.arc.*` contracts, plus a live biosignal tab
+  (uPlot) over a FastAPI WebSocket and an ARC review tab. This reintroduces the
+  previously deferred thin FastAPI + WebSocket (see "Real-Time Delivery"), but
+  **staged by capability status** (`scaffolded` / `blocked` / `implemented`).
+  The contract authority is `.correctless/specs/operator-ui.md` (HIGH intensity).
+- **Rationale:** The backend has no user surface, but exposing unfinished
+  capture/ARC through an agent multiplies risk where the backend is least settled
+  (ARC still gateable before `watermark_verified`, capture process ownership
+  unsettled, localhost tenancy is not authentication). Staging ships a usable,
+  low-risk shell now and gates write/exec capabilities behind the open questions.
+- **Code impact:**
+  - The API **wraps** the §1 contracts in `docs/ui-integration.md`; it never
+    duplicates their logic. Any direct SQL is **read-only and parameterized** — a
+    small read query module, **no `SessionRepository`**; write paths stay direct
+    workflow wrappers.
+  - The model never supplies `sponsor_id`, SQL, shell, or arbitrary endpoint
+    paths. **FastAPI owns tenant context and authorization** (server-injected).
+  - Blocked capabilities are non-executable (disabled tools): endpoints are
+    *present* and fail closed with a structured `409 Capability unavailable`
+    body before any DB call; the scaffolded WS refuses the upgrade. Milestone 0
+    ships health/capabilities/vocab/list/status/create on the API; the visual
+    shell (tabs + status-flagged tool registry) is deferred to the frontend
+    feature (see `docs/2R/backlog.md` "Operator UI — Deferred / Skipped
+    Register").
+  - New `api/` and `web/` trees; new env vars (`ANTHROPIC_API_KEY`,
+    `API_BASE_URL`, `NEXT_PUBLIC_API_URL`). The formal `TB-004` (client→API) and
+    capability-gating `PAT` land via `/cupdate-arch` after implementation.
+- **Date:** June 2026
+
+## Operator UI M0 — Accepted DoS Risk
+
+- **Decision:** For operator-UI M0, connection/WS volume caps (BND-004) are NOT
+  implemented. The connection-exhaustion DoS — repeated `POST /sessions` (no
+  pooling, `docs/ui-integration.md` §2) and WS connections exhausting DB
+  connections — is **explicitly accepted as an unmitigated M0 risk**. The
+  graceful path under exhaustion is the 503 `psycopg2.OperationalError` handler
+  (QA-001 / INV-014): exhaustion surfaces as `503 {"error":"backend_unavailable"}`,
+  never a raw 500.
+- **Rationale:** M0 is localhost-bound with the client co-located on the same
+  host and no authentication (EA-001/EA-003). The attack surface is a local
+  operator, so DoS impact is low and a connection cap adds complexity without
+  M0 security value. BND-004 permits a documented-acceptance branch rather than
+  full mitigation; this is that acceptance. The cap is revisited before any
+  exposure beyond localhost or any write/exec unblock (OQ-001).
+- **Code impact:**
+  - No connection cap or WS-per-host cap is added in M0.
+  - The app-level `psycopg2.OperationalError` handler in `api/app.py` returns
+    `503 {"error":"backend_unavailable", "message":...}` for every DB-touching
+    route, so exhaustion fails closed with an actionable message (INV-014).
+  - Revisit (add a bounded acquire returning 503 on exhaustion + a WS cap) is
+    gated on OQ-001 / non-localhost exposure.
+- **Date:** June 2026
+
+## Operator UI Pipeline — Backend Debt Deferred
+
+- **Decision:** The `operator-ui` pipeline (verify → arch → docs → PR) proceeds
+  against the scoped `tests/api_tests` suite. Two items are explicitly deferred
+  rather than gating the UI track:
+  1. The **10 pre-existing capture-layer test failures** (ECHOWriter signature
+     drift ×5, ARC baseline-persistence fixture ×4, session_close r021 ×1) are
+     backend debt that predates this feature and is unrelated to `api/`. They
+     are user-gated fixture work tracked in `docs/2R/backlog.md`
+     ("User-Gated Test Work") and must be fixed before the next backend feature.
+  2. The **`/creview-spec` re-run** for the +44-line post-approval spec drift
+     (421 → 465 lines) is skipped. Those lines are the QA-audit-driven contract
+     upgrades (QA-001..QA-006: 503 `backend_unavailable` mapping, tenancy-not-
+     configured 503, BND-004 acceptance note, closed-SQL scan generalization) —
+     adversarially derived, implemented, and pinned by tests (70/70 green).
+- **Rationale:** Both items would block the UI track on work that is either
+  backend-owned (the fixtures) or already reviewed by the audit that produced
+  it (the spec delta). Deferring keeps the pipeline honest: the deferral is
+  recorded here, in the backlog, and in the Correctless override log, and the
+  full-suite test gate is restored at docs time so the debt stays visible (red
+  gate) until paid.
+- **Code impact:** `.correctless/config/workflow-config.json` `commands.test`
+  restored from `uv run pytest tests/api_tests` to `uv run pytest` when the
+  pipeline reaches `documented`. No application code changes. Skipped/deferred
+  register: `docs/2R/backlog.md` "Operator UI — Deferred / Skipped Register".
+- **Date:** June 2026 (2026-06-12)
+
 ## Hardware - 1a Development Environment
 
 - **Decision:** 1a development uses simulated LSL streams by default.

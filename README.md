@@ -74,6 +74,30 @@ SHA-256 provenance so results can be reproduced.
 
 See `docs/arc.md` for the ARC event contract and window semantics.
 
+## Operator API (M0)
+
+A thin, capability-gated FastAPI surface (`api/`) for the staged operator UI.
+Milestone 0 is read/create only: health, capability discovery, vocab, session
+list/status, and session create (wrapping `capture.session_init`). Write/exec
+capabilities (capture start/stop, markers, close, ARC run) are present but
+**blocked** — they return a structured `409 Capability unavailable` before any
+DB call, and the live-stream WebSocket refuses the upgrade. `GET /capabilities`
+returns the full matrix.
+
+```bash
+uv run uvicorn api.app:app --host 127.0.0.1 --port 8000
+uv run pytest tests/api_tests          # API test suite
+```
+
+The API's direct SQL runs on a `GRANT SELECT`-only role via
+`API_READONLY_DATABASE_URL`; all UI env vars are optional and the capture/ARC
+paths validate unchanged without them (see `.env.example`). M0 is
+localhost-bound with no authentication — tenancy is server-injected
+(`API_SPONSOR_ID`/`API_SITE_ID`), and localhost tenancy is not authentication.
+Contract authority: `.correctless/specs/operator-ui.md`; integration notes:
+`docs/ui-integration.md` §0. The Next.js chat shell is deferred
+(`docs/2R/backlog.md`, "Operator UI — Deferred / Skipped Register").
+
 ## Local Model Experiments
 
 Local coding-agent experiments are agent-neutral for now. The expected local

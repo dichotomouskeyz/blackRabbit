@@ -37,6 +37,30 @@ Separate from those failures, four watchdog-loop tests are placeholders and
 must be wired to `WatchdogState`, subprocess collaborators, restart accounting,
 and terminal-state calls.
 
+**UI-track deferral (June 2026):** these ten failures were explicitly deferred
+during the `operator-ui` pipeline (see `docs/decisions.md` "Operator UI Pipeline
+— Backend Debt Deferred"). They must be fixed before the next backend feature:
+the Correctless test gate is restored to the full suite and stays red until
+they pass.
+
+## Operator UI — Deferred / Skipped Register (June 2026)
+
+Items deferred or skipped while closing the `operator-ui` M0 pipeline
+(`feature/phase-4-ui`). Contract authority: `.correctless/specs/operator-ui.md`.
+
+| Item | Status | Trigger / next step |
+|---|---|---|
+| Next.js frontend M0 shell (chat GUI, tabs, capability-driven tool state from `GET /capabilities`) | Deferred | Start as its own `/cspec` feature on a fresh branch. |
+| `/caudit` Olympics sweep | Skipped pre-merge | Optional post-merge at high intensity. |
+| OQ-004 — capture process ownership under FastAPI | Open M1 gate | Gates `capture:start/stop`, marker publish, close session (all `blocked` in M0). |
+| OQ-001 — authentication + tenant-authorization model | Open M1 gate | Gates real agent tool execution; localhost tenancy is not authentication. |
+| BND-004 — connection/WS volume cap | Accepted M0 risk | Localhost-only (EA-001); revisit at M1 (QA-003). |
+| Correctless install staleness (33 source files ahead) | Housekeeping | Run `/csetup`. |
+| `ARCHITECTURE.md` PAT-003 references dead `sql.py` | Housekeeping | Fix during `/cupdate-arch` or `/cprune`. |
+| Harness fingerprint `model=unknown` | Housekeeping | Self-heals on next fingerprint check. |
+| /cverify D-1 — api_tests cite `INV-016` (label-only; spec rule is RS-016) | Debt | Relabel at next spec-driven test regeneration (test edits are user-gated). |
+| /cverify D-4 — INV-009 M0 behavior tested but no test cites the ID | Debt | Annotate at next spec-driven test regeneration. |
+
 ## Database and Operational Work
 
 Items below are filtered from the former 33-item database rollup. Resolved

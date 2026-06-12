@@ -7,6 +7,68 @@ and what must be added or changed when it lands. Companion to
 [decisions.md](decisions.md) ("Real-Time Delivery": any API wraps existing
 contracts instead of replacing them).
 
+## 0. Operator UI surface — capability status (June 2026)
+
+The operator UI is being built as a **staged agentic surface** (Next.js chat GUI
++ Vercel AI SDK → thin FastAPI `api/` → the §1 contracts below). Contract
+authority is [`.correctless/specs/operator-ui.md`](../.correctless/specs/operator-ui.md)
+(HIGH intensity); the staged-build decision is in
+[decisions.md](decisions.md) ("Operator UI — Staged Agentic Surface").
+
+```mermaid
+flowchart LR
+    B[Browser] --> N["Next.js agent route<br/>(AI SDK, pinned tools)<br/>· deferred ·"]
+    N --> F["FastAPI api/<br/>TB-004: server-injected tenancy,<br/>fail-closed validation,<br/>capability gate (PAT-011)"]
+    F -->|implemented: create| W["capture.session_init<br/>(wrapped contract, PAT-010)"]
+    F -->|implemented: reads| R[("TimescaleDB<br/>SELECT-only role")]
+    F -.->|blocked: 409 first,<br/>no DB call| X["capture start/stop · markers<br/>· close · arc:run"]
+    F -.->|scaffolded: WS upgrade refused| S["WS /sessions/id/stream (TB-005)"]
+```
+
+Capabilities are tagged by status. `implemented` = wired + tested; `scaffolded`
+= surface present (tab / tool-registry entry) with a documented contract but no
+execution; `blocked` = a disabled tool with no execution. **Capability gating is
+server-side and explicit** — non-`implemented` endpoints are *present* and fail
+closed with a structured `409 Capability unavailable` body
+(`{error, capability, status, blocked_reason, gate}`) returned before any DB
+call; the scaffolded WebSocket refuses the upgrade with a capability-status close
+reason. `GET /capabilities` returns the whole matrix so the UI sources tool state
+at runtime. Hiding buttons/tools in the UI is **insufficient**.
+
+| Capability | Endpoint / tool | Status (Milestone 0) |
+|---|---|---|
+| Health | `GET /health` | implemented |
+| Capabilities discovery | `GET /capabilities` | implemented |
+| Vocab | `GET /vocab` | implemented |
+| List sessions | `GET /sessions` | implemented (read-only query) |
+| Session status | `GET /sessions/{id}/status` | implemented |
+| Create session | `POST /sessions` | implemented (wraps `create_session`) |
+| Live biosignal tab | `WS /sessions/{id}/stream` | scaffolded (WS upgrade refused; tab placeholder) |
+| ARC review tab | `GET /sessions/{id}/arc` | scaffolded (409 capability-status; tab placeholder) |
+| Agent tool execution | AI SDK tool registry | scaffolded (visible, execution disabled) |
+| Capture start/stop | `capture:start` / `:stop` | **blocked** (409) |
+| Marker publish | `POST /sessions/{id}/markers` | **blocked** (409) |
+| Close session | `POST /sessions/{id}/close` | **blocked** (409) |
+| ARC run | `arc:run` | **blocked** (409) |
+
+**M1 entry gates** (M0 stays read/scaffold-only; no write/exec capability is
+enabled until its gate is specified):
+
+- **Capture start/stop, marker publish, close session** — gated on **OQ-004**:
+  capture process ownership under FastAPI (subprocess ownership, duplicate-start
+  prevention, graceful shutdown, restart, orphan recovery). Markers must publish
+  via the LSL outlet, never `echo_events` (spec INV-003).
+- **ARC run** — must not run before `watermark_verified` (spec INV-006; AGENTS.md
+  non-negotiable); gated end-to-end before enabling.
+- **Real agent tool execution** — enabled only once the above are real and
+  **OQ-001** is settled: an authentication model AND a tenant-authorization model.
+  **Localhost tenancy is not authentication.**
+
+Binding rules for the surface: the API **wraps** the §1 contracts (never
+duplicates them); direct SQL is read-only + parameterized (no `SessionRepository`);
+the model never supplies `sponsor_id`, SQL, shell, or endpoint paths — **FastAPI
+owns tenant context and authorization** (server-injected).
+
 ## 1. The de-facto backend API (what a UI calls today)
 
 These are the boundaries a UI/API layer wraps. They are spec-pinned and
@@ -61,6 +123,10 @@ designed against, not speculation:
       (the `ForwarderEngine` lifecycle is the intended hook).
 - [ ] Status endpoint over `sessions.status` + watermark audit events.
 - [ ] Marker-entry component publishing to the LSL marker stream.
-- [ ] Dedicated test database split (`TEST_DATABASE_URL` ≠ `DATABASE_URL`)
-      before API tests land.
+- [x] Isolated test database: the test environment targets a dedicated DB
+      (`untitled_project_test`) distinct from any live/production DB; because the
+      wrapped `create_session` writes via `DATABASE_URL` and integration fixtures
+      read back via `TEST_DATABASE_URL`, both point at that same isolated test DB
+      during testing (the dev DB `untitled_project_local` stays untouched). A real
+      local capture run requires flipping `DATABASE_URL` back to the dev DB.
 - [ ] Revisit deferred items in §2.
