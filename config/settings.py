@@ -165,6 +165,30 @@ DATABASE_URL: str = _get("DATABASE_URL", "")
 TEST_DATABASE_URL: str | None = os.getenv("TEST_DATABASE_URL")
 
 # ---------------------------------------------------------------------------
+# Operator UI / API (Phase 4b) — all OPTIONAL (INV-015).
+# These must never be required by validate(): the capture/ARC paths import and
+# validate unchanged for operators who do not run the UI. NEXT_PUBLIC_* is a
+# JS build-time client var and lives only in the JS env, never here.
+# ---------------------------------------------------------------------------
+# Read-only Postgres role connection string for the API direct-SQL path
+# (INV-002 — GRANT SELECT-only). Optional at import/validate (INV-015), but the
+# API read path REQUIRES it: api.deps._readonly_url() raises RuntimeError when it
+# is unset. There is NO TEST_DATABASE_URL (or other) fallback — that would risk a
+# write-capable connection on the read path, so it fails loud instead.
+API_READONLY_DATABASE_URL: str | None = _get_optional("API_READONLY_DATABASE_URL")
+
+# AI SDK agent route key; absence disables the agent route only (EA-004).
+ANTHROPIC_API_KEY: str | None = _get_optional("ANTHROPIC_API_KEY")
+
+# Base URL the UI uses to reach the API (informational, Python side).
+API_BASE_URL: str | None = _get_optional("API_BASE_URL")
+
+# Server-injected tenant context for the API (INV-001 / EA-003: one
+# sponsor/site per local deployment). Optional — tests override the dependency.
+API_SPONSOR_ID: str | None = _get_optional("API_SPONSOR_ID")
+API_SITE_ID: str | None = _get_optional("API_SITE_ID")
+
+# ---------------------------------------------------------------------------
 # Directories
 # ---------------------------------------------------------------------------
 LOG_DIR: Path = Path(_get("LOG_DIR", "./logs"))
