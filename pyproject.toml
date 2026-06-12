@@ -48,6 +48,7 @@ fail_under = 60
 
 [tool.ruff]
 line-length = 100
+extend-exclude = ["tests/_archive"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

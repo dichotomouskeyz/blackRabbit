@@ -1,6 +1,7 @@
 {
   "enabledPlugins": {
     "claude-code-setup@claude-plugins-official": true,
-    "remember@claude-plugins-official": true
+    "remember@claude-plugins-official": true,
+    "correctless@correctless": true
   }
 }

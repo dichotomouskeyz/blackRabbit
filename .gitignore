@@ -27,6 +27,13 @@ CLAUDE.local.md
 # pytest
 .pytest_cache/
 .pytest_tmp/
+.coverage
 
 # Serena MCP working data
 .serena/
+
+# Correctless installation/runtime state
+.correctless/.install-manifest.json
+.correctless/artifacts/
+.correctless/hooks/
+.correctless/scripts/

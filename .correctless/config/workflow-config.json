@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "project": {
+    "name": "untitled_biometric_platform-1a",
+    "language": "python",
+    "description": "Local research-tool MVP for labs studying neuro-behavioral sessions. Captures synchronized physiology (APEX/EEG/HRV/EDA) and event context (ECHO), supports post-session ARC analysis."
+  },
+  "commands": {
+    "test": "uv run pytest",
+    "test_verbose": "uv run pytest -v",
+    "coverage": "uv run pytest --cov",
+    "lint": "uv run ruff check .",
+    "build": ""
+  },
+  "patterns": {
+    "test_file": "test_*.py|*_test.py|tests/**/*",
+    "source_file": "*.py",
+    "test_fail_pattern": "FAILED|ERROR|failed",
+    "build_error_pattern": ""
+  },
+  "is_monorepo": false,
+  "packages": {},
+  "workflow": {
+    "min_qa_rounds": 1,
+    "require_review": true,
+    "auto_update_antipatterns": true,
+    "git_trailers": false,
+    "git_notes": false,
+    "branching_strategy": "feature-branches",
+    "merge_strategy": "squash",
+    "commit_style": "conventional",
+    "pr_template": ".github/pull_request_template.md"
+  },
+  "mcp": {
+    "serena": true,
+    "context7": true
+  },
+  "setup": {
+    "architecture_state": "in-progress",
+    "agent_context_state": "complete"
+  },
+  "release": {
+    "version_file": "pyproject.toml",
+    "version_pattern": "version[[:space:]]*=[[:space:]]*\"[^\"]*\""
+  }
+}
