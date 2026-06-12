@@ -3,7 +3,7 @@
 **Repo:** `C:\Users\jahlo\untitled_biometric_platform-1a`
 **Branch tracked:** `2R`
 **Doc started:** 2026-05-31 · **Restructured:** 2026-05-31
-**Doc location:** tracked in repo at `docs/phase-2-reviews/db-health.md`
+**Doc location:** tracked in repo at `docs/2R/db-health.md`
 
 A study artifact + living tracker. Each section pairs an abstract database concept (the kind a backend developer needs to recognize cold) with how that concept lives in *this* pipeline (with `file:line` evidence). Sections are organized into 5 tiers — fundamentals first, operational concerns last — so the doc has a learning progression.
 
@@ -34,7 +34,7 @@ A study artifact + living tracker. Each section pairs an abstract database conce
 | 1.4 | SQL injection / parameterization | ✅ | 2026-05-31 | Every value binds via `%s` placeholders. `psycopg2.sql.Identifier` for dynamic table names (hardened in `2dab714`). |
 | 1.5 | Constraints (PK / FK / UNIQUE / CHECK / NOT NULL) | ⚠️ | 2026-05-31 | CHECK + NOT NULL coverage strong. UNIQUE gap on `echo_events` + `biosignal_integrity_log` natural keys. |
 | 1.6 | Indexes | ✅ | 2026-05-31 | `023_indexes.py` covers all core tables; later migrations (025–028) add their own. EXPLAIN ANALYZE spot-check pending real data. |
-| 1.7 | Migrations & schema chain | ✅ | 2026-05-31 | `versions/` chain unbroken 001 → 031. `optional_governance/` is a deliberate parallel tree. Up/down symmetry spot-checked. |
+| 1.7 | Migrations & schema chain | ✅ | 2026-06-11 | `versions/` chain unbroken 001 → 030. `optional_governance/` is a deliberate parallel tree. Up/down symmetry spot-checked. |
 
 ### Tier 2 — Concurrency (once threads enter the picture)
 
@@ -77,8 +77,8 @@ A study artifact + living tracker. Each section pairs an abstract database conce
 
 | § | Concept | Status | Last verified | One-line |
 |---|---|---|---|---|
-| 6.1 | `create_session` pre-DB input validation | ❌ | 2026-06-09 | Spec requires ValueError before DB connect; code connects first. R-002/003/004 stay red. |
-| 6.2 | `CAPTURE_MODE` → `CAPTURE_SOURCE` naming | ✅ | 2026-06-09 | Pure rename; identical semantics. Tests target real name and pass. |
+| 6.1 | `create_session` pre-DB input validation | ✅ | 2026-06-11 | Validation now runs before the DB connection for compound, participant UUID, and dose unit. |
+| 6.2 | Proposed `capture_source` → `capture_mode` rename | ✅ | 2026-06-11 | The uncommitted rename was reverted; schema and runtime consistently use `capture_source` / `CAPTURE_SOURCE`. |
 | 6.3 | `StreamResult` / `ReconciliationReport` computed vs stored fields | ✅ | 2026-06-09 | `gap` and `is_reconciled` are stored fields; `build_report` owns the computation. Integration R-015 covers it. |
 | 6.4 | `centered_arc_window` empty-dict fallback | ✅ | 2026-06-09 | Empty `widths_s` falls back to canonical defaults; only a non-empty dict missing a key raises. |
 
@@ -180,7 +180,6 @@ CHECK constraint coverage (broad and consistent):
 | `019_session_signal_metadata` | `modality`, `eeg_channel_count >= 0`, modality-specific enums |
 | `027_session_baselines` | `baseline_std >= 0.0`, `sample_count > 0`, `baseline_window_end > baseline_window_start` |
 | `028_event_composite_profiles` | `w*_convergence_density >= 0.0`, `jsonb_typeof(...) = 'array'/'object'`, `passed_fdr IS TRUE` |
-| `031_capture_mode_fields` | `capture_mode`, `device_type` ∈ `('simulated', 'hardware')` |
 
 FK coverage (intentionally lightweight):
 
@@ -266,8 +265,7 @@ Active chain (`untitledplatform_1a_db/db/alembic/versions/`):
 021_correction_amendment_log → 022_session_environment_log → 023_indexes →
 024_watermark_trigger → 025_clock_drift_log → 026_biosignal_integrity_log →
 027_session_baselines → 028_event_composite_profiles →
-029_echo_events_manual_marker → 030_arc_failure_alert_type →
-031_capture_mode_fields
+029_echo_events_manual_marker → 030_arc_failure_alert_type
 ```
 
 Why the numbering gap: migrations 014, 016, 017, 018 live in `optional_governance/` and form a parallel chain rooted at `013_compression_policy` (consent log → electronic signatures → investigational product log → adverse event log). They're for regulated deployments that need 21 CFR Part 11 Subpart C.
@@ -278,9 +276,8 @@ Up/down symmetry spot-checked:
 - `020_audit_triggers.py:115-118` — drops each trigger + the function ✓
 - `024_watermark_trigger.py:112-114` — drops trigger then function ✓
 - `030_arc_failure_alert_type.py:43-59` — drops new constraint, re-adds prior 6-value CHECK ✓
-- `031_capture_mode_fields.py:37-39` — drops the two added columns ✓
 
-`SCHEMA.md` accuracy was refreshed in commit `b269df7`. Full SCHEMA ↔ migration cross-check across 001–031 still pending (rollup #11).
+`SCHEMA.md` accuracy was refreshed in commit `b269df7`. Full SCHEMA ↔ migration cross-check across 001–030 still pending (rollup #11).
 
 **Status.** ✅ Chain unbroken, parallel-tree segregation deliberate, symmetry spot-clean.
 
@@ -817,7 +814,9 @@ Why 1 hour:
 **In this pipeline.**
 
 - Migration `015_schema_version_metadata.py` creates `schema_version_log` — designed to capture, per session: `alembic_version`, `app_version`, `python_version`, `postgres_version`, `timescaledb_version`, `pgvector_version`, `mne_version`, `neurokit2_version`, `pylsl_version`, `recorded_at`.
-- The migration's docstring (`015:49-52`) says: *"session_init.py (Phase 2) writes one row to this table at session start, alongside the config_snapshot audit event. It reads the current Alembic head and the APP_VERSION env var automatically."*
+- The migration's docstring (`015:49-52`) describes `capture/session_init/`
+  writing one row to this table at session start, alongside the config snapshot
+  audit event, using the current Alembic head and `APP_VERSION`.
 - **Implementation update (2026-06-07):** `capture/session_init/workflow.py:create_session` now writes one `schema_version_log` row in the same transaction as the session row and signal metadata rows. It records the current Alembic script head, `settings.APP_VERSION`, Python version, `SELECT version()`, and TimescaleDB/pgvector extension versions from `pg_extension`.
 - There is also no startup-time check that the live Alembic head matches the version `config/settings.py` was written against. The forwarder will happily run against an older or newer DB schema and discover the mismatch only when a write fails.
 
@@ -868,32 +867,39 @@ psycopg2.errors.UndefinedColumn:
                 ^
 ```
 
-There are two compounding problems:
-- **Primary (spec drift):** `create_session` has no pre-DB input validation. Fix: add validation before `psycopg2.connect`.
-- **Secondary (stale test DB):** the test DB is missing migration `031_capture_mode_fields`, which adds the `capture_source` column. Fix: run `uv run alembic upgrade head` against the test DB (also unblocks the 53 integration test errors in the wider suite).
+This was a point-in-time failure from 2026-06-09. The active branch now
+validates `compound`, `participant_id`, and `compound_dose_unit` before
+`psycopg2.connect`, and the database has been rebuilt from the canonical
+001→030 migration chain.
 
-The tests would still fail after the DB migration — because the primary issue (no `ValueError` raised) is a code problem, not a schema problem. Both need fixing for these tests to go green.
-
-**Status.** ❌ Three unit tests left red (R-002, R-003, R-004 in `tests/capture_tests/session_init/test_unit.py`).
+**Status.** ✅ Resolved in the Phase 2 branch; R-002, R-003, and R-004 now
+exercise the intended fail-fast behavior.
 
 **Open.**
-- Rollup #30: add pre-DB validation for `compound`, `participant_id`, `compound_dose_unit` in `create_session` and expose a `db_factory` injection seam so the unit tests can run without a DB.
-- Also run `uv run alembic upgrade head` against the test DB to clear the stale-schema error and unblock the 53 integration test collection errors.
+- No remaining migration issue. A `db_factory` seam is optional testability
+  work, not required for the current validation contract.
 
 ---
 
-### §6.2 `CAPTURE_MODE` → `CAPTURE_SOURCE` naming drift  ✅
+### §6.2 Proposed `capture_source` → `capture_mode` rename was reverted  ✅
 
-**Concept.** A pure naming inconsistency between the spec and the implementation — identical semantics, different identifier.
+**Concept.** An uncommitted database revision briefly renamed the established
+capture-source fields. That revision was removed rather than adopted.
 
 **In this pipeline.**
-- `settings.md` R-015/R-019/R-020/R-021 refer to the setting as `CAPTURE_MODE`.
-- `config/settings.py` uses `CAPTURE_SOURCE` (values: `simulated` | `hardware`). Derived boolean `SIMULATION_MODE = (CAPTURE_SOURCE == "simulated")` exists as specified.
+- `sessions.capture_source` is defined by migration 002.
+- `session_signal_metadata.capture_source` is defined by migration 019.
+- `config/settings.py` exposes `CAPTURE_SOURCE` with values `simulated` or
+  `hardware`.
+- `SIMULATION_MODE` remains the derived runtime convenience alias.
+- The clean migration chain ends at 030 and contains no `capture_mode` or
+  `device_type` columns.
 
-**Status.** ✅ Tests renamed to target `CAPTURE_SOURCE`; all pass.
+**Status.** ✅ The proposed rename was reverted. `capture_source` /
+`CAPTURE_SOURCE` is the canonical schema and runtime name.
 
 **Open.**
-- Rollup #31: either rename the setting to match the spec (`CAPTURE_MODE`) or update the spec to match the code (`CAPTURE_SOURCE`). Either is fine; the inconsistency is just a doc-drift hazard for future readers.
+- None.
 
 ---
 
@@ -941,7 +947,7 @@ The tests would still fail after the DB migration — because the primary issue 
 | 8 | `watchdog.db.log_restart` connection leak | Resource hygiene | bugs.md MED-03 | 📝 filed |
 | 9 | psycopg2.Error path drops chunks instead of retrying deadlock/serialization | Error handling | bugs.md MED-07 + LOW-04 | 📝 filed |
 | 10 | Cursor leak on exception (raw `cur = conn.cursor()` form) | Hygiene | this doc §2.4 | 📝 new |
-| 11 | Full SCHEMA.md ↔ migration cross-check (001–031) | Doc drift sweep | this doc §1.7 | 🔍 pending |
+| 11 | Full SCHEMA.md ↔ migration cross-check (001–030) | Doc drift sweep | this doc §1.7 | 🔍 pending |
 | 12 | `audit_trigger_smart_func` matches live DB | Deployment | CLAUDE.md known issue #3 | 🔍 deployment-side |
 | 13 | `row_to_json` PII exclusion if any real-PII column ever lands | Future-proofing | CLAUDE.md known issue #4 | 🔍 conditional |
 | 14 | Hypertable compression + backfill procedure documented | Operational doc | CLAUDE.md known issue #5 / this doc §4.2 | 📝 deferred |
@@ -960,8 +966,8 @@ The tests would still fail after the DB migration — because the primary issue 
 | 27 | Startup-time check that live Alembic head matches expected | Operational safety | this doc §5.8 | 📝 new |
 | 28 | Continuous aggregates evaluated when ARC batch becomes latency-bound | Performance / future | this doc §4.3 | 📝 deferred |
 | 29 | Vault / rotation story for DATABASE_URL secret | Security / deployment | this doc §5.3 | 📝 deferred to Phase 4+ |
-| 30 | `create_session` has no pre-DB input validation; no `db_factory` seam | Spec compliance / testability | this doc §6.1 | ❌ 3 unit tests left red |
-| 31 | `CAPTURE_MODE` vs `CAPTURE_SOURCE` name drift between spec and code | Spec compliance / doc | this doc §6.2 | ⚠️ reconcile spec or code name |
+| 30 | `create_session` pre-DB validation | Spec compliance / testability | this doc §6.1 | ✅ resolved |
+| 31 | Proposed capture-mode field rename | Spec compliance / doc | this doc §6.2 | ✅ reverted; `capture_source` retained |
 | 32 | `StreamResult.gap` / `ReconciliationReport.is_reconciled` as stored vs computed fields | Spec compliance / design | this doc §6.3 | 📝 consider @property refactor |
 | 33 | `arc-windows.md` R-011 documents wrong raise contract for empty `widths_s` | Spec compliance / doc | this doc §6.4 | 📝 update spec to match code |
 
@@ -972,7 +978,7 @@ The tests would still fail after the DB migration — because the primary issue 
 | Date | Verified by | Item | Result |
 |---|---|---|---|
 | 2026-05-31 | Claude Opus 4.7 (local session) | Cross-thread cursor sharing across `capture/` | No instances found. `Grep` for instance-stashed conn/cursor + cross-reference of every threaded entity. |
-| 2026-05-31 | Claude Opus 4.7 (local session) | Migration chain integrity (versions/) | Unbroken 001 → 031. `optional_governance/` is a deliberate parallel tree not walked by Alembic. |
+| 2026-06-11 | Codex docs audit | Migration chain integrity (versions/) | Unbroken 001 → 030. `optional_governance/` is a deliberate parallel tree not walked by Alembic. |
 | 2026-05-31 | Claude Opus 4.7 (local session) | Tenancy filter coverage in `capture/` | All 9 session-touching SELECT/UPDATE sites confirmed to include `AND sponsor_id = %s`. |
 | 2026-05-31 | Claude Opus 4.7 (local session) | Audit trigger function (020) | Function definition matches docs. PL/pgSQL IF/ELSE on `TG_TABLE_NAME` (avoids SQL CASE eager-eval bug). |
 | 2026-05-31 | Claude Opus 4.7 (local session) | Watermark trigger function (024) | Fires only on `NEW.status != OLD.status`. `'closed'` → `watermark_verified`, `'failed'` → `watermark_failed`. |
@@ -1022,7 +1028,7 @@ Use this to jump to whichever concern you're studying.
 | Connection pooling | 1 | §1.2 (`n/a` — design decision, threshold to revisit documented) |
 | Migration integrity | 1 | §1.7 (chain unbroken, `optional_governance` parallel tree, up/down symmetry) |
 | Index health | 1 | §1.6 (per-table coverage in `023`, later migrations add their own) |
-| Constraint coverage | 1 | §1.5 (CHECK inventory across `002`–`031`, FK list, UNIQUE gaps) |
+| Constraint coverage | 1 | §1.5 (CHECK inventory across `002`–`030`, FK list, UNIQUE gaps) |
 | Timezone consistency | 3 | §3.8 (all `TIMESTAMPTZ`; zero naive `datetime.now()`; `time.time()` in xdf/samples.py explained) |
 | Hypertable chunk sizing | 4 | §4.1 (1-hour interval on `db_insert_time`, expected row counts per chunk, compression at 1-day age) |
 | Transactions / isolation | 1 | §1.3 (`autocommit=False` + READ COMMITTED) |
@@ -1048,8 +1054,8 @@ Use this to jump to whichever concern you're studying.
 | Trigger firing order | 5 | §5.7 (alphabetical; sessions has 2 triggers on different events) |
 | Schema version visibility | 5 | §5.8 (`schema_version_log` population implemented; tests + startup check still open) |
 
-| Spec compliance — session-init validation | 6 | §6.1 (`create_session` pre-DB validation absent, R-002/3/4 red) |
-| Spec compliance — settings naming | 6 | §6.2 (`CAPTURE_MODE` vs `CAPTURE_SOURCE`) |
+| Spec compliance — session-init validation | 6 | §6.1 (`create_session` validation now precedes DB connection) |
+| Spec compliance — capture-source naming | 6 | §6.2 (proposed rename reverted; `capture_source` retained) |
 | Spec compliance — reconciliation models | 6 | §6.3 (`gap` / `is_reconciled` stored vs computed) |
 | Spec compliance — arc-windows fallback | 6 | §6.4 (empty `widths_s` falls back, doesn't raise) |
 

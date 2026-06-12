@@ -3,10 +3,12 @@
 **Repo:** `C:\Users\jahlo\untitled_biometric_platform-1a`
 **Branch:** `2R` (at `2d52336`)
 **Date:** 2026-06-10
+**Snapshot:** Point-in-time test and database audit as of 2026-06-10; later
+Phase 2 changes may resolve individual findings.
 **Command:** `uv run pytest` (testpaths `tests/`, `tests/_archive` ignored — pyproject.toml:38-44)
 **Environment:** Python 3.12.10 via uv 0.11.19 · TimescaleDB in Docker (`untitledproject-db-local`, port 5435)
 
-Companion doc to [db-health.md](../db-health.md). Database-layer findings already tracked there are referenced by §, not restated.
+Companion doc to [db-health.md](../../../2R/db-health.md). Database-layer findings already tracked there are referenced by §, not restated.
 
 **Status legend** (same as db-health.md): ✅ verified clean · ⚠️ partial / known caveat · ❌ broken / urgent · 📝 deferred / filed only
 
@@ -41,13 +43,13 @@ Only the 4 Phase-D watchdog placeholders remain.
 
 ### Context: the phantom DB
 
-The DB-unavailability in run 1 sits on top of a deeper history the user flagged: a Codex session on **2026-06-07** applied an **uncommitted "phantom" migration** directly to the live DB (stamped `031_capture_mode_fields`) that:
+The DB-unavailability in run 1 sits on top of a deeper history the user flagged: a Codex session on **2026-06-07** applied an **uncommitted post-030 "phantom" capture-mode revision** directly to the live DB that:
 
 - renamed `sessions.capture_source` → `capture_mode`
 - dropped `session_signal_metadata.capture_source`, added `device_type`
 - replaced 8 per-modality electrode columns with 3 generic ones
 
-Two repair migrations (`031_fix_capture_source_fields`, `032_restore_electrode_columns`, both dated 2026-06-09, **never committed**) reversed the damage. Resolution this session: both repair migrations deleted, DB rebuilt — see §4.
+Two uncommitted repair revisions dated 2026-06-09 reversed the damage. Resolution this session: both repair revisions were deleted and the DB was rebuilt — see §4.
 
 ---
 
@@ -75,12 +77,12 @@ F1–F7 (42 tests) need a decision per class: fix the test to match the implemen
 
 User decision this session: the repair migrations are unwanted history; the DB holds no data worth preserving. Actions taken:
 
-1. **Deleted** `031_fix_capture_source_fields.py` and `032_restore_electrode_columns.py` (both untracked — the committed chain already ended at `030_arc_failure_alert_type`).
+1. **Deleted** both untracked post-030 repair revision files; the committed chain already ended at `030_arc_failure_alert_type`.
 2. **Dropped and recreated** `untitled_project_local`, ran `alembic upgrade head`.
 3. **Discovered and fixed a real bug**: the fresh run failed at `019_session_signal_metadata` — `psycopg2.errors.DuplicateColumn: column "eeg_electrode_type" specified more than once`. The committed chain had **never been run from scratch**; the duplicate was masked because the live DB predated it. The second declaration (CHECK in `('ag_agcl','dry','other')`) was a copy-paste of the *EDA* electrode value set; the first (`('wet','dry','sponge','other','unknown')`) matches `capture/session_init/cli.py:56` and SCHEMA.md. Removed the duplicate declaration from 019. The duplicate's docstring rationale (wet Ag/AgCl gel electrodes have a ~100x lower noise floor than dry; the SQI monitor applies different impedance thresholds per electrode type) was **preserved by merging it into the surviving `eeg_electrode_type` docstring entry** — it matters for the Phase 3b SQI implementation.
 4. **Re-ran the chain**: clean 001 → 030, head = `030_arc_failure_alert_type`.
 
-Everything 031/032 carried already lives in the canonical migrations — nothing was lost by deleting them:
+Everything those post-030 repair revisions carried already lives in the canonical migrations — nothing was lost by deleting them:
 
 - `capture_source TEXT NOT NULL DEFAULT 'simulated' CHECK IN ('simulated','hardware')` on **sessions** → `002_sessions.py:124` ✅
 - same on **session_signal_metadata** → `019_session_signal_metadata.py` ✅
@@ -117,7 +119,7 @@ Static cross-check of every DB-touching site in the capture package against the 
 | Finding here | Feeds back into |
 |---|---|
 | F8 confirmed red against a live DB | db-health **§6.1** — no status change, still ❌ |
-| 019 duplicate-column fix | db-health **§1.7** — chain symmetry intact, but the §1.7 chain listing ends at `031_capture_mode_fields`, which is the *phantom* revision id; should be corrected to end at `030_arc_failure_alert_type` 🔍 |
+| 019 duplicate-column fix | db-health **§1.7** — chain symmetry intact; the chain listing should end at `030_arc_failure_alert_type` 🔍 |
 | `CAPTURE_SOURCE` naming settled (column + settings agree) | db-health **§6.2** — unchanged ✅ |
 | F9 / BUG-003 | db-health **§1.1 Open** (watchdog `log_restart`) |
 | Schema CHECK/constraint behavior exercised by passing schema tests | db-health **§1.5** — UNIQUE gaps there remain untested here 📝 |
@@ -140,7 +142,7 @@ Static cross-check of every DB-touching site in the capture package against the 
 | 2 | session_init pre-DB validation (F8, db-health §6.1) | ❌ open, pre-existing |
 | 3 | watchdog `log_restart` non-fatal contract (F9 / BUG-003) | ⚠️ filed |
 | 4 | Split `TEST_DATABASE_URL` onto a dedicated test database | ⚠️ recommended |
-| 5 | Correct db-health §1.7 chain listing (ends at phantom `031_capture_mode_fields`; true head is `030`) | 🔍 doc fix |
+| 5 | Correct db-health §1.7 chain listing so the true head is `030` | 🔍 doc fix |
 | 6 | Wire `eeg_skin_prep` through cli → metadata → sql (orphan column, §5 gap 1; SQI prerequisite) | ⚠️ filed |
 | 7 | Add EDA settings defaults + `_eda_metadata` fallback symmetry (§5 gap 2) | ⚠️ filed |
 | 8 | Delete legacy test-dir husks | 📝 hygiene |

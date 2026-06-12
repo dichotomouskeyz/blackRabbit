@@ -5,7 +5,7 @@
 
 ## What changed between the findings runs and this rerun
 
-1. Repair migrations `031_fix_capture_source_fields` / `032_restore_electrode_columns` deleted (both untracked; committed chain head is `030_arc_failure_alert_type`).
+1. Both untracked post-030 repair revisions were deleted; the committed chain head is `030_arc_failure_alert_type`.
 2. `019_session_signal_metadata` fixed: duplicate `eeg_electrode_type` declaration removed; SQI electrode-impedance rationale merged into the surviving docstring entry.
 3. `untitled_project_local` dropped and rebuilt from the clean 001→030 chain.
 4. Capture-package metadata consistency check performed (findings.md §5) — read-only, no code changes.

@@ -59,7 +59,7 @@ That behavior keeps capture running, but it weakens the core durability
 contract. If XDF writes fail mid-session, the DB path may continue, but XDF is
 no longer complete enough to serve as reconciliation ground truth.
 
-This is already tracked in `docs/phase-2-reviews/db-health.md`:
+This is already tracked in [`docs/2R/db-health.md`](../../../2R/db-health.md):
 
 - `bugs.md MED-09`
 - Rollup #7, "XDF write-failure visibility"

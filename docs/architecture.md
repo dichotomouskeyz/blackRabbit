@@ -20,6 +20,16 @@ analysis system.
 - Optional governance migrations are reference material, not part of the active
   default chain.
 
+## Stub Packages
+
+- `ingestion/` and `storage/` are included in the packaged project but are not
+  part of the active capture pipeline.
+- `ingestion/` contains empty modality stubs plus local safety/SQI process
+  placeholders.
+- `storage/` contains empty DB/schema placeholders.
+- Active capture behavior remains under `capture/`; these stubs should not be
+  treated as alternative ingestion or persistence implementations.
+
 ## Analysis
 
 ARC means Agentic Response Convergence. ARC runs after capture over complete
