@@ -1,32 +1,53 @@
-# Python
 .venv/
+.env
+.env.*
+!.env.example
 __pycache__/
 *.pyc
 *.pyo
-*.pyd
-.Python
 *.egg-info/
 dist/
 build/
-
-# Environment
-.env
-.env.*
-
-# Logs
+.DS_Store
+*.log
 logs/
+data/
+*.xdf
+context.db
 
+# Deferred schema notes/prototypes are planning-only. They must not be
+# committed, imported, packaged, or treated as runnable migrations.
+untitledplatform_1a_db/db/alembic/deferred/
+.aider*
+
+brainflow_streamer_*.txt
+.claude/settings.local.json
+CLAUDE.local.md
+
+# pytest
+.pytest_cache/
+.pytest_tmp/
+.coverage
+
+# Serena MCP working data
+.serena/
+
+# Correctless installation/runtime state
+.correctless/.install-manifest.json
+.correctless/artifacts/
+.correctless/hooks/
+.correctless/scripts/
+# Python
+*.pyd
+.Python
+# Environment
+# Logs
 # Node
 node_modules/
 npm-debug.log
-
 # Docker
-*.log
-
 # OS
-.DS_Store
 Thumbs.db
-
 # IDE
 .agy/
 .vscode/

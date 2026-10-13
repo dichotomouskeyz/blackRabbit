@@ -1,0 +1,69 @@
+config_version = "demo-002"
+config_role = "arc_watchdog"
+
+[baseline]
+window_duration_s = 120.0
+
+[baseline.min_sample_count]
+eeg = 512
+hrv = 30
+eda = 120
+respiration = 120
+
+[windows.w1]
+label = "immediate"
+start_s = 0.0
+end_s = 30.0
+
+[windows.w2]
+label = "near_response"
+start_s = 30.0
+end_s = 120.0
+
+[windows.w3]
+label = "sustained_response"
+start_s = 120.0
+end_s = 300.0
+
+[fdr]
+method = "benjamini_hochberg"
+alpha = 0.05
+family_scope = "session"
+
+[null_model]
+method = "permutation"
+permutation_count = 1000
+random_seed = 20260512
+
+[signal_components]
+eeg = ["eeg_alpha_power", "eeg_theta_power", "eeg_beta_power"]
+hrv = ["hrv_rmssd", "hrv_sdnn", "heart_rate_bpm"]
+eda = ["eda_mean", "eda_scr_count", "eda_phasic_amplitude"]
+respiration = ["respiration_rate", "respiration_amplitude"]
+
+# Reserved config contract. The MVP does not run a separate live SAP layer;
+# ARC batch determines active signals from session metadata plus samples in
+# the analyzed window.
+[signal_availability_profile]
+min_modalities_required = 2
+require_echo_event = true
+missing_signal_policy = "record_available_only"
+
+# Which echo events open ARC convergence windows.
+# zone_exit and coarse zone transitions (in_room) are excluded — they are
+# departures or weak-signal transitions, not physiological onset anchors.
+[[anchor_events.include]]
+event_type = "manual_marker"
+zone_label = "dose_administration"
+
+[[anchor_events.include]]
+event_type = "manual_marker"
+zone_label = "participant_note"
+
+[[anchor_events.include]]
+event_type = "manual_marker"
+zone_label = "environmental_note"
+
+[[anchor_events.include]]
+event_type = "zone_enter"
+zone_label = "arms_reach"

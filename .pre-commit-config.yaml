@@ -1,0 +1,70 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, master]
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: [--maxkb=500]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.3
+    hooks:
+      - id: bandit
+        pass_filenames: false
+        args:
+          [
+            -r,
+            "capture/",
+            "batch/",
+            "ingestion/",
+            "storage/",
+            "untitledplatform_1a_db/db/alembic/",
+            --skip,
+            "B101,B105,B110,B311,B314,B404,B405",
+          ]
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+        exclude: uv\.lock
+
+  - repo: local
+    hooks:
+      - id: pyright
+        name: pyright
+        entry: uv run pyright
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [manual]
+
+      - id: pytest
+        name: pytest
+        entry: uv run pytest -x --timeout=30
+        language: system
+        pass_filenames: false
+        files: ^(tests/|untitledplatform_1a_db/db/alembic/versions/)
+
+      - id: no-env-files
+        name: Block .env files from being committed
+        entry: bash -c "echo ERROR .env commit blocked && exit 1"
+        language: system
+        files: (^|/)\.env(\..*)?$
+        exclude: (^|/)\.env\.example$

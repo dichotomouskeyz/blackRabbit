@@ -1,0 +1,79 @@
+# Untitled Platform 1a MVP - Local Docker Stack
+# TimescaleDB = Postgres 16 + TimescaleDB extension + pgvector
+# One container handles both hypertables (biosignal time-series)
+# and regular tables (sessions, audit, alerts, ECHO events).
+# In 1b, biosignal data moves to AWS Timestream and relational
+# data moves to RDS - but the schemas stay identical.
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: untitledproject-db-local
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "${DB_PORT:-5435}:5432"
+    volumes:
+      - ts_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: untitledproject-pgadmin-local
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "${PGADMIN_PORT:-5051}:80"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: blackrabbit_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  ts_data:
+  grafana_data:
+
+
+  # --- Stubs for Phase 4 ---
+  # Uncomment when in Phase 4 (Session Interface).
+  # api:
+  #   build: ./api
+  #   container_name: untitledproject-api
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@timescaledb:5432/${DB_NAME}
+  #   depends_on:
+  #     timescaledb:
+  #       condition: service_healthy
+
+  # frontend:
+  #   build: ./frontend
+  #   container_name: untitledproject-frontend
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - api

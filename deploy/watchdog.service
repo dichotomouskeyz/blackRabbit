@@ -1,0 +1,45 @@
+[Unit]
+Description=untitledplatform_1a Process Watchdog
+Documentation=https://github.com/dichotomouskeyz/untitledplatform_1a
+After=network.target docker.service
+Wants=docker.service
+
+# The watchdog manages lsl_forwarder internally as a subprocess.
+# Do NOT run lsl_forwarder.service at the same time as this unit.
+
+[Service]
+Type=simple
+User=untitledplatform_1a
+Group=untitledplatform_1a
+WorkingDirectory=/opt/untitledplatform_1a
+
+EnvironmentFile=/opt/untitledplatform_1a/.env
+EnvironmentFile=/run/untitledplatform_1a/session.env
+
+ExecStart=/opt/untitledplatform_1a/.venv/bin/python -m capture.watchdog \
+    --session-id     ${SESSION_ID} \
+    --participant-id ${PARTICIPANT_ID} \
+    --site-id        ${SITE_ID} \
+    --sponsor-id     ${SPONSOR_ID}
+
+# Restart the watchdog itself if it crashes (distinct from forwarder restarts
+# which the watchdog handles internally). OnFailure only — a clean exit means
+# the session ended normally or max restarts were exceeded.
+Restart=on-failure
+RestartSec=10
+
+TimeoutStopSec=40
+KillSignal=SIGTERM
+KillMode=mixed
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=untitledplatform_1a-watchdog
+
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/untitledplatform_1a/data /opt/untitledplatform_1a/logs
+
+[Install]
+WantedBy=multi-user.target
