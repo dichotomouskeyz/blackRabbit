@@ -33,6 +33,10 @@ class MissingModalityError(PreflightError):
     """session_signal_metadata rows are missing for required modalities."""
 
 
+class SessionIdentityError(PreflightError):
+    """Caller identity disagrees with the canonical session."""
+
+
 def run_preflight(cfg: SessionConfig) -> SessionConfig:
     """Verify session readiness and load session config over one connection."""
     conn = psycopg2.connect(settings.DATABASE_URL)
@@ -47,7 +51,8 @@ def verify_session_ready(cfg: SessionConfig, conn) -> None:
     """Confirm the session can receive biosignal samples before capture starts."""
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT status FROM sessions WHERE id = %s AND sponsor_id = %s",
+            "SELECT status, participant_id, site_id FROM sessions "
+            "WHERE id = %s AND sponsor_id = %s",
             (cfg.session_id, cfg.sponsor_id),
         )
         row = cur.fetchone()
@@ -58,6 +63,8 @@ def verify_session_ready(cfg: SessionConfig, conn) -> None:
         )
 
     status = str(row[0])
+    if (str(row[1]), str(row[2])) != (cfg.participant_id, cfg.site_id):
+        raise SessionIdentityError("participant/site does not match the canonical session")
     if status != "active":
         raise SessionNotActiveError(
             f"Session {cfg.session_id!r} has status {status!r}, expected 'active' - "

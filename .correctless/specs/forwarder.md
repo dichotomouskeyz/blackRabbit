@@ -15,6 +15,17 @@ Each `StreamThread` owns its runtime resources: `thread.conn` (DB connection, `N
 
 ## Rules
 
+### Release ownership contract (approved 2026-10-13)
+
+- **R-021** [unit/integration]: Preflight loads canonical participant/site/sponsor
+  identity and rejects any caller mismatch before opening XDF or starting workers.
+  Canonical UUID strings and EEG channel metadata flow into the capture writer.
+- **R-024** [unit/integration]: Capture acquires the session advisory lock before
+  preflight and retains its owning connection throughout the capture lifecycle.
+  A second capture must fail before changing state or starting workers.
+- **R-026** [unit]: Every startup, runtime, and cleanup exit releases the session
+  lock connection, including rejected ownership and failed XDF cleanup.
+
 ### Row builders — unit tests
 
 - **R-001** [unit]: `build_eeg_rows` returns exactly one dict per channel in the sample (len(sample) rows).
