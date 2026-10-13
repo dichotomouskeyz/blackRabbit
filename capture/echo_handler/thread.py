@@ -14,6 +14,7 @@ from capture.echo_handler.runtime import (
 )
 from capture.echo_handler.writer import ECHOWriter
 from capture.logger import get_logger
+from capture.xdf.writer import XDFWriteError
 
 log = get_logger("echo_handler")
 
@@ -61,6 +62,7 @@ class ECHOThread(threading.Thread):
         self._writer = ECHOWriter()
         self._on_write_failure = on_write_failure or _default_write_failure_prompt
         self._db_disabled = False
+        self.fatal_error: Exception | None = None
 
     def handle_write_failure(self, failure_round: int):
         """Prompt the user and act on their response. Returns a new conn or None."""
@@ -80,6 +82,10 @@ class ECHOThread(threading.Thread):
     def run(self) -> None:
         try:
             self._run()
+        except XDFWriteError as exc:
+            self.fatal_error = exc
+            self._stop_event.set()
+            log.critical("ECHO XDF failure stopped capture", extra={"error": str(exc)})
         except Exception as exc:
             log.error(
                 "ECHO thread crashed — biosignal capture unaffected",

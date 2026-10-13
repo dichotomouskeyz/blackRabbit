@@ -11,13 +11,11 @@ def _run_stream_thread_inner(thread) -> None:
 
     thread.inlet = thread.resolve_inlet()
     if thread.inlet is None:
-        log.error(f"{thread.stream_type} inlet not found - thread exiting")
-        return
+        raise RuntimeError(f"required {thread.stream_type} inlet not found")
 
     thread.connect_db()
     if thread.conn is None:
-        log.error(f"{thread.stream_type} could not establish DB connection - thread exiting")
-        return
+        raise RuntimeError(f"required {thread.stream_type} initial DB connection failed")
 
     try:
         while not thread.stop_event.is_set():
@@ -62,10 +60,10 @@ def run_stream_thread(thread) -> None:
     # forwarder exit and restarts the process.
     try:
         _run_stream_thread_inner(thread)
-    except RuntimeError as exc:
+    except Exception as exc:
         thread.set_fatal_error(exc)
         log.critical(
-            f"{thread.stream_type} thread shutting down forwarder after fatal RuntimeError",
+            f"{thread.stream_type} thread shutting down forwarder after fatal error",
             extra={
                 "stream_type": thread.stream_type,
                 "error": str(exc),

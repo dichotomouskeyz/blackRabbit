@@ -15,16 +15,21 @@ Each `StreamThread` owns its runtime resources: `thread.conn` (DB connection, `N
 
 ## Rules
 
-### Release ownership contract (approved 2026-10-13)
+### Release integrity contract (approved 2026-10-13)
 
 - **R-021** [unit/integration]: Preflight loads canonical participant/site/sponsor
   identity and rejects any caller mismatch before opening XDF or starting workers.
-  Canonical UUID strings and EEG channel metadata flow into the capture writer.
-- **R-024** [unit/integration]: Capture acquires the session advisory lock before
-  preflight and retains its owning connection throughout the capture lifecycle.
-  A second capture must fail before changing state or starting workers.
-- **R-026** [unit]: Every startup, runtime, and cleanup exit releases the session
-  lock connection, including rejected ownership and failed XDF cleanup.
+- **R-022** [unit]: Missing required inlets, failed initial DB connection, and
+  every ordinary worker exception retain a fatal error and set shared stop.
+- **R-023** [unit]: An unexpectedly dead required worker or a join timeout makes
+  the process fail. XDF may be finalized only after all writers have stopped.
+- **R-024** [integration]: Capture owns the session advisory lock until all
+  workers stop. A second capture or closeout must fail before changing state.
+- **R-025** [integration]: Capture cannot resume a session that already has
+  signal/marker rows or an XDF recording. The local MVP does not silently reset
+  sample indices or append untracked capture segments; start a new session.
+- **R-026** [unit]: All startup and runtime exits release resources. XDF write
+  failures propagate before the corresponding DB write.
 
 ### Row builders — unit tests
 

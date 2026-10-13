@@ -10,6 +10,7 @@ fatal-error handling keeps working) instead of bare RuntimeError.
 """
 
 import json
+from pathlib import Path
 
 import psycopg2
 
@@ -70,6 +71,20 @@ def verify_session_ready(cfg: SessionConfig, conn) -> None:
             f"Session {cfg.session_id!r} has status {status!r}, expected 'active' - "
             "session is not ready to receive samples"
         )
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT EXISTS (SELECT 1 FROM eeg_samples WHERE session_id = %s "
+            "UNION ALL SELECT 1 FROM hrv_samples WHERE session_id = %s "
+            "UNION ALL SELECT 1 FROM eda_samples WHERE session_id = %s "
+            "UNION ALL SELECT 1 FROM respiration_samples WHERE session_id = %s "
+            "UNION ALL SELECT 1 FROM echo_events WHERE session_id = %s)",
+            (cfg.session_id,) * 5,
+        )
+        if cur.fetchone()[0]:
+            raise PreflightError("session already has capture data; start a new session")
+    if any(Path(settings.XDF_BACKUP_DIR).glob(f"session_{cfg.session_id}_*.xdf")):
+        raise PreflightError("session already has an XDF recording; start a new session")
 
     with conn.cursor() as cur:
         cur.execute(

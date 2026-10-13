@@ -13,6 +13,12 @@
 
 ## Rules
 
+Release clarification approved 2026-10-13: `ECHOWriter()` is a buffer/DB
+collaborator without session configuration. Marker processing is exercised
+through `ECHOThread.process_next_sample(inlet, conn)`, which owns config and
+XDF. An unavailable optional marker inlet may exit without failing APEX;
+`XDFWriteError` from a present marker stream is fatal to shared capture.
+
 ### Parser — unit tests
 
 - **R-001** [unit]: `parse_echo_marker` returns `None` for any string that does not start with `"ECHO|"`.
