@@ -177,11 +177,12 @@ TEST_DATABASE_URL: str | None = os.getenv("TEST_DATABASE_URL")
 # write-capable connection on the read path, so it fails loud instead.
 API_READONLY_DATABASE_URL: str | None = _get_optional("API_READONLY_DATABASE_URL")
 
-# AI SDK agent route key; absence disables the agent route only (EA-004).
-ANTHROPIC_API_KEY: str | None = _get_optional("ANTHROPIC_API_KEY")
-
-# Base URL the UI uses to reach the API (informational, Python side).
-API_BASE_URL: str | None = _get_optional("API_BASE_URL")
+# NOTE: the agent route is provider-neutral and runs server-side in the Next.js
+# app (web/), routing to a local OpenAI-compatible model via a LiteLLM proxy.
+# Its config (AGENT_BASE_URL / AGENT_MODEL / AGENT_API_KEY) and the UI's
+# API_BASE_URL live ONLY in the JS env, never here (frontend-shell INV-009).
+# The former ANTHROPIC_API_KEY / API_BASE_URL Python-side vars were removed in
+# the frontend-shell reconciliation (no Anthropic provider; UI vars are JS-only).
 
 # Server-injected tenant context for the API (INV-001 / EA-003: one
 # sponsor/site per local deployment). Optional — tests override the dependency.

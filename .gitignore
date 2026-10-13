@@ -13,6 +13,15 @@ build/
 logs/
 data/
 *.xdf
+
+# Operator UI Node tree (web/) — foreign-toolchain isolation (PAT-013, frontend-shell INV-010)
+web/node_modules/
+web/.next/
+web/out/
+web/.env.local
+web/coverage/
+web/playwright-report/
+web/test-results/
 context.db
 
 # Deferred schema notes/prototypes are planning-only. They must not be
@@ -27,6 +36,10 @@ CLAUDE.local.md
 # pytest
 .pytest_cache/
 .pytest_tmp/
+.pytest_tmp_backend_ci/
+.uv-cache/
+.ruff_cache/
+web/tsconfig.tsbuildinfo
 .coverage
 
 # Serena MCP working data

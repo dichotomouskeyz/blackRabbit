@@ -91,7 +91,7 @@ and never hardcodes the matrix.
 | Capabilities discovery | `GET /capabilities` | — | implemented |
 | Live biosignal tab | `WS /sessions/{id}/stream` | LSL inlet tap | scaffolded (M0: WS upgrade refused w/ reason; tab placeholder) |
 | ARC review tab | `GET /sessions/{id}/arc` | read `event_composite_profiles` | scaffolded (M0: 409 capability-status; tab placeholder) |
-| Agent tool execution | AI SDK tool registry | — | scaffolded (registry visible, execution disabled) |
+| Agent tool execution | AI SDK tool registry | — | live for `implemented` capabilities (list/status/create); disabled for `scaffolded`/`blocked` (frontend-shell INV-008a, D-2) |
 | Capture start/stop | `capture:start` / `:stop` | watchdog / `ForwarderEngine` | blocked |
 | Marker publish | `POST /sessions/{id}/markers` | LSL marker outlet | blocked |
 | Close session | `POST /sessions/{id}/close` | `session_close.workflow.run` | blocked |
@@ -201,8 +201,11 @@ human- or model-supplied. The registry status flag is UX. No tool accepts
 | `close_session` | close endpoint | `session_id` | blocked |
 | `run_arc` | arc:run | `session_id` | blocked |
 
-*M0: endpoints exist and are reachable via the typed client, but agent tool
-**execution** is disabled globally (registry visible, no live tool-calling).
+*M0 (reconciled by frontend-shell, D-2): the registry is visible and agent tool
+**execution is live for the three `implemented` capabilities** (`list_sessions`,
+`session_status`, `create_session`); execution is disabled (gated 409, reported
+conversationally) for every `scaffolded`/`blocked` capability. The in-app registry
+and tab placeholders are delivered in `web/`, not `api/`.
 
 ## Invariants
 
@@ -332,7 +335,7 @@ human- or model-supplied. The registry status flag is UX. No tool accepts
 - **Type**: must
 - **Category**: usability
 - **Boundary**: TB-004
-- **Statement**: Every fail-closed outcome at the client→API boundary maps to a defined, actionable operator-facing message — never a blank panel, raw status code, raw stack, or silent no-op. Specifically: `422` → inline field error with `valid_choices`, preserving other entered form values; `404` → named reason; `409` capability-status / disabled tool / WS upgrade-refused → message derived from the server body's `blocked_reason` + `gate` (e.g. "Capture start is unavailable — capture process ownership unsettled (OQ-004)"); `409` watermark-gate (ARC) → "ARC unavailable until watermark verified; current state: …"; WS `disconnected`/`dropping` → visible indicator + reconnect affordance; empty `GET /sessions` → "no sessions yet" CTA distinct from an error; backend unreachable (`/health` fails) → global "backend unavailable" banner; missing `ANTHROPIC_API_KEY` → chat banner "agent unavailable; read/create still work"; scaffolded tabs render a placeholder stating status + reason. Tool enabled/disabled state and the capability messages are sourced from `GET /capabilities` at runtime (never hardcoded). The agent must answer any actionable request for a `blocked`/`scaffolded` capability with its status message, never a silent no-op. Create-form choices are sourced from `/vocab` up front.
+- **Statement**: Every fail-closed outcome at the client→API boundary maps to a defined, actionable operator-facing message — never a blank panel, raw status code, raw stack, or silent no-op. Specifically: `422` → inline field error with `valid_choices`, preserving other entered form values; `404` → named reason; `409` capability-status / disabled tool / WS upgrade-refused → message derived from the server body's `blocked_reason` + `gate` (e.g. "Capture start is unavailable — capture process ownership unsettled (OQ-004)"); `409` watermark-gate (ARC) → "ARC unavailable until watermark verified; current state: …"; WS `disconnected`/`dropping` → visible indicator + reconnect affordance; empty `GET /sessions` → "no sessions yet" CTA distinct from an error; backend unreachable (`/health` fails) → global "backend unavailable" banner; local model unreachable/unset (`AGENT_BASE_URL` — frontend-shell INV-007) → chat banner "agent unavailable; read/create still work"; scaffolded tabs render a placeholder stating status + reason. Tool enabled/disabled state and the capability messages are sourced from `GET /capabilities` at runtime (never hardcoded). The agent must answer any actionable request for a `blocked`/`scaffolded` capability with its status message, never a silent no-op. Create-form choices are sourced from `/vocab` up front.
 - **Violated when**: any enumerated outcome renders bare or silent, or a 422 wipes the form.
 - **Enforcement**: the spec enumerates each status→message mapping; CI/JS test asserts the client renders the mapped copy (mapping table testable; rendering is JS-harness/code-review).
 - **Test approach**: integration (mapping) / code-review (rendering)

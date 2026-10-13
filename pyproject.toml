@@ -14,7 +14,6 @@ dependencies = [
     "pylsl>=1.18.2,<2.0.0",
     "pyyaml>=6.0.3,<7.0.0",
     "brainflow>=5.22.0",
-    "litellm>=1.84.0",
     "fastapi>=0.136.3",
     "uvicorn>=0.49.0",
     "websockets>=16.0",
@@ -52,7 +51,8 @@ fail_under = 60
 
 [tool.ruff]
 line-length = 100
-extend-exclude = ["tests/_archive"]
+extend-exclude = ["tests/_archive", "web"]
+force-exclude = true
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

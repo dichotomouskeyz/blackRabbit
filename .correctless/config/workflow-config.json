@@ -7,17 +7,21 @@
   },
   "commands": {
     "test": "uv run pytest",
-    "_test_gate_note": "Full-suite gate restored 2026-06-12 after operator-ui reached documented. The gate stays red (10 pre-existing capture-layer failures) until the backend debt is paid — see docs/decisions.md 'Operator UI Pipeline — Backend Debt Deferred' and docs/2R/backlog.md 'User-Gated Test Work'.",
+    "_test_python": "uv run pytest",
+    "test_frontend": "corepack pnpm@9.15.9 -C web test",
+    "test_e2e": "corepack pnpm@9.15.9 -C web test:e2e",
+    "_test_gate_note": "Python is the default backend gate. Frontend changes use test_frontend and lint_frontend after the separately owned web package is committed.",
     "test_verbose": "uv run pytest -v",
     "coverage": "uv run pytest --cov",
     "lint": "uv run ruff check .",
-    "build": ""
+    "lint_frontend": "corepack pnpm@9.15.9 -C web lint",
+    "build": "corepack pnpm@9.15.9 -C web build"
   },
   "patterns": {
-    "test_file": "test_*.py|*_test.py|tests/**/*",
-    "source_file": "*.py",
-    "test_fail_pattern": "FAILED|ERROR|failed",
-    "build_error_pattern": ""
+    "test_file": "test_*.py|*_test.py|tests/**/*|web/tests/**|web/**/*.test.ts|web/**/*.test.tsx",
+    "source_file": "*.py|web/src/**/*.ts|web/src/**/*.tsx",
+    "test_fail_pattern": "FAILED|ERROR|failed|✗|FAIL ",
+    "build_error_pattern": "Failed to compile|Type error"
   },
   "is_monorepo": false,
   "packages": {},

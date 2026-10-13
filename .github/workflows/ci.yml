@@ -29,3 +29,30 @@ jobs:
           python-version: "3.12"
       - run: uv sync --frozen --group dev
       - run: uv run pytest -m "not integration" --cov --cov-fail-under=60
+
+  frontend:
+    name: Frontend (web/)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect the separately committed frontend
+        id: frontend
+        working-directory: .
+        run: echo "present=$(test -f web/pnpm-lock.yaml && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        if: steps.frontend.outputs.present == 'true'
+        with:
+          node-version: "20"
+      - run: corepack enable
+        if: steps.frontend.outputs.present == 'true'
+      - run: corepack pnpm@9.15.9 install --frozen-lockfile
+        if: steps.frontend.outputs.present == 'true'
+      - run: corepack pnpm@9.15.9 lint
+        if: steps.frontend.outputs.present == 'true'
+      - run: corepack pnpm@9.15.9 test
+        if: steps.frontend.outputs.present == 'true'
+      - run: corepack pnpm@9.15.9 build
+        if: steps.frontend.outputs.present == 'true'
