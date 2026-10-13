@@ -124,6 +124,13 @@ scaffolded WebSocket refuses the upgrade with a capability-status close reason.
 | POST | `/sessions/{id}/capture:start` / `:stop` | — | — | 409 capability-status | blocked |
 | POST | `/sessions/{id}/close` | — | — | 409 capability-status | blocked |
 | POST | `/sessions/{id}/arc:run` | — | — | 409 capability-status | blocked |
+| POST | `/agent/chat` | `{message, session_id, conversation_id?}` | AI SDK 7 SSE investigation stream | 404, 409, 422, 503 | optional agent extra |
+
+The headless Python investigation route follows `recording-investigation.md`
+(RI-001 through RI-012). Its explicitly configured provider supersedes the old
+local-model-only restriction for this route only. The legacy frontend registry
+and frontend agent route remain unchanged. Conversation history is server-owned;
+client/model tenant identity, provider selection and tool results are rejected.
 
 `sessions` read columns (`id, status, compound, started_at, closed_at, created_at`)
 are pinned against `untitledplatform_1a_db/db/SCHEMA.md` (sessions table, migration

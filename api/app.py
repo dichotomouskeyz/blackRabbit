@@ -20,6 +20,7 @@ Documented endpoint set (spec Endpoint contract):
   POST /sessions/{session_id}/capture:stop      (blocked: 409)
   POST /sessions/{session_id}/close             (blocked: 409)
   POST /sessions/{session_id}/arc:run           (blocked: 409)
+  POST /agent/chat                             (optional investigation agent)
 """
 
 import json
@@ -33,7 +34,7 @@ from pydantic import BaseModel, ConfigDict
 # so test patches on `api.deps` (e.g. monkeypatching get_readonly_connection /
 # get_tenant_context) bind at call time. `from api.deps import X` would bind the
 # name at import and leave the patch dead.
-from api import arc, capabilities, deps, sessions, vocab
+from api import arc, capabilities, deps, investigation, sessions, vocab
 from api.deps import TenantContext
 
 CONTRACT_VERSION = "0"
@@ -153,6 +154,7 @@ def _structured_422(field: str, message: str, valid_choices=None) -> JSONRespons
 def create_app() -> FastAPI:
     """Build the operator API app (M0)."""
     app = FastAPI(title="blackRabbit operator API")
+    investigation.install(app)
 
     # --- app-level fail-closed handlers (INV-014 / QA-001 / QA-004) ----------
     # Every DB-touching route inherits these: a backend-down condition or a

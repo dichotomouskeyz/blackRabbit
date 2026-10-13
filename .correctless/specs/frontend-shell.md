@@ -1,5 +1,14 @@
 # Spec: Operator UI — Frontend Shell (Next.js, M0)
 
+## Headless agent addition (approved 2026-10-13)
+
+The new `recording-investigation.md` contract owns the optional Python analysis
+agent, its provider configuration and `/agent/chat` streaming endpoint. This
+frontend and its legacy SDK 4 loop remain unchanged. The future frontend will
+consume the Python agent's SDK 7 protocol instead of running a second loop.
+The local-only model policy here continues to describe the legacy JS route;
+it does not constrain explicitly configured Python investigator providers.
+
 ## Metadata
 - **Created**: 2026-06-13T06:11:26Z
 - **Reviewed**: 2026-06-13 (creview-spec, 6-agent adversarial + self-assessment; 19 findings RS-001..019, all accepted/incorporated)

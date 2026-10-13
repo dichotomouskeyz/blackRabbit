@@ -27,6 +27,7 @@ _EXPECTED_HTTP_ROUTES = {
     ("POST", "/sessions/{session_id}/capture:stop"),
     ("POST", "/sessions/{session_id}/close"),
     ("POST", "/sessions/{session_id}/arc:run"),
+    ("POST", "/agent/chat"),
 }
 
 

@@ -1,5 +1,26 @@
 # Decisions
 
+## Headless recording investigation agent
+
+- **Decision:** Use optional `pydantic-ai-slim[openai,anthropic,ui]==2.55.0`
+  for one Python recording-investigation agent. Keep six read-only tools
+  independent of the SDK. The selected recording, tenant, and saved analysis
+  are server-pinned; model output cites server-owned evidence. Window inspection
+  is exploratory and never changes ARC results.
+- **Rationale:** The existing FastAPI and numerical backend can expose typed
+  tools without a second calculation layer. Native OpenAI and Anthropic models
+  are explicitly configured server-side with no provider fallback. This replaces
+  the local-only model restriction for this new Python agent. The user requested
+  a headless portfolio demonstration and deferred credentials and frontend work;
+  a visibly scripted FunctionModel runs the real tool loop on synthetic recordings.
+- **Code impact:** `investigation/`, optional `/agent/chat`, bounded in-memory
+  conversations, CLI, synthetic investigation smoke, and spec-derived tests.
+  PydanticAI's SDK 7 adapter streams tools, chart data, and the structured report.
+  The existing SDK 4 frontend and its agent route remain unchanged; a later thin
+  client must migrate to SDK 7. Capture and ARC work without the optional extra.
+- **Date:** 2026-10-13
+
+
 ## Operator UI — Staged Agentic Surface
 
 - **Decision:** Build a researcher operator UI as a staged agentic surface:

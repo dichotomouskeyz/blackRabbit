@@ -189,6 +189,12 @@ API_READONLY_DATABASE_URL: str | None = _get_optional("API_READONLY_DATABASE_URL
 API_SPONSOR_ID: str | None = _get_optional("API_SPONSOR_ID")
 API_SITE_ID: str | None = _get_optional("API_SITE_ID")
 
+# Optional headless Python investigator (recording-investigation RI-008).
+# Independent of the legacy JS agent; never required for capture.
+INVESTIGATION_MODEL: str | None = _get_optional("INVESTIGATION_MODEL")
+INVESTIGATION_OPENAI_API_KEY: str | None = _get_optional("OPENAI_API_KEY")
+INVESTIGATION_ANTHROPIC_API_KEY: str | None = _get_optional("ANTHROPIC_API_KEY")
+
 # ---------------------------------------------------------------------------
 # Directories
 # ---------------------------------------------------------------------------
