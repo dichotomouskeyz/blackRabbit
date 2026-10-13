@@ -35,6 +35,7 @@ from batch.reconciliation.db import (
     fetch_session_meta,
     query_db_counts,
     query_max_clock_drift_s,
+    require_sponsor_scope,
     write_reconciliation_log,
 )
 from batch.reconciliation.models import (
@@ -53,8 +54,10 @@ from batch.reconciliation.xdf import (
     read_xdf_counts,
     stream_xdf_markers,
     stream_xdf_samples,
+    validate_xdf_identity,
 )
 from capture.logger import get_logger, set_session_id
+from capture.session_lock import SessionBusyError, acquire_session_lock
 from config import settings
 
 log = get_logger("reconcile")
@@ -89,11 +92,16 @@ __all__ = [
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="untitledplatform_1a XDF to TimescaleDB reconciliation"
-    )
+    parser = argparse.ArgumentParser(description="blackRabbit XDF to TimescaleDB reconciliation")
     parser.add_argument("--session-id", required=True)
+    parser.add_argument("--sponsor-id", required=True)
+    parser.add_argument("--site-id", help="Optional additional site scope")
     parser.add_argument("--xdf-path", required=True, type=Path)
+    parser.add_argument(
+        "--legacy-xdf",
+        action="store_true",
+        help="Read an explicitly identified historical blackRabbit recording",
+    )
     parser.add_argument(
         "--backfill",
         action="store_true",
@@ -113,8 +121,8 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    settings.validate()
     args = _parse_args()
+    settings.validate()
     set_session_id(args.session_id)
 
     log.info(
@@ -127,24 +135,30 @@ def main() -> None:
     )
 
     try:
-        xdf_counts = read_xdf_counts(args.xdf_path)
-    except XDFTruncatedError as exc:
-        log.error("XDF file truncated - footers missing", extra={"error": str(exc)})
-        sys.exit(2)
-    except XDFReadError as exc:
-        log.error("XDF file unreadable", extra={"error": str(exc)})
-        sys.exit(2)
-
-    try:
+        require_sponsor_scope(args.sponsor_id)
+        if args.chunk_size <= 0:
+            raise ValueError("chunk-size must be positive")
         conn = psycopg2.connect(settings.DATABASE_URL)
         conn.autocommit = False
-    except psycopg2.OperationalError as exc:
-        log.error("DB connection failed", extra={"error": str(exc)})
+    except (ValueError, psycopg2.OperationalError) as exc:
+        log.error("reconciliation precondition failed", extra={"error": str(exc)})
         sys.exit(2)
 
     try:
-        db_counts = query_db_counts(conn, args.session_id)
-        max_clock_drift_s = query_max_clock_drift_s(conn, args.session_id)
+        acquire_session_lock(conn, args.session_id)
+        meta = fetch_session_meta(conn, args.session_id, args.sponsor_id, site_id=args.site_id)
+        xdf_counts = validate_xdf_identity(
+            args.xdf_path,
+            args.session_id,
+            args.sponsor_id,
+            meta.participant_id,
+            meta.site_id,
+            legacy=args.legacy_xdf,
+        )
+        db_counts = query_db_counts(conn, args.session_id, args.sponsor_id, site_id=meta.site_id)
+        max_clock_drift_s = query_max_clock_drift_s(
+            conn, args.session_id, args.sponsor_id, site_id=meta.site_id
+        )
         report = build_report(
             args.session_id,
             args.xdf_path,
@@ -152,14 +166,24 @@ def main() -> None:
             db_counts,
             max_clock_drift_s=max_clock_drift_s,
         )
-        meta = fetch_session_meta(conn, args.session_id)
-
         if args.backfill and not report.is_reconciled:
-            rows_backfilled = run_backfill(conn, report, meta=meta, chunk_size=args.chunk_size)
+            rows_backfilled = run_backfill(
+                conn,
+                report,
+                meta=meta,
+                chunk_size=args.chunk_size,
+                sponsor_id=args.sponsor_id,
+                site_id=meta.site_id,
+                legacy=args.legacy_xdf,
+            )
             log.info("backfill finished", extra={"rows_backfilled": rows_backfilled})
 
-            db_counts_after = query_db_counts(conn, args.session_id)
-            max_clock_drift_s = query_max_clock_drift_s(conn, args.session_id)
+            db_counts_after = query_db_counts(
+                conn, args.session_id, args.sponsor_id, site_id=meta.site_id
+            )
+            max_clock_drift_s = query_max_clock_drift_s(
+                conn, args.session_id, args.sponsor_id, site_id=meta.site_id
+            )
             report = build_report(
                 args.session_id,
                 args.xdf_path,
@@ -168,8 +192,20 @@ def main() -> None:
                 max_clock_drift_s=max_clock_drift_s,
             )
 
-        write_reconciliation_log(conn, report, meta)
-        close_session(conn, args.session_id, args.sponsor_id, is_reconciled=report.is_reconciled)
+        write_reconciliation_log(
+            conn, report, meta, sponsor_id=args.sponsor_id, site_id=meta.site_id
+        )
+        close_session(
+            conn,
+            args.session_id,
+            args.sponsor_id,
+            is_reconciled=report.is_reconciled,
+            site_id=meta.site_id,
+        )
+    except (ValueError, XDFReadError, SessionBusyError, psycopg2.Error) as exc:
+        conn.rollback()
+        log.error("reconciliation failed before close", extra={"error": str(exc)})
+        sys.exit(2)
     finally:
         conn.close()
 

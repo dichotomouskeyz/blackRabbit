@@ -75,24 +75,40 @@ class TestReconciliation:
         assert sc_reconciled_session["log_written"]() is True
 
 
-class TestArcFailure:
-    """session-close.md — ARC failure handling.
+class TestReleaseCloseContract:
+    """Approved R-018..020: capture validity is independent of analysis."""
 
-    ASSERTION SOURCE: spec-only
-    Model used for assertions: Claude (Fable 5), implementation source withheld.
-    """
+    def test_r018_close_does_not_run_arc(self, sc_reconciled_session, monkeypatch):
+        import batch.arc.processor as processor
 
-    def test_r018_arc_config_failure_closes_failed_returns_1(self, sc_arc_config_broken):
-        assert _run(xdf_path=str(sc_arc_config_broken["xdf_path"])) == 1
-        assert sc_arc_config_broken["alert_written"]("arc_failure") is True
+        def forbidden(*args, **kwargs):
+            pytest.fail("capture close must not run analysis")
 
-    def test_r019_arc_postsession_error_closes_failed_returns_1(self, sc_arc_raises):
-        assert _run(xdf_path=str(sc_arc_raises["xdf_path"])) == 1
-        assert sc_arc_raises["alert_written"]("arc_failure") is True
+        monkeypatch.setattr(processor, "run_arc_post_session", forbidden)
+        assert _run(xdf_path=str(sc_reconciled_session["xdf_path"])) == 0
 
-    def test_r020_alert_uses_independent_connection(self, sc_arc_raises):
-        _run(xdf_path=str(sc_arc_raises["xdf_path"]))
-        assert sc_arc_raises["alert_used_own_conn"]() is True
+    def test_r019_unexpected_reconciliation_failure_is_terminal(
+        self,
+        sc_reconciled_session,
+        monkeypatch,
+    ):
+        def broken(*args, **kwargs):
+            raise RuntimeError("injected reconciliation failure")
+
+        monkeypatch.setattr(workflow, "reconcile_session", broken)
+        assert _run(xdf_path=sc_reconciled_session["xdf_path"]) == 1
+        assert sc_reconciled_session["status_after"]() == "failed"
+
+    def test_r020_busy_capture_cannot_close(self, sc_reconciled_session, db_conn):
+        from capture.session_lock import acquire_session_lock
+
+        acquire_session_lock(db_conn, SESSION_ID)
+        try:
+            assert _run(xdf_path=sc_reconciled_session["xdf_path"]) == 2
+            assert sc_reconciled_session["status_after"]() == "active"
+        finally:
+            with db_conn.cursor() as cur:
+                cur.execute("SELECT pg_advisory_unlock_all()")
 
 
 class TestResourceCleanup:

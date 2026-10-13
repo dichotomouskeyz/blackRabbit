@@ -67,3 +67,6 @@ class SessionMeta:
     participant_id: str
     site_id: str
     sponsor_id: str
+    eeg_channel_names: tuple[str, ...] | None = None
+    device_ids: dict[str, str] = field(default_factory=dict)
+    status: str | None = None

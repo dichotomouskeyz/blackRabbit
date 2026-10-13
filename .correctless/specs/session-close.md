@@ -9,11 +9,30 @@
 
 ## What
 
-`capture/session_close` runs end-of-session reconciliation and closes the session. It: reads XDF sample counts, connects to the DB, validates the session is in a closeable state, transitions it to `closing` if still `active`, compares XDF vs DB counts (backfilling any positive gaps from XDF data), runs ARC post-session processing, then calls `close_session` which sets status to `closed` or `failed` and fires the watermark trigger. Returns an integer exit code: `0` (closed and reconciled), `1` (failed — gaps remain or ARC failed), `2` (pre-condition error — XDF unreadable, session not found, or wrong state).
+`capture/session_close` verifies raw capture and closes the session. It obtains the shared session lock, validates canonical session and XDF identity, transitions an active session to `closing`, compares complete XDF and database sample counts, recovers positive gaps, and records the result. Successful close commits `closed` and the verified watermark. Analysis is a separate command. Exit codes are `0` for verified capture, `1` for reconciliation failure, and `2` for a failed precondition such as an unreadable file, identity mismatch, busy session, or invalid state.
 
 `run()` accepts `xdf_path` as any path-like value (`str` or `pathlib.Path`) and coerces it to `Path` at entry — callers beyond the CLI (future UI/API) hand over string paths.
 
 ## Rules
+
+### Release contract correction (approved 2026-10-13)
+
+These rules supersede the previous ARC-in-close behavior and its accepted risk.
+Closeout owns raw capture verification only; it never loads ARC configuration,
+calls the processor, or changes capture validity because analysis failed.
+
+- **R-018** [unit/integration]: Successful reconciliation closes capture and
+  commits `watermark_verified` without calling ARC. Invalid ARC config cannot
+  affect capture closeout.
+- **R-019** [unit/integration]: Unexpected reconciliation failure rolls back and
+  persists failed capture if the database remains reachable, returns 1, and
+  never runs ARC. Terminal-state persistence failure must be observable.
+- **R-020** [unit/integration]: Before any state change/backfill, closeout obtains
+  the shared capture advisory lock and validates XDF session/participant/site/
+  sponsor identity against the canonical row. Busy, wrong-identity, or malformed
+  files return 2 without closing the session. Legacy XDF requires explicit opt-in.
+- **R-022** [unit]: Import is side-effect free; runtime settings are validated
+  at execution time. Every established connection closes on every path (R-021).
 
 ### State machine — unit tests
 
@@ -37,7 +56,7 @@
 
 ### Exit codes — integration tests
 
-- **R-009** [integration]: `run()` returns `2` when the XDF file is unreadable (before DB connection is opened).
+- **R-009** [integration]: `run()` returns `2` when the XDF file is unreadable, without changing session state or backfilling data.
 
 - **R-010** [integration]: `run()` returns `2` when the session does not exist in `sessions` for the given `session_id` and `sponsor_id`.
 
@@ -57,13 +76,10 @@
 
 - **R-017** [integration]: `write_reconciliation_log` is called for every run that reaches the reconciliation step, regardless of whether reconciliation succeeded or failed.
 
-### ARC — integration tests
+### Analysis separation
 
-- **R-018** [integration]: When ARC config cannot be loaded, `run()` writes an `arc_failure` row to `alert_events`, closes the session as failed, and returns `1`.
-
-- **R-019** [integration]: When `run_arc_post_session` raises `ARCPostSessionError`, `run()` writes an `arc_failure` row to `alert_events`, closes the session as failed, and returns `1`.
-
-- **R-020** [integration]: `log_arc_failure_alert` opens its own DB connection independent of the main `conn` — alert write does not depend on the main connection's health.
+See the release R-018/R-019/R-020 rules above. Analysis is a separate command
+requiring verified capture; it cannot be invoked by this workflow.
 
 ### Resource cleanup — integration test
 
@@ -78,9 +94,8 @@
 
 ## Risks
 
-- **`settings.validate()` at module level** — importing `capture.session_close.workflow` without a valid `.env` raises `RuntimeError` at import time. Unlike `session_init` which validates inside `create_session()`, this makes the module harder to import in test environments. Mitigation for tests: mock `settings.validate` or ensure a valid `.env` / `TEST_DATABASE_URL` is present before importing.
-- **ARC failure closes session as `failed` even when reconciliation succeeded** — accepted; ARC is a required post-session step; a session without ARC output is not considered complete.
-- **`log_arc_failure_alert` failure is non-fatal** — accepted; if the alert write fails, it is logged but does not affect the session close outcome.
+- If the database becomes unreachable, a terminal failure cannot be persisted. The command returns failure and logs the persistence error; it never reports a successful close.
+- Legacy recordings require explicit recovery opt-in and remain unchanged on disk.
 
 ## Open Questions
 

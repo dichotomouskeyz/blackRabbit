@@ -11,7 +11,7 @@ call-site mismatches against a live DB. Skipped without TEST_DATABASE_URL.
 import pytest
 
 from batch.reconciliation import backfill as bf
-from tests.capture_tests.reconciliation.support import SESSION_ID
+from tests.capture_tests.reconciliation.support import SESSION_ID, SPONSOR_ID
 
 pytestmark = pytest.mark.integration
 
@@ -76,7 +76,7 @@ class TestBackfillRouting:
     def test_r023_skips_existing_sample_indices(self, db_conn, seeded_recon_session):
         # Backfilling samples whose indices already exist must add no duplicates.
         before = (
-            bf.fetch_existing_sample_indices(db_conn, SESSION_ID, "eeg_samples")
+            bf.fetch_existing_sample_indices(db_conn, SESSION_ID, "eeg_samples", SPONSOR_ID)
             if hasattr(bf, "fetch_existing_sample_indices")
             else None
         )
@@ -99,12 +99,15 @@ class TestBackfillRouting:
             )
             assert cur.fetchone()[0] == 0
 
-    def test_r026_run_backfill_only_positive_gaps(self, db_conn, seeded_recon_session):
+    def test_r026_run_backfill_only_positive_gaps(self, db_conn, seeded_recon_session, monkeypatch):
         # gap == 0 → skipped; gap < 0 → warning, 0 rows. Construct a report whose
         # streams all have gap <= 0 and assert no rows are inserted.
-        report = type("R", (), {"streams": {}})()
-        inserted = bf.run_backfill(db_conn, report, "missing.xdf", _meta())
-        assert inserted == 0 or inserted is None
+        from batch.reconciliation.db import build_report
+
+        report = build_report(SESSION_ID, "already-validated.xdf", {"EEG": 2}, {"EEG": 3})
+        monkeypatch.setattr(bf, "_validate_replay", lambda *args: _meta())
+        inserted = bf.run_backfill(db_conn, report, meta=_meta(), sponsor_id=SPONSOR_ID)
+        assert inserted == 0
 
     def test_r027_run_backfill_routes_echo_vs_biosignal(self):
         # ECHO routes to backfill_echo_markers, biosignals to backfill_stream.

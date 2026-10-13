@@ -24,14 +24,14 @@ class TestReconciliationDB:
     """
 
     def test_r014_query_db_counts_distinct_sample_index(self, db_conn, seeded_recon_session):
-        counts = rdb.query_db_counts(db_conn, SESSION_ID)
+        counts = rdb.query_db_counts(db_conn, SESSION_ID, SPONSOR_ID)
         assert counts["EEG"] == seeded_recon_session["eeg_count"]
 
     def test_r015_build_report_reconciled_only_when_all_gaps_zero(
         self, db_conn, seeded_recon_session
     ):
         xdf_counts = {"EEG": seeded_recon_session["eeg_count"]}
-        db_counts = rdb.query_db_counts(db_conn, SESSION_ID)
+        db_counts = rdb.query_db_counts(db_conn, SESSION_ID, SPONSOR_ID)
         report = rdb.build_report(SESSION_ID, "x.xdf", xdf_counts, db_counts, 0.0)
         assert report.is_reconciled is True
 
@@ -41,12 +41,12 @@ class TestReconciliationDB:
         assert report2.is_reconciled is False
 
     def test_r016_fetch_existing_sample_indices_frozenset(self, db_conn, seeded_recon_session):
-        indices = rdb.fetch_existing_sample_indices(db_conn, SESSION_ID, "eeg_samples")
+        indices = rdb.fetch_existing_sample_indices(db_conn, SESSION_ID, "eeg_samples", SPONSOR_ID)
         assert isinstance(indices, frozenset)
         assert {0, 1, 2} <= indices
 
     def test_r017_fetch_existing_echo_keys_5tuples(self, db_conn, seeded_recon_session):
-        keys = rdb.fetch_existing_echo_keys(db_conn, SESSION_ID)
+        keys = rdb.fetch_existing_echo_keys(db_conn, SESSION_ID, SPONSOR_ID)
         assert isinstance(keys, frozenset)
         for key in keys:
             assert len(key) == 5
@@ -64,7 +64,7 @@ class TestReconciliationDB:
 
     def test_r019_write_reconciliation_log_one_jsonb_row(self, db_conn, seeded_recon_session):
         report = rdb.build_report(SESSION_ID, "x.xdf", {"EEG": 3}, {"EEG": 3}, 0.0)
-        rdb.write_reconciliation_log(db_conn, report)
+        rdb.write_reconciliation_log(db_conn, report, sponsor_id=SPONSOR_ID)
         with db_conn.cursor() as cur:
             cur.execute(
                 "SELECT COUNT(*) FROM biosignal_integrity_log "
@@ -72,3 +72,29 @@ class TestReconciliationDB:
                 (SESSION_ID,),
             )
             assert cur.fetchone()[0] == 1
+
+    def test_r014_partial_eeg_channel_rows_do_not_count_as_complete_frames(
+        self, db_conn, seeded_recon_session
+    ):
+        from tests.capture_tests.reconciliation.support import DEVICE_ID, PARTICIPANT_ID, SITE_ID
+
+        try:
+            with db_conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO session_signal_metadata "
+                    "(session_id, participant_id, site_id, sponsor_id, device_id, modality, "
+                    "eeg_channel_count, eeg_channel_names) VALUES (%s, %s, %s, %s, %s, "
+                    "'eeg', 2, '[\"ch_0\", \"ch_1\"]'::jsonb)",
+                    (SESSION_ID, PARTICIPANT_ID, SITE_ID, SPONSOR_ID, DEVICE_ID),
+                )
+            assert rdb.query_db_counts(db_conn, SESSION_ID, SPONSOR_ID)["EEG"] == 0
+            with db_conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO eeg_samples (session_id, participant_id, site_id, sponsor_id, "
+                    "device_id, lsl_timestamp, sample_index, channel_id, voltage) "
+                    "VALUES (%s, %s, %s, %s, %s, 1000.0, 0, 'ch_1', 2.0)",
+                    (SESSION_ID, PARTICIPANT_ID, SITE_ID, SPONSOR_ID, DEVICE_ID),
+                )
+            assert rdb.query_db_counts(db_conn, SESSION_ID, SPONSOR_ID)["EEG"] == 1
+        finally:
+            db_conn.rollback()
