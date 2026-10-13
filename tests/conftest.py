@@ -37,7 +37,7 @@ else:
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-_RESTRICTED_ROLE = "pytest_restricted"
+_RESTRICTED_ROLE = os.getenv("TEST_RESTRICTED_ROLE", "blackrabbit_pytest_restricted")
 _RESTRICTED_PASSWORD = "pytest-restricted"
 _DB_AVAILABILITY: tuple[bool, str] | None = None
 
