@@ -37,13 +37,13 @@ Further pinned signatures (June 2026):
 
 - **R-005** [unit]: `read_xdf_counts` raises `XDFReadError` when the first 4 bytes are not the XDF magic (`b"XDF:"`).
 
-- **R-006** [unit]: `read_xdf_counts` raises `XDFTruncatedError` when the file parses without error but contains no `StreamFooter` chunks — the XDF was never closed cleanly.
+- **R-006** [unit]: `read_xdf_counts` raises `XDFTruncatedError` for missing footers on any declared stream, incomplete chunks, or truncated payload fields. Every header needs exactly one valid footer.
 
-- **R-007** [unit]: `read_xdf_counts` returns `{stream_name: sample_count}` by reading stream names from `StreamHeader` chunks and sample counts from `StreamFooter` chunks.
+- **R-007** [unit]: `read_xdf_counts` returns `{stream_name: sample_count}` only after verifying footer counts against decoded samples. Duplicate stream IDs/names, invalid XML, non-finite timestamps, trailing malformed data, and count mismatches raise `XDFReadError`.
 
 - **R-008** [unit]: `_read_chunk_length` returns `None` at EOF (empty read on first byte).
 
-- **R-009** [unit]: `_read_chunk_length` raises `XDFReadError` when the `NumLengthBytes` prefix byte is not in `{1, 2, 4, 8}`.
+- **R-009** [unit]: Standard `_read_chunk_length` accepts only `{1, 4, 8}`. Width 2 is rejected. The explicitly requested `legacy=True` reader accepts the historical custom encoding; standard reads never silently switch formats.
 
 - **R-010** [unit]: `stream_xdf_samples` yields `(sample_index, lsl_timestamp, channel_values)` only for the named target stream — other streams are skipped.
 
@@ -52,6 +52,11 @@ Further pinned signatures (June 2026):
 - **R-012** [unit]: `stream_xdf_markers` yields `(marker_index, lsl_timestamp, marker_text)` only for the `"ECHO"` stream — biosignal chunks are seeked past without decoding.
 
 - **R-013** [unit]: `stream_xdf_samples` `sample_index` starts at 0 for the first sample of each stream and increments by 1 per sample across chunks (position in the file, not per-chunk).
+
+Release reader contract approved 2026-10-13:
+- **XDF-IDENTITY** [unit]: `validate_xdf_identity(path, session_id, sponsor_id, participant_id=None, site_id=None, *, legacy=False)` verifies complete structure, requires all five blackRabbit stream headers to agree on session/participant/site/sponsor identity, and compares supplied expected fields. It returns validated counts. Mismatch raises `XDFReadError` before any DB mutation.
+- **XDF-METADATA** [unit]: `inspect_xdf(path, *, legacy=False)` returns counts, shared identity, per-stream metadata, and an explicit format label. Metadata cannot silently disagree between streams.
+- **XDF-LEGACY** [unit]: Existing custom files remain untouched. Legacy decoding requires `legacy=True`; its width-2 integers, extra chunk wall clock, and bare timestamps are separately tested. Newly generated files are always standard XDF.
 
 ### DB helpers — integration tests
 
