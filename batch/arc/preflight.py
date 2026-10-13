@@ -8,6 +8,7 @@ streams are aligned in LSL time before any convergence profile is computed.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 
 import psycopg2
 from psycopg2 import sql
@@ -32,6 +33,7 @@ class APEXStreamAlignment:
         return (
             self.sample_count > 0
             and self.max_nearest_echo_delta_s is not None
+            and isfinite(self.max_nearest_echo_delta_s)
             and self.max_nearest_echo_delta_s < self.threshold_s
         )
 
@@ -109,6 +111,8 @@ def validate_arc_temporal_alignment(
     threshold_s: float = DEFAULT_MAX_ECHO_APEX_DELTA_S,
     required_streams: tuple[str, ...] = tuple(_STREAM_TABLES),
     anchor_filters: tuple[tuple[str, str], ...] | None = None,
+    *,
+    site_id: str | None = None,
 ) -> ARCTemporalAlignmentReport:
     """Return ECHO/APEX timestamp alignment status for a session.
 
@@ -126,22 +130,41 @@ def validate_arc_temporal_alignment(
         in the session are counted (unfiltered). Pass config.anchor_events as
         tuples to apply the config-driven filter.
     """
-    if threshold_s <= 0.0 or threshold_s > 1.0:
+    if not isfinite(threshold_s) or threshold_s <= 0.0 or threshold_s > 1.0:
         raise ValueError("threshold_s must be > 0.0 and <= 1.0 for sub-second ARC gating")
 
+    if not sponsor_id:
+        raise ValueError("sponsor_id is required")
+    if site_id is None:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT site_id FROM sessions WHERE id=%s AND sponsor_id=%s",
+                (session_id, sponsor_id),
+            )
+            row = cur.fetchone()
+        if row is None:
+            return ARCTemporalAlignmentReport(session_id, threshold_s, 0, None, None)
+        site_id = str(row[0])
     echo_count, first_echo, last_echo = _query_echo_bounds(
-        conn, session_id, sponsor_id, anchor_filters
+        conn, session_id, sponsor_id, anchor_filters, site_id=site_id
     )
     streams: list[APEXStreamAlignment] = []
 
     for stream_name in required_streams:
         table_name = _STREAM_TABLES[stream_name]
         sample_count, first_sample, last_sample = _query_stream_bounds(
-            conn, table_name, session_id, sponsor_id
+            conn, table_name, session_id, sponsor_id, site_id=site_id
         )
         max_delta = None
         if echo_count > 0 and sample_count > 0:
-            max_delta = _query_max_nearest_echo_delta(conn, table_name, session_id, sponsor_id)
+            max_delta = _query_max_nearest_echo_delta(
+                conn,
+                table_name,
+                session_id,
+                sponsor_id,
+                site_id=site_id,
+                anchor_filters=anchor_filters,
+            )
         # Report stream names in lowercase modality form ('eeg', 'hrv', ...),
         # matching session_signal_metadata.modality and baseline modality keys.
         streams.append(
@@ -173,6 +196,8 @@ def assert_arc_temporal_alignment(
     threshold_s: float = DEFAULT_MAX_ECHO_APEX_DELTA_S,
     required_streams: tuple[str, ...] = tuple(_STREAM_TABLES),
     anchor_filters: tuple[tuple[str, str], ...] | None = None,
+    *,
+    site_id: str | None = None,
 ) -> ARCTemporalAlignmentReport:
     """Validate alignment and raise RuntimeError if ARC must not start."""
     report = validate_arc_temporal_alignment(
@@ -182,6 +207,7 @@ def assert_arc_temporal_alignment(
         threshold_s=threshold_s,
         required_streams=required_streams,
         anchor_filters=anchor_filters,
+        site_id=site_id,
     )
     report.raise_for_unaligned()
     return report
@@ -192,6 +218,8 @@ def _query_echo_bounds(
     session_id: str,
     sponsor_id: str | None = None,
     anchor_filters: tuple[tuple[str, str], ...] | None = None,
+    *,
+    site_id: str | None = None,
 ) -> tuple[int, float | None, float | None]:
     with conn.cursor() as cur:
         if anchor_filters:
@@ -202,10 +230,10 @@ def _query_echo_bounds(
                 SELECT COUNT(*), MIN(lsl_timestamp), MAX(lsl_timestamp)
                 FROM echo_events
                 WHERE session_id = %s
-                AND (%s::uuid IS NULL OR sponsor_id = %s::uuid)
+                AND sponsor_id = %s::uuid AND site_id = %s::uuid
                 AND (event_type, zone_label) IN %s
                 """,
-                (session_id, sponsor_id, sponsor_id, filter_pairs),
+                (session_id, sponsor_id, site_id, filter_pairs),
             )
         else:
             cur.execute(
@@ -213,9 +241,9 @@ def _query_echo_bounds(
                 SELECT COUNT(*), MIN(lsl_timestamp), MAX(lsl_timestamp)
                 FROM echo_events
                 WHERE session_id = %s
-                AND (%s::uuid IS NULL OR sponsor_id = %s::uuid)
+                AND sponsor_id = %s::uuid AND site_id = %s::uuid
                 """,
-                (session_id, sponsor_id, sponsor_id),
+                (session_id, sponsor_id, site_id),
             )
         row = cur.fetchone()
     return _coerce_bounds(row)
@@ -226,6 +254,8 @@ def _query_stream_bounds(
     table_name: str,
     session_id: str,
     sponsor_id: str | None = None,
+    *,
+    site_id: str,
 ) -> tuple[int, float | None, float | None]:
     with conn.cursor() as cur:
         cur.execute(
@@ -234,49 +264,38 @@ def _query_stream_bounds(
                 SELECT COUNT(*), MIN(lsl_timestamp), MAX(lsl_timestamp)
                 FROM {}
                 WHERE session_id = %s
-                AND (%s::uuid IS NULL OR sponsor_id = %s::uuid)
+                AND sponsor_id = %s::uuid AND site_id = %s::uuid
                 """
             ).format(sql.Identifier(table_name)),
-            (session_id, sponsor_id, sponsor_id),
+            (session_id, sponsor_id, site_id),
         )
         row = cur.fetchone()
     return _coerce_bounds(row)
 
 
 def _query_max_nearest_echo_delta(
-    conn: psycopg2.extensions.connection,
-    table_name: str,
-    session_id: str,
-    sponsor_id: str | None = None,
-) -> float | None:
+    conn, table_name, session_id, sponsor_id, *, site_id, anchor_filters=None
+):
+    filter_sql = (
+        sql.SQL(" AND (echo.event_type, echo.zone_label) IN %s") if anchor_filters else sql.SQL("")
+    )
+    params = [session_id, sponsor_id, site_id, session_id, sponsor_id, site_id]
+    if anchor_filters:
+        params.append(tuple(tuple(pair) for pair in anchor_filters))
     with conn.cursor() as cur:
         cur.execute(
-            sql.SQL(
-                """
-                SELECT MAX(nearest_delta_s)
-                FROM (
-                    SELECT ABS(nearest_sample.lsl_timestamp - echo.lsl_timestamp)
-                        AS nearest_delta_s
-                    FROM echo_events echo
-                    CROSS JOIN LATERAL (
-                        SELECT apex.lsl_timestamp
-                        FROM {} apex
-                        WHERE apex.session_id = %s
-                        AND (%s::uuid IS NULL OR apex.sponsor_id = %s::uuid)
-                        ORDER BY ABS(apex.lsl_timestamp - echo.lsl_timestamp)
-                        LIMIT 1
-                    ) nearest_sample
-                    WHERE echo.session_id = %s
-                    AND (%s::uuid IS NULL OR echo.sponsor_id = %s::uuid)
-                ) nearest
-                """
-            ).format(sql.Identifier(table_name)),
-            (session_id, sponsor_id, sponsor_id, session_id, sponsor_id, sponsor_id),
+            sql.SQL("""SELECT MAX(nearest_delta_s) FROM (
+            SELECT ABS(nearest_sample.lsl_timestamp-echo.lsl_timestamp) AS nearest_delta_s
+            FROM echo_events echo CROSS JOIN LATERAL (
+                SELECT apex.lsl_timestamp FROM {} apex
+                WHERE apex.session_id=%s AND apex.sponsor_id=%s AND apex.site_id=%s
+                ORDER BY ABS(apex.lsl_timestamp-echo.lsl_timestamp) LIMIT 1
+            ) nearest_sample WHERE echo.session_id=%s AND echo.sponsor_id=%s
+            AND echo.site_id=%s {}) nearest""").format(sql.Identifier(table_name), filter_sql),
+            params,
         )
         row = cur.fetchone()
-    if not row or row[0] is None:
-        return None
-    return float(row[0])
+    return None if not row or row[0] is None else float(row[0])
 
 
 def _coerce_bounds(row: tuple | None) -> tuple[int, float | None, float | None]:

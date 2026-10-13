@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tomllib
 from hashlib import sha256
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -82,19 +83,41 @@ def _validate_config(config: dict[str, Any]) -> None:
 
     null_model = _require_mapping(config, "null_model")
     method = _require_text(null_model, "method")
+    if method != "circular_shift":
+        raise ValueError("null_model.method must be circular_shift")
     permutation_count = null_model.get("permutation_count")
-    if not isinstance(permutation_count, int) or permutation_count <= 0:
-        raise ValueError("null_model.permutation_count must be a positive integer")
-    if method == "permutation":
+    if not isinstance(permutation_count, int) or permutation_count < 100:
+        raise ValueError("null_model.permutation_count must be an integer >= 100")
+    if method == "circular_shift":
         random_seed = null_model.get("random_seed")
-        if not isinstance(random_seed, int):
-            raise ValueError("null_model.random_seed must be an integer for permutation")
+        if isinstance(random_seed, bool) or not isinstance(random_seed, int) or random_seed < 0:
+            raise ValueError("null_model.random_seed must be a nonnegative integer")
 
+    from batch.arc.features import COMPONENTS
+
+    features = _require_mapping(config, "features")
+    epoch = _require_number(features, "epoch_s")
+    if epoch <= 0 or window_duration < 2 * epoch:
+        raise ValueError("features.epoch_s must be positive with at least two baseline epochs")
+    quality = _require_mapping(config, "quality")
+    fraction = _require_number(quality, "max_degraded_fraction")
+    if not 0 <= fraction < 1:
+        raise ValueError("quality.max_degraded_fraction must be in [0,1)")
+    participation = _require_mapping(config, "participation")
+    if _require_number(participation, "deviation_threshold") <= 0:
+        raise ValueError("participation.deviation_threshold must be positive")
+    review = _require_mapping(config, "review")
+    if _require_number(review, "deviation_threshold") <= 0:
+        raise ValueError("review.deviation_threshold must be positive")
     signal_components = _require_mapping(config, "signal_components")
     for modality in REQUIRED_MODALITIES:
         components = signal_components.get(modality)
         if not isinstance(components, list) or not components:
             raise ValueError(f"signal_components.{modality} must be a non-empty list")
+        if any(c not in COMPONENTS[modality] for c in components):
+            raise ValueError(f"unsupported {modality} signal component")
+        if len(set(components)) != len(components):
+            raise ValueError("signal components must be unique")
         if not all(isinstance(c, str) and c for c in components):
             raise ValueError(f"signal_components.{modality} must contain text values")
 
@@ -146,6 +169,6 @@ def _require_text(parent: dict[str, Any], key: str) -> str:
 
 def _require_number(parent: dict[str, Any], key: str) -> float:
     value = parent.get(key)
-    if not isinstance(value, (int, float)):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
         raise ValueError(f"{key} must be numeric")
     return float(value)
