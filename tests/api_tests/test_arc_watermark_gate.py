@@ -1,13 +1,7 @@
 """INV-006 — ARC endpoints gate on an explicit watermark check in api/ first.
 
-B1 fix: the ARC endpoints are capability-gated (409) in M0, so the watermark
-gate is NOT reachable through the HTTP surface — a spy-on-the-definition-module
-test was vacuous (the gate never runs, so "ARC not entered" is trivially true).
-
-INV-006 is instead made testable now by extracting the gate as a directly
-callable function, `api.arc.assert_session_arc_ready(conn, session_id,
-sponsor_id)`, and exercising IT against the real DB via the `seeded_sessions`
-fixture (four watermark states). The function must:
+The ARC read endpoint and its directly callable gate are exercised against the
+real DB via the `seeded_sessions` fixture (four watermark states). The gate must:
   - RAISE for not_started / in_progress / failed (gate closed), and
   - RETURN / pass for verified (positive case proving the gate reads the DB).
 
@@ -16,7 +10,7 @@ sessions status transitions (active->closed, active->failed) so migration
 `024_watermark_trigger` writes the `watermark_verified` / `watermark_failed`
 audit events the gate reads — they are not asserted into existence.
 
-This holds in M0 (gate independent of the capability stub) and post-unblock.
+ARC execution remains capability-gated independently of the live read surface.
 Marked integration since the watermark state is derived from seeded DB rows.
 """
 
@@ -34,7 +28,10 @@ def test_arc_gate_raises_for_non_verified(db_conn, seeded_sessions, fixture_key)
 
     with pytest.raises(Exception) as exc_info:
         assert_session_arc_ready(
-            db_conn, seeded_sessions[fixture_key], seeded_sessions["sponsor_a"]
+            db_conn,
+            seeded_sessions[fixture_key],
+            seeded_sessions["sponsor_a"],
+            seeded_sessions["site_a"],
         )
     # The gate must signal a capability/watermark refusal, not an arbitrary error
     # (e.g. a NotImplementedError leaking from a stub). It must name the gate
@@ -53,9 +50,15 @@ def test_arc_gate_passes_for_verified(db_conn, seeded_sessions):
     from api.arc import assert_session_arc_ready
 
     # Must NOT raise for the verified session.
-    assert_session_arc_ready(
-        db_conn, seeded_sessions["verified"], seeded_sessions["sponsor_a"]
-    ) is None or True
+    assert (
+        assert_session_arc_ready(
+            db_conn,
+            seeded_sessions["verified"],
+            seeded_sessions["sponsor_a"],
+            seeded_sessions["site_a"],
+        )
+        is None
+    )
 
 
 @pytest.mark.integration
@@ -94,19 +97,17 @@ def test_arc_gate_derives_state_from_trigger_events(db_conn, seeded_sessions):
             assert cur.fetchone() is None, f"{key} session must have no terminal watermark event"
 
 
-# --- M0 HTTP-surface check: ARC endpoints still 409 via capability gate -------
-# These remain valid in M0 (capability gate) and document that the HTTP path
-# never reaches the watermark gate yet. The ARC-not-entered assertion is the
-# capability gate's job; the watermark gate itself is covered above.
+# --- Live ARC read gate and independently blocked execution -----------------
 
 
 @pytest.mark.integration
 def test_arc_read_on_unverified_session_returns_409(client, override_tenant, seeded_sessions):
-    # Tests INV-006 [integration]: GET arc on in_progress session -> 409 (M0
-    # capability gate; watermark gate not yet reached through HTTP).
+    # Tests INV-006 [integration]: GET arc on in_progress session -> watermark 409.
     override_tenant(seeded_sessions["sponsor_a"], seeded_sessions["site_a"])
     resp = client.get(f"/sessions/{seeded_sessions['inprogress']}/arc")
     assert resp.status_code == 409
+    assert resp.json()["error"] == "watermark_not_verified"
+    assert resp.json()["watermark_state"] == "in_progress"
 
 
 @pytest.mark.integration

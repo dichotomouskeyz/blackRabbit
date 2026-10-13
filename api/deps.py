@@ -9,7 +9,7 @@ All config is read via `from config import settings` (PAT-002 / INV-011); the
 API never reads process environment variables directly.
 """
 
-from typing import Any
+from typing import Any, NamedTuple
 
 import psycopg2
 
@@ -57,7 +57,14 @@ def get_tenant_context() -> TenantContext:
     )
 
 
-def require_tenant(tenant: TenantContext) -> TenantContext:
+class ValidatedTenantContext(NamedTuple):
+    """Non-empty server tenancy returned only after runtime validation."""
+
+    sponsor_id: str
+    site_id: str
+
+
+def require_tenant(tenant: TenantContext) -> ValidatedTenantContext:
     """Enforce non-null tenancy fail-closed (INV-001 / QA-004).
 
     Called by tenancy-scoped routes AFTER input validation (INV-004 keeps a 422
@@ -69,7 +76,7 @@ def require_tenant(tenant: TenantContext) -> TenantContext:
     """
     if not tenant.sponsor_id or not tenant.site_id:
         raise ConfigurationError("API tenancy not configured: set API_SPONSOR_ID/API_SITE_ID.")
-    return tenant
+    return ValidatedTenantContext(tenant.sponsor_id, tenant.site_id)
 
 
 def _readonly_url() -> str:
@@ -82,7 +89,7 @@ def _readonly_url() -> str:
     if not url:
         # No silent fallback to a write-capable URL: fail loud so a
         # misconfigured deployment cannot issue writes through the API path.
-        raise RuntimeError(
+        raise ConfigurationError(
             "API_READONLY_DATABASE_URL is not set; the API read path requires a "
             "GRANT SELECT-only Postgres role (INV-002)."
         )
@@ -96,5 +103,5 @@ def get_readonly_connection() -> Any:
     any write raises `psycopg2.errors.InsufficientPrivilege` at the driver.
     """
     conn = psycopg2.connect(_readonly_url())
-    conn.autocommit = False
+    conn.set_session(isolation_level="REPEATABLE READ", autocommit=False)
     return conn

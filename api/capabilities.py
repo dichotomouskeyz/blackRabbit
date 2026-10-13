@@ -65,9 +65,9 @@ CAPABILITY_MATRIX: list[dict] = [
     {
         "capability": "arc_review",
         "endpoint": "GET /sessions/{id}/arc",
-        "status": "scaffolded",
-        "blocked_reason": "ARC review surface not built in M0",
-        "gate": "OQ-001",
+        "status": "implemented",
+        "blocked_reason": None,
+        "gate": None,
     },
     {
         "capability": "log_marker",

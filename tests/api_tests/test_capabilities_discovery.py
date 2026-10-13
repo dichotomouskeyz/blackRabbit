@@ -15,7 +15,7 @@ _EXPECTED_STATUS_BY_ENDPOINT = {
     "POST /sessions": "implemented",
     "GET /capabilities": "implemented",
     "WS /sessions/{id}/stream": "scaffolded",
-    "GET /sessions/{id}/arc": "scaffolded",
+    "GET /sessions/{id}/arc": "implemented",
     "POST /sessions/{id}/markers": "blocked",
     "POST /sessions/{id}/capture:start": "blocked",
     "POST /sessions/{id}/capture:stop": "blocked",
