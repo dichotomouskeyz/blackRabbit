@@ -25,6 +25,10 @@ Regulated/clinical deployments are a deferred 1b concern, not the 1a scope.
   components responded around each ECHO anchor and persists reproducible
   baseline/config provenance. It never mutates raw APEX/ECHO records.
 - Capture writes XDF first, then DB rows.
+- `capture/hardware/` is an optional headless bridge (`blackrabbit-hardware`)
+  that publishes BrainFlow device signals to LSL with explicit units and
+  timestamps. It records nothing and touches no database; the recorder's
+  four-modality contract is unchanged.
 - `capture/` is data acquisition. `batch/` is everything post-capture:
   `batch/arc/` (prototype preflight, processor, windows, and models; selected
   reads accept sponsor scope, but lifecycle gating and the complete ARC
@@ -127,6 +131,7 @@ is live data at go-live.
 Read the relevant module and tests before editing. Prefer small, direct changes
 over broad refactors. Keep deferred systems deferred unless the user explicitly
 reintroduces them: live safety/SQI semantics, broad FastAPI service, live
-signal and ARC review screens in `web/`,
-BLE/UWB hardware, cloud infrastructure, Kafka/Flink, and heavyweight external
-signal-processing stacks.
+signal and ARC review screens in `web/`, physical device profiles and UWB
+proximity hardware (the headless BrainFlow bridge in `capture/hardware/` ships
+only the synthetic profile), cloud infrastructure, Kafka/Flink, and heavyweight
+external signal-processing stacks.
