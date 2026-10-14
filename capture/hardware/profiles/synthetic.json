@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "brainflow-synthetic",
+  "version": "1.0.0",
+  "board_id": -1,
+  "presets": [{
+    "preset": 0,
+    "sampling_rate": 250,
+    "timestamp_origin": "simulated",
+    "signals": [
+      {
+        "id": "eeg", "signal_type": "EEG",
+        "rows": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+        "labels": ["Fz", "C3", "Cz", "C4", "Pz", "PO7", "Oz", "PO8", "F5", "F7", "F3", "F1", "F2", "F4", "F6", "F8"],
+        "source_units": ["uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV"],
+        "units": ["uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV", "uV"]
+      },
+      {"id": "eda", "signal_type": "EDA", "rows": [23], "labels": ["synthetic_eda"], "source_units": ["unknown"], "units": ["unknown"]},
+      {"id": "ppg", "signal_type": "PPG", "rows": [24, 25], "labels": ["synthetic_ppg_1", "synthetic_ppg_2"], "source_units": ["unknown", "unknown"], "units": ["unknown", "unknown"]}
+    ]
+  }],
+  "evidence": [{
+    "kind": "documentation",
+    "reference": "https://brainflow.readthedocs.io/en/stable/DataFormatDesc.html",
+    "note": "Synthetic descriptor checked against BrainFlow 5.22.0; EXG assigned once as EEG. Unknown EDA/PPG units are not inferred. No physical-device validation."
+  }],
+  "discovery_hints": []
+}

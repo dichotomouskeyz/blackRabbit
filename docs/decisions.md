@@ -326,6 +326,23 @@
   skips negated sentences.
 - **Date:** 2026-10-13
 
+## Headless BrainFlow hardware bridge
+
+- **Decision:** Add a Python BrainFlow adapter with versioned declarative profiles,
+  local connection bindings, provisional USB-serial/BLE discovery and LSL source
+  publication. Initially ship the synthetic profile; physical compatibility
+  remains documentation-based until equipment is tested. Raw ECG/PPG publication
+  does not add raw cardiac recording or HRV derivation to the existing backend.
+- **Rationale:** Reuse supported device interfaces while preserving signal meaning,
+  source units, timestamps and evidence. Overlapping BrainFlow EXG descriptors
+  require explicit assignments. Discovery must not imply connection or validation.
+- **Code impact:** New `capture/hardware/` subsystem and spec-derived tests,
+  optional discovery dependencies, hardware-only settings validation, packaged
+  examples and a CLI/programmatic frontend contract. Existing capture/API/ARC
+  contracts are unchanged. Native buffers are bounded, group failures clean up
+  all resources, and restarts are explicit with new LSL source identities.
+- **Date:** 2026-10-13
+
 ## Session list filters without new response fields
 
 - **Decision:** `GET /sessions` takes optional filters (session ID prefix,

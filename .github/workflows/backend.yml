@@ -37,7 +37,7 @@ jobs:
       API_READONLY_DATABASE_URL: postgresql://blackrabbit_ci_api_ro:ci-readonly-test-only@127.0.0.1:5432/blackrabbit_ci_test # pragma: allowlist secret
       TEST_RESTRICTED_ROLE: blackrabbit_ci_restricted
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install Python 3.12 and uv
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
