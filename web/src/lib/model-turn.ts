@@ -24,7 +24,8 @@ import type { ChatItem } from "@/components/ToolResultCard";
 // What each tool does, as the model sees it. Kept beside the registry rather
 // than in it so the pinned registry shape (INV-003) stays unchanged.
 const TOOL_DESCRIPTIONS: Record<string, string> = {
-  list_sessions: "List recording sessions with their status and timestamps.",
+  list_sessions:
+    "List recording sessions with their status and timestamps. Optional filters: session_id (UUID prefix), participant_id (full UUID), status, compound, created_from and created_before (ISO 8601 dates or datetimes with a UTC offset), limit.",
   session_status: "Get the status and watermark state of one session.",
   create_session:
     "Create a recording session. participant_id must be a pseudonymous UUID. compound and capture_source are required.",

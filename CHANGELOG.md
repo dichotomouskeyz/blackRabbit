@@ -13,6 +13,14 @@ from the product version.
 
 ## [Unreleased]
 
+### Added
+
+- `GET /sessions` filters by session ID prefix, participant ID, status,
+  compound and creation date range, with a row limit. Invalid filters return a
+  structured 422 before any database work; the response fields are unchanged.
+- The operator console's session list has filter controls, and the agent's
+  `list_sessions` tool accepts the same filters.
+
 ## [0.3.0] - 2026-10-13
 
 Operator console release and repository cleanup.

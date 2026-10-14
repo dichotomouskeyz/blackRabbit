@@ -45,6 +45,42 @@ export interface SessionSummary {
   created_at: string | null;
 }
 
+// Optional GET /sessions filters (session-query SQ-001). participant_id is a
+// filter only; the response never includes it (SQ-004).
+export interface SessionFilters {
+  session_id?: string;
+  participant_id?: string;
+  status?: string;
+  compound?: string;
+  created_from?: string;
+  created_before?: string;
+  limit?: number;
+}
+
+const SESSION_FILTER_KEYS: (keyof SessionFilters)[] = [
+  "session_id",
+  "participant_id",
+  "status",
+  "compound",
+  "created_from",
+  "created_before",
+  "limit",
+];
+
+// "?a=1&b=2" for the filters that are set, or "" when none are (SQ-005).
+export function sessionFilterQuery(filters: SessionFilters | undefined): string {
+  if (!filters) return "";
+  const params = new URLSearchParams();
+  for (const key of SESSION_FILTER_KEYS) {
+    const value = filters[key];
+    if (value === undefined || value === null) continue;
+    const text = String(value).trim();
+    if (text !== "") params.set(key, text);
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
 // A pluggable transport so tests can stub the network. Defaults to fetch.
 export type Transport = (
   path: string,
@@ -54,7 +90,7 @@ export type Transport = (
 export interface ApiClient {
   getCapabilities(): Promise<ApiResult<CapabilityRow[]>>;
   getHealth(): Promise<ApiResult<{ status: string; version: string; contract_version: string }>>;
-  listSessions(): Promise<ApiResult<{ sessions: SessionSummary[] }>>;
+  listSessions(filters?: SessionFilters): Promise<ApiResult<{ sessions: SessionSummary[] }>>;
   getSessionStatus(sessionId: string): Promise<ApiResult<unknown>>;
   getVocab(): Promise<ApiResult<{ compounds: string[]; dose_units: string[] }>>;
   createSession(fields: Record<string, unknown>): Promise<ApiResult<{ session_id: string }>>;
@@ -173,8 +209,8 @@ export function createApiClient(opts?: { transport?: Transport; baseUrl?: string
       );
     },
 
-    listSessions() {
-      return request<{ sessions: SessionSummary[] }>("GET", "/sessions");
+    listSessions(filters?: SessionFilters) {
+      return request<{ sessions: SessionSummary[] }>("GET", `/sessions${sessionFilterQuery(filters)}`);
     },
 
     getSessionStatus(sessionId: string) {
