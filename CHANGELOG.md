@@ -18,6 +18,12 @@ from the product version.
 - `docs/data-handling.md` and a README section: what blackRabbit stores, where
   identifying information can still appear, and that the deploying lab owns
   HIPAA, GDPR, IRB and Part 11 obligations.
+- Headless hardware bridge (`capture/hardware`, `blackrabbit-hardware`): versioned
+  BrainFlow device profiles, local bindings, provisional USB-serial and BLE
+  discovery (optional `hardware` extra), and LSL publication with explicit
+  units, timestamps and per-run source identities. Only BrainFlow's synthetic
+  board ships as an executable profile; no physical device has been tested. The
+  existing four-modality recorder, API and ARC are unchanged.
 
 ## [0.3.1] - 2026-10-13
 

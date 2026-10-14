@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "bindings": [
+    {"source_id": "synthetic-demo", "profile": "builtin:synthetic", "parameters": {}}
+  ]
+}

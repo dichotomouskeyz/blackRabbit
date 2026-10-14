@@ -175,6 +175,7 @@ propagation, persisted analysis replay, and actual database permissions.
 ## Integration and scope
 
 See [backend handoff](docs/backend-handoff.md),
+[hardware bridge and frontend handoff](docs/hardware-integration.md),
 [release audit](docs/release-audit-2026-10-13.md), and the active contracts in
 [.correctless/specs](.correctless/specs). Historical `docs/2R` audits describe the
 previous implementation, not the current release state.
