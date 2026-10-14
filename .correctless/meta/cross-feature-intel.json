@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-13T06:09:54Z",
+  "scope": [
+    "web/",
+    "api/app.py",
+    "api/capabilities.py"
+  ],
+  "truncated_count": 0,
+  "warnings": [],
+  "sections": {
+    "deferred_findings": [],
+    "devadv_themes": [],
+    "override_patterns": [],
+    "lens_recommendations": [
+      {
+        "id": "watermark-gate-enforcement",
+        "date": "2026-06-12",
+        "summary": "INV-006 delegates watermark-gating to assert_arc_temporal_alignment, which only checks temporal alignment and defaults sponsor_id to None (tenancy bypass). ARC could run/read pre-watermark.",
+        "file_refs": [],
+        "severity": null,
+        "source": "lens-recommendations",
+        "count": 1,
+        "occurrences": 1
+      },
+      {
+        "id": "upgrade-install-integrity",
+        "date": "2026-06-12",
+        "summary": "Adding api/ + web/ to a uv-only repo risks a settings.validate() regression for the capture path, a silently-excluded api/ wheel package, and pre-commit guard collisions.",
+        "file_refs": [],
+        "severity": null,
+        "source": "lens-recommendations",
+        "count": 1,
+        "occurrences": 1
+      },
+      {
+        "id": "tenancy-injection-and-input-allowlist",
+        "date": "2026-06-12",
+        "summary": "An open POST /sessions kwargs splat into create_session(**body) lets a client/model set site_id/sponsor_id or smuggle PII; tenancy must be server-injected and inputs allow-listed.",
+        "file_refs": [],
+        "severity": null,
+        "source": "lens-recommendations",
+        "count": 1,
+        "occurrences": 1
+      },
+      {
+        "id": "staged-capability-bypass",
+        "date": "2026-06-12",
+        "summary": "The M0 safety story rests on 'blocked/scaffolded = non-executable', but on a no-auth localhost box the only real control is the server returning 501/absent. Any client-side disable is bypassable.",
+        "file_refs": [],
+        "severity": null,
+        "source": "lens-recommendations",
+        "count": 1,
+        "occurrences": 1
+      },
+      {
+        "id": "read-only-sql-surface",
+        "date": "2026-06-12",
+        "summary": "INV-002 relies on grep for write-SQL, which misses COPY/ON CONFLICT/CTE writes. A read-only DB role makes write impossible structurally.",
+        "file_refs": [],
+        "severity": null,
+        "source": "lens-recommendations",
+        "count": 1,
+        "occurrences": 1
+      },
+      {
+        "id": "cross-codebase-enforcement-boundary",
+        "date": "2026-06-12",
+        "summary": "Agent/tool invariants live in the Next.js/AI-SDK layer with no pytest reach; the real trust boundary must be FastAPI, validating every argument regardless of which tool produced it.",
+        "file_refs": [],
+        "severity": null,
+        "source": "lens-recommendations",
+        "count": 1,
+        "occurrences": 1
+      }
+    ],
+    "debug_clusters": [],
+    "phase_effectiveness": []
+  },
+  "_dormant_counts": {}
+}
