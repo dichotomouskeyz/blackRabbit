@@ -13,6 +13,15 @@ from the product version.
 
 ## [Unreleased]
 
+### Added
+
+- Headless hardware bridge (`capture/hardware`, `blackrabbit-hardware`): versioned
+  BrainFlow device profiles, local bindings, provisional USB-serial and BLE
+  discovery (optional `hardware` extra), and LSL publication with explicit
+  units, timestamps and per-run source identities. Only BrainFlow's synthetic
+  board ships as an executable profile; no physical device has been tested. The
+  existing four-modality recorder, API and ARC are unchanged.
+
 ## [0.3.0] - 2026-10-13
 
 Operator console release and repository cleanup.
