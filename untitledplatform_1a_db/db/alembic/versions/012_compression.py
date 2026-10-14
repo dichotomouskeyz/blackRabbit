@@ -15,7 +15,7 @@ WHY COMPRESSION:
   With TimescaleDB columnar compression, this typically reduces
   to 10-20% of original size — so ~200-600 MB per session.
 
-  This matters even in 1a because UCSF demos may involve real
+  This matters even in 1a because clinical site demos may involve real
   sessions with real participants.
 
 HOW TIMESCALEDB COMPRESSION WORKS:
