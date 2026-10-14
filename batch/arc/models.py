@@ -49,7 +49,7 @@ class EchoAnchorEvent:
 class APEXResponse:
     """One physiological component response inside one ARC window."""
 
-    modality: APEXModality
+    modality: APEXModality  # pragma: allowlist secret ("APEX" trips the Artifactory detector)
     signal_component: str
     window: ARCWindowName
     baseline_mean: float
