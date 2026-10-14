@@ -13,6 +13,12 @@ from the product version.
 
 ## [Unreleased]
 
+### Added
+
+- A Generate button in the operator console's create form fills a random
+  pseudonymous participant ID. Participant names stay in the lab's own
+  enrollment key; blackRabbit stores only the UUID.
+
 ## [0.3.0] - 2026-10-13
 
 Operator console release and repository cleanup.
