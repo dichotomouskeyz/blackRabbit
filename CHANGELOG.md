@@ -15,12 +15,48 @@ from the product version.
 
 ### Added
 
+- `docs/data-handling.md` and a README section: what blackRabbit stores, where
+  identifying information can still appear, and that the deploying lab owns
+  HIPAA, GDPR, IRB and Part 11 obligations.
 - Headless hardware bridge (`capture/hardware`, `blackrabbit-hardware`): versioned
   BrainFlow device profiles, local bindings, provisional USB-serial and BLE
   discovery (optional `hardware` extra), and LSL publication with explicit
   units, timestamps and per-run source identities. Only BrainFlow's synthetic
   board ships as an executable profile; no physical device has been tested. The
   existing four-modality recorder, API and ARC are unchanged.
+
+## [0.3.1] - 2026-10-13
+
+Patch release after the 2026-10-13 repository audit.
+
+### Fixed
+
+- The `v0.3.0` tag's `pyproject.toml` declared a `blackrabbit-discover` console
+  script, a `hardware` extra and an sdist document that did not exist in that
+  tree, so an installed 0.3.0 wheel carried a dangling entrypoint. They were
+  removed on `main` after the tag; 0.3.1 is the first tagged version without
+  them. The hardware bridge adds its real entrypoint with its own code.
+- `build_report` in `investigation/models.py` types its `mode` parameter as the
+  literal choices the report model accepts (Pyright error).
+- Test directories `tests/investigation_tests`, `tests/integration` and
+  `tests/unit` are packages, so same-named test modules no longer collide
+  under pytest's default import mode.
+- `.secrets.baseline` keys use forward-slash paths so the detect-secrets
+  pre-commit hook matches on every platform.
+- Four files that drifted from Ruff formatting were reformatted; the
+  pre-commit Ruff hook now matches the locked Ruff version.
+
+### Changed
+
+- CI pins `astral-sh/setup-uv` by commit in both workflows and moves
+  `actions/checkout` and `actions/setup-node` to Node 24 releases.
+- `docker-compose.yml` names the product, pins pgAdmin and Grafana images, and
+  drops the retired cloud-migration commentary.
+- `docs/architecture.md` and `.correctless/AGENT_CONTEXT.md` describe the
+  current tree: no `storage/` package, no watchdog auto-restart, ARC as a
+  separate explicit step after closeout.
+- A `.gitattributes` keeps lock files LF and marks recordings and images
+  binary.
 
 ## [0.3.0] - 2026-10-13
 

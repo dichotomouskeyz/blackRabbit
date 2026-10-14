@@ -63,6 +63,7 @@ FULL_AUDIT_TABLES = [
     "session_signal_metadata",
 ]
 
+
 def upgrade() -> None:
     # --- Full audit trigger function ---
     # Uses a PL/pgSQL variable (not a SQL CASE expression) to branch on

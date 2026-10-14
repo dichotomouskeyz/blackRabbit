@@ -186,6 +186,17 @@ intervention, cloud deployment, and hardware-specific validation remain outside
 this backend release. Legacy Python package/database identifiers are retained
 for compatibility; the product name is blackRabbit.
 
+## Data handling and compliance
+
+blackRabbit stores pseudonymous UUIDs, never names or other direct identifiers,
+but it is research software provided as is under the MIT license. It is not
+certified or validated for HIPAA, GDPR, 21 CFR Part 11 or any other regulatory
+regime. The lab or institution that deploys it decides which rules apply and is
+responsible for meeting them: access control, encryption, retention, consent,
+IRB or ethics approval, and agreements with any model provider it enables.
+[Data handling](docs/data-handling.md) lists what the software stores, where
+identifying information can still appear, and what a deploying team must cover.
+
 ## License
 
 [MIT](LICENSE), copyright 2026 Jahlon Burruss. Third-party dependencies retain

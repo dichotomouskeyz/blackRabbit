@@ -1,6 +1,6 @@
 [project]
 name = "untitled_biometric_platform_1a"
-version = "0.3.0"
+version = "0.3.1"
 description = "blackRabbit: local physiological capture and reproducible post-session analysis"
 readme = "README.md"
 license = "MIT"

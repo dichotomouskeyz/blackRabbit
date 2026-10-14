@@ -1,6 +1,6 @@
 # Agent Context — untitled_biometric_platform-1a
 
-> Last updated: 2026-06-12
+> Last updated: 2026-10-13
 >
 > Detailed invariants and trust boundaries live in
 > [`.correctless/ARCHITECTURE.md`](ARCHITECTURE.md).
@@ -19,8 +19,8 @@ backup, and runs post-session ARC convergence analysis.
 | Session init | `capture/session_init/` | Creates the active session, builds modality rows through `SignalMetadataRow`, and writes the schema version log in one transaction |
 | LSL forwarder | `capture/forwarder/` | Reads LSL streams, writes XDF first, then inserts samples into per-modality TimescaleDB tables |
 | ECHO handler | `capture/echo_handler/` | Records manual zone/marker events from LSL marker stream |
-| Watchdog | `capture/watchdog/` | Supervises forwarder subprocess; MAX_RESTARTS=5, exponential backoff |
-| Session close | `capture/session_close/` | Reconciles XDF vs DB counts, backfills gaps, closes/fails session, triggers ARC |
+| Watchdog | `capture/watchdog/` | Supervises the forwarder subprocess; a failed capture exits visibly, there is no automatic restart (0.2.0) |
+| Session close | `capture/session_close/` | Reconciles XDF vs DB counts, backfills gaps, closes/fails the session and verifies the watermark; ARC runs afterwards as an explicit `python -m batch.arc` step |
 | ARC processor | `batch/arc/processor.py` | Post-session convergence: ECHO anchors → APEX response windows (W1/W2/W3), FDR, durable outputs |
 | Logger | `capture/logger.py` | Structured JSON logger factory; PII blocklist enforced at serialization time |
 | Settings | `config/settings.py` | All runtime config; loads `.env` at import, fails fast on missing required vars |
