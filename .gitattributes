@@ -1,0 +1,9 @@
+# Lock files and scripts must stay LF on every platform.
+uv.lock text eol=lf
+web/pnpm-lock.yaml text eol=lf
+*.sh text eol=lf
+*.ps1 text eol=crlf
+# Binary assets
+*.xdf binary
+*.gif binary
+*.png binary

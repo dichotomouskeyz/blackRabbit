@@ -53,6 +53,7 @@ down_revision: Union[str, None] = "025_clock_drift_log"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
+
 def upgrade() -> None:
     # Create biosignal_integrity_log — chunk integrity rows plus reconciliation summaries
     op.execute("""
