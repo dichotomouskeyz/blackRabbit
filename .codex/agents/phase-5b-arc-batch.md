@@ -1,59 +1,51 @@
 # Phase 5b ARC Batch Playbook
 
-Use this playbook for Agentic Response Convergence batch tasks.
+Use for local research Agentic Response Convergence batch work. Release authority
+is `.correctless/specs/arc-batch-release.md`, approved through the 2026-10-13
+release-contract corrections and recorded in `docs/decisions.md`.
 
 ## Goal
 
-Process complete post-session ECHO/APEX records into deterministic convergence
-artifacts and optional agentic interpretation over those artifacts.
+Turn verified ECHO/APEX recordings into deterministic event association artifacts
+and an interpretation consisting of cited numerical findings.
 
 ## Build Rules
 
-- Keep imports under `batch.arc.*`.
-- Run after session close and validation.
-- Treat raw APEX/ECHO rows as immutable inputs.
-- Compute W1/W2/W3 window responses from stored timestamps.
-- Use persisted baselines when comparing observed response values.
-- Record config and algorithm provenance on generated artifacts.
-- Represent missing signals explicitly.
+- Run explicitly after capture closes and its watermark verifies. Require both
+  tenant identifiers and use the shared session lock throughout the transaction.
+- Preserve raw records; compute from shared feature epochs and baseline values
+  that are persisted with the same run's complete provenance.
+- Use successive TOML response intervals W1 [0,30), W2 [30,120), W3 [120,300).
+  Historical centered-window utilities are compatibility helpers, not analysis.
+- Record incomplete windows, missing signals, and insufficient null support.
+- Keep numerical definitions in pure functions. The null shifts modalities
+  independently while preserving component relationships within each modality.
+- Persist all tested/nonpassing/excluded anchors in the analysis artifact; project
+  only FDR-passing events into ECP rows. Interpretation must cite stored metrics.
 
-## Do Not Build
+## Release Gate Criteria
 
-- live convergence during capture
-- raw data mutation
-- broad UI/API surfaces
-- replacement reconciliation paths
+- Analytic feature tests, BH agreement with SciPy, seeded-null reproducibility,
+  injected-convergence detection and noise rejection pass.
+- A mostly missing recording cannot acquire significance from unsupported null
+  draws. Unusable draws are counted; insufficient support yields p=1/untestable.
+- Invalid tenant/lifecycle gates perform no artifact writes. Analysis errors do
+  not alter previously verified capture state.
+- Identical replay produces the same analysis ID, artifact and ECP set. Different
+  provenance retains a separate run.
+- Baselines and ECPs persist atomically. An analysis_runs database trigger emits
+  arc_batch_complete and arc_interpretation_complete, including zero-passing runs;
+  application code never directly writes audit_events.
+- Deterministic interpretation reads FDR-passing metrics only, cites event/window/
+  component/value, and reproduces existing safety alerts with provenance.
+- Isolated-DB simulated capture/reconciliation/analysis/export works end to end.
+  Performance for 1000 shifts and about 50 anchors is measured independently.
 
-## Verification
+## Explicitly Deferred Gates
 
-Run tests for import stability, anchor filtering, window boundaries, missing
-signal behavior, deterministic convergence outputs, and session-close ARC
-handoff.
-
-## Gate Criteria
-
-Salvaged from the retired Notion "testing strategy phase x phase" page and
-translated to current naming. These are what Phase 5b must prove before Phase 4b.
-Components not yet built are marked (TODO).
-
-- `batch/arc/processor.py` produces ECPs for a simulated session with multiple
-  ECHO events; `arc_config_version` is populated on every ECP row.
-- (TODO) Convergence math lives in isolated pure functions (deviation score,
-  participation decision, convergence density, null distribution with a fixed
-  seed, Benjamini-Hochberg FDR matching scipy) in a `batch/arc/convergence`
-  module; the processor calls only those — no inline reimplementation.
-- Null distribution produces meaningful p-values and the FDR filter removes
-  noise events.
-- The processor reads `sqi_flag` and excludes degraded windows (>50% flagged,
-  configurable), and fails loud if `session_baselines` is empty for the session.
-- `arc_batch_complete` is written to `audit_events` on completion.
-- (TODO) `batch/arc` interpreter reads only FDR-passed ECPs, never recomputes
-  convergence, cites `echo_event_id` + the metric for every claim, and includes
-  a safety summary when `safety` alerts exist; writes
-  `arc_interpretation_complete` to `audit_events`.
-- Integration: full chain baseline → SQI → safety → ARC → interpreter; run twice,
-  ECP output identical both times (narrative wording may vary, cited facts may
-  not).
-- Performance: full chain completes well within a session-length budget; null
-  distribution (1000 shuffles) is reasonable for ~50 ECHO events.
-- DB-backed gates use `@pytest.mark.integration` + `TEST_DATABASE_URL`.
+Clinical safety assessment and intervention thresholds are not performed. The
+local report contains derived quality/excursion review and existing safety alerts,
+with an explicit statement of that limit. LLM narrative generation remains
+optional and is not needed for metric-cited interpretation. Live convergence,
+cloud deployment, broad API/UI expansion and heavyweight physiology stacks remain
+outside this release.

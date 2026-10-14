@@ -20,7 +20,6 @@
   client must migrate to SDK 7. Capture and ARC work without the optional extra.
 - **Date:** 2026-10-13
 
-
 ## Operator UI — Staged Agentic Surface
 
 - **Decision:** Build a researcher operator UI as a staged agentic surface:
@@ -244,3 +243,59 @@
   files such as `C:\Users\jahlo\.continue\config.yaml` and
   `C:\Users\jahlo\.claude\litellm\config.yaml` stay outside repo ownership.
 - **Date:** June 2026
+
+## Reproducible local ARC release contract
+
+- **Decision:** The approved 2026-10-13 release-contract corrections replace the
+  ARC prototype with a separately invoked, tenant-scoped post-session batch.
+  Require a closed session, verified watermark, and the common session advisory
+  lock before reading inputs. Persist content-addressed analysis runs, baseline
+  provenance, and FDR-passing ECP projections in one transaction. Identical reruns
+  reuse the same run and preserve prior results from changed configurations.
+- **Rationale:** Proxy features, pre-watermark processing, and mutable baseline
+  rows could not support reproducible research. Baseline and response calculations
+  now share fixed-duration feature extraction; successive configured windows have
+  one interpretation. The seeded modality circular-shift null preserves each
+  modality's temporal sequence and within-modality component relationships.
+  Surrogates require the observed component support; insufficient usable draws
+  make a result untestable. This remains exploratory association, subject to the
+  documented stationarity and BH dependence assumptions.
+- **Code impact:** `batch/arc/features.py`, `convergence.py`, `pipeline.py`,
+  `storage.py`, `processor.py`, `preflight.py`, and the explicit module CLI;
+  existing owning migrations 027/028; `arc-batch-release.md` and its regenerated
+  tests. NumPy supplies numerical operations; SciPy is a development reference
+  for independent BH agreement. EDA decomposition/SCR metrics are unsupported
+  rather than represented by proxies. Respiration rate requires recorded rate
+  values; amplitude inversion is forbidden.
+- **Scope adjustment:** Derived quality findings exclude flagged, invalid,
+  insufficiently covered, or incomplete-channel epochs without mutating raw
+  samples. A configurable post-session data-excursion review records values,
+  units, timestamps and algorithm provenance. It does not assess clinical safety
+  or generate cardiac diagnoses/alerts. Existing safety alerts are reproduced in
+  the report. Clinical safety scanning remains deferred, as do marker-selected
+  baselines and LLM interpretation. Deterministic interpretation cites only
+  FDR-passing event metrics. These replace the older raw-SQI-write and cardiac
+  safety phase gates for this local research release; they do not satisfy a
+  clinical deployment gate.
+- **Date:** 2026-10-13
+
+## Capture integrity and backend release boundary
+
+- **Decision:** Write standard XDF 1.0 with durable flush before each corresponding
+  database write, require canonical session identity, and serialize capture,
+  recovery and closeout with a shared advisory lock. Failed required workers
+  stop capture. Automatic restart is disabled until segmented resume can preserve
+  sample identity; an existing recording cannot restart at sample index zero.
+- **Rationale:** The previous custom binary format, swallowed storage errors,
+  unchecked file identities and restart counters could falsely imply complete
+  capture. Counts alone also missed partial EEG channel loss. Independent format
+  checks and per-channel recovery provide evidence the former tests lacked.
+- **Code impact:** Capture preflight/runtime, XDF writer/reader, reconciliation,
+  session close, watchdog, approved regenerated tests, and synthetic smoke scripts.
+  Capture closeout no longer invokes ARC or changes raw validity on analysis error.
+  Legacy XDF recovery is explicit and never rewrites existing recordings.
+- **Release boundary:** Local research backend only. Frontend changes are deferred
+  at Jahlon's request. The API remains localhost-only and process execution stays
+  on the CLI. MIT licensing and a backend source allowlist prepare publication
+  without exposing private repository history or local recording artifacts.
+- **Date:** 2026-10-13

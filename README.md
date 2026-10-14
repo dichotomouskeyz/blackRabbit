@@ -1,120 +1,170 @@
-# Untitled Biometric Platform 1a
+<h1 align="center">blackRabbit</h1>
 
-Local research infrastructure for synchronized physiological capture and
-post-session convergence analysis.
+<p align="center">
+  <img src="docs/assets/blackrabbit-overview.gif" width="840"
+       alt="blackRabbit records EEG, interbeat intervals, EDA and respiration over LSL with ECHO markers, writes XDF before TimescaleDB, reconciles the two, and runs ARC response-window analysis.">
+</p>
 
-The MVP captures EEG, HRV, EDA, and respiration through Lab Streaming Layer
-(LSL), records manual contextual ECHO markers, writes XDF before database rows,
-and runs ARC batch analysis after session close. It is not a therapy app,
-wellness product, clinical trial management system, or regulated medical device.
+<p align="center">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-ece8e1?style=flat-square&labelColor=0e0f11"></a>
+  <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-ece8e1?style=flat-square&labelColor=0e0f11">
+  <img alt="Lab Streaming Layer" src="https://img.shields.io/badge/LSL-XDF%201.0-ff5a1f?style=flat-square&labelColor=0e0f11">
+  <img alt="TimescaleDB" src="https://img.shields.io/badge/TimescaleDB-Postgres-ece8e1?style=flat-square&labelColor=0e0f11">
+  <img alt="Next.js 15" src="https://img.shields.io/badge/operator%20UI-Next.js%2015-ece8e1?style=flat-square&labelColor=0e0f11">
+</p>
 
-## Setup
+<p align="center">
+  Local research infrastructure for synchronized physiological recording and
+  reproducible post-session analysis.
+</p>
 
-Prerequisites:
+blackRabbit records EEG, interbeat intervals, electrodermal activity, respiration,
+and manual contextual markers through Lab Streaming Layer (LSL). It writes
+standard XDF recordings before database rows, verifies capture completeness,
+and computes exploratory responses around recorded events.
 
-- Docker Desktop
-- Python 3.12+
-- `uv`
-- WSL2 on Windows
+## Backend workflows
 
-```bash
-uv sync
+- **APEX capture:** four physiological streams with canonical pseudonymous
+  session identity, per-worker failure propagation, and durable XDF backups.
+- **ECHO markers:** manual contextual events recorded on the same LSL clock.
+- **Recovery and closeout:** tenant-scoped XDF validation, missing-sample replay,
+  complete EEG channel checks, and database watermarks.
+- **ARC analysis:** shared feature extraction, versioned baselines, successive
+  response windows, seeded circular-shift null tests, Benjamini-Hochberg FDR,
+  metric-cited summaries, and reproducible JSON artifacts.
+- **Operator API:** local session creation, tenant-scoped reads, capability
+  discovery, and completed analysis retrieval. Capture/analysis execution uses
+  the CLI while API process ownership and authentication remain deferred.
+- **Recording investigator:** optional PydanticAI backend with six typed,
+  read-only tools, cited findings, quality limitations, and signal-window data.
+  A headless synthetic demonstration runs without model credentials.
+
+The frontend is separate work. This is an exploratory research tool; it does not
+perform clinical safety assessment or establish causation from marker responses.
+Quality exclusions and data excursions are included in analysis artifacts.
+
+## Quickstart
+
+Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), and PostgreSQL 16 with
+TimescaleDB and pgvector. The supplied Docker Compose database image includes
+both extensions. Docker Desktop or a working Linux Docker engine is sufficient;
+WSL is an optional Windows route.
+
+```sh
+uv sync --frozen
 cp .env.example .env
-docker compose up -d
-alembic upgrade head
 ```
 
-## Running Capture
+On PowerShell, use `Copy-Item .env.example .env` instead of `cp`. Set `DB_PASSWORD`
+in the new file; `DATABASE_URL` interpolates the database fields. Use a
+URL-compatible password or set an explicitly URL-encoded connection string.
+Then start only the database and apply migrations:
 
-Real hardware and simulated streams use the same LSL stream names. Runtime
-configuration belongs in `config/settings.py` and `.env`.
-
-For real hardware:
-
-```bash
-python -m capture.forwarder
+```sh
+docker compose up -d timescaledb
+uv run python -m alembic upgrade head
+uv run python -m alembic current
 ```
 
-For simulated development sessions:
+This release updates pre-release owning migrations. Use a fresh database for
+this schema. Existing recordings and databases are not automatically rebuilt.
 
-```bash
-python -m capture.synthetic_board
-python -m capture.forwarder
+### Reproducible backend demonstration
+
+Create and migrate a dedicated database whose name contains `test` or `audit`.
+Set both `DATABASE_URL` and `TEST_DATABASE_URL` to its connection string in the
+shell before running this command. The script intentionally refuses other
+database names and retains its fictional sessions for inspection:
+
+```sh
+uv run python -m scripts.backend_smoke --output data/backend_smoke/demo
 ```
 
-The simulator publishes:
+The script generates fictional signals and exercises the real capture writers,
+XDF recovery, closeout, analysis CLI, and deterministic replay. It intentionally
+omits a database chunk, proves recovery from XDF, rejects analysis before the
+watermark, and checks foreign-tenant rejection. It writes a JSON receipt and
+analysis artifacts without requiring sensors or a model service.
 
-| Stream | Channels | Rate | Signal |
-| --- | ---: | ---: | --- |
-| EEG | 8 | 250 Hz | BrainFlow synthetic EEG channels |
-| HRV | 1 | ~1 Hz | ECG-derived RR intervals with fallback |
-| EDA | 1 | 4 Hz | Board EDA channel or synthetic fallback |
-| Respiration | 1 | 4 Hz | Accel proxy or synthetic fallback |
+For an actual short LSL/process smoke test, see:
 
-## Database And Tests
-
-Alembic migrations are the schema source of truth. Do not change schema outside
-a migration.
-
-```bash
-alembic upgrade head
-alembic current
-uv run pytest
+```sh
+uv run python -m scripts.lsl_smoke --help
 ```
 
-Integration tests require `TEST_DATABASE_URL` in `.env` pointing at a database
-with migrations applied.
+### Headless investigation demo
 
-## ARC
+After the backend demonstration, configure `API_READONLY_DATABASE_URL` with a
+SELECT-only role on the same test database, then run:
 
-ARC means Agentic Response Convergence. It runs after capture over complete
-APEX and ECHO records. ARC configuration lives in
-`config/arc_watchdog_config.toml`; generated artifacts store config version and
-SHA-256 provenance so results can be reproduced.
-
-See `docs/arc.md` for the ARC event contract and window semantics.
-
-## Operator API (M0)
-
-A thin, capability-gated FastAPI surface (`api/`) for the staged operator UI.
-Milestone 0 is read/create only: health, capability discovery, vocab, session
-list/status, and session create (wrapping `capture.session_init`). Write/exec
-capabilities (capture start/stop, markers, close, ARC run) are present but
-**blocked** — they return a structured `409 Capability unavailable` before any
-DB call, and the live-stream WebSocket refuses the upgrade. `GET /capabilities`
-returns the full matrix.
-
-```bash
-uv run uvicorn api.app:app --host 127.0.0.1 --port 8000
-uv run pytest tests/api_tests          # API test suite
+```sh
+uv sync --frozen --extra agent
+uv run --frozen --extra agent python -m scripts.investigation_smoke --receipt data/backend_smoke/demo/receipt.json --output data/investigation_demo
 ```
 
-The API's direct SQL runs on a `GRANT SELECT`-only role via
-`API_READONLY_DATABASE_URL`; all UI env vars are optional and the capture/ARC
-paths validate unchanged without them (see `.env.example`). M0 is
-localhost-bound with no authentication — tenancy is server-injected
-(`API_SPONSOR_ID`/`API_SITE_ID`), and localhost tenancy is not authentication.
-Contract authority: `.correctless/specs/operator-ui.md`; integration notes:
-`docs/ui-integration.md` §0. The Next.js chat shell is deferred
-(`docs/2R/backlog.md`, "Operator UI — Deferred / Skipped Register").
+This scripted SDK tool loop produces a cited report, tool trace, and downsampled
+signal windows. It verifies stored evidence and unchanged analysis hashes without
+a live model request. See [Recording investigation](docs/recording-investigation.md)
+for outputs, optional hosted providers, and the future streaming API connection.
 
-## Local Model Experiments
+### Recording and analysis
 
-Local coding-agent experiments are agent-neutral for now. The expected local
-model shape is:
+Use `--help` on each command for required identity and configuration arguments:
 
-```text
-LM Studio OpenAI-compatible API: http://localhost:1234/v1
+```sh
+uv run python -m capture.session_init --help
+uv run python -m capture.synthetic_board
+uv run python -m capture.marker_simulator
+uv run python -m capture.watchdog --help
+uv run python -m capture.session_close --help
+uv run python -m batch.arc --help
 ```
 
-Existing user-level configs may reference this endpoint, including:
+Start capture with the initialized session's exact participant, site, and sponsor
+identifiers. Stop the forwarder before closeout. Closeout accepts the XDF file
+and sponsor ID; it does not start analysis. Run `batch.arc` explicitly with the
+session, sponsor, and site IDs and `--output` for a reproducible JSON export.
 
-- `C:\Users\jahlo\.continue\config.yaml`
-- `C:\Users\jahlo\.claude\litellm\config.yaml`
+The default analysis config is `config/arc_watchdog_config.toml`. Its baseline
+and response windows require a sufficiently long recording. Short or missing
+windows are excluded explicitly. Failed capture is not automatically resumed;
+a new recording needs a new session so sample indices cannot be silently reused.
+Older blackRabbit custom-format recordings require explicit `--legacy-xdf`
+recovery; new files are standard XDF 1.0.
 
-Those files are outside this repo and are not required for the project to run.
+## Verification
 
-## Logs
+```sh
+uv run python -m ruff check .
+uv run python -m pyright capture batch api
+uv run python -m pytest -m "not integration"
+```
 
-Processes write structured JSON logs to stdout and `logs/<process_name>.log`.
-Logs, data artifacts, caches, `.env`, and XDF files should not be committed.
+The complete suite requires an isolated migrated database. Set `DATABASE_URL`
+and `TEST_DATABASE_URL` to that same database, `API_READONLY_DATABASE_URL` to a
+SELECT-only role on it, and `PYTHON_DOTENV_DISABLED=1` to prevent local settings
+from leaking into the test run. Do not point integration tests at real recordings.
+Then run `uv run python -m pytest`. The backend CI workflow provisions these roles.
+
+Tests include independent `pyxdf` parsing, numerical feature fixtures, an
+independent SciPy FDR comparison, missing-data gates, tenant isolation, failure
+propagation, persisted analysis replay, and actual database permissions.
+
+## Integration and scope
+
+See [backend handoff](docs/backend-handoff.md),
+[release audit](docs/release-audit-2026-10-13.md), and the active contracts in
+[.correctless/specs](.correctless/specs). Historical `docs/2R` audits describe the
+previous implementation, not the current release state.
+
+The API must remain bound to localhost until authenticated tenant authorization
+and capture-process ownership are implemented. Live clinical monitoring,
+intervention, cloud deployment, and hardware-specific validation remain outside
+this backend release. Legacy Python package/database identifiers are retained
+for compatibility; the product name is blackRabbit.
+
+## License
+
+[MIT](LICENSE), copyright 2026 Jahlon Burruss. Third-party dependencies retain
+their own licenses. Do not commit `.env`, real participant data, logs, or recordings.
