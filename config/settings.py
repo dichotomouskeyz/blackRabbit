@@ -10,6 +10,7 @@ To add a new setting:
   3. Never hardcode values anywhere else in the codebase
 """
 
+import math
 import os
 import uuid
 from pathlib import Path
@@ -217,6 +218,30 @@ LSL_RESOLVE_TIMEOUT: float = float(_get("LSL_RESOLVE_TIMEOUT", "5.0"))
 
 # Seconds of data each inlet can buffer internally before samples are lost
 LSL_MAX_BUFSIZE: float = float(_get("LSL_MAX_BUFSIZE", "10.0"))
+
+# Headless hardware bridge; these settings do not require a recording database.
+HARDWARE_BLE_SCAN_SECONDS: float = float(_get("HARDWARE_BLE_SCAN_SECONDS", "5.0"))
+HARDWARE_BUFFER_SECONDS: float = float(_get("HARDWARE_BUFFER_SECONDS", "10.0"))
+HARDWARE_POLL_SECONDS: float = float(_get("HARDWARE_POLL_SECONDS", "0.02"))
+HARDWARE_NO_DATA_SECONDS: float = float(_get("HARDWARE_NO_DATA_SECONDS", "10.0"))
+HARDWARE_CLOCK_JUMP_SECONDS: float = float(_get("HARDWARE_CLOCK_JUMP_SECONDS", "0.05"))
+
+
+def validate_hardware() -> None:
+    """Validate bridge defaults independently of the existing capture validator."""
+    values = {
+        "HARDWARE_BLE_SCAN_SECONDS": HARDWARE_BLE_SCAN_SECONDS,
+        "HARDWARE_BUFFER_SECONDS": HARDWARE_BUFFER_SECONDS,
+        "HARDWARE_POLL_SECONDS": HARDWARE_POLL_SECONDS,
+        "HARDWARE_NO_DATA_SECONDS": HARDWARE_NO_DATA_SECONDS,
+        "HARDWARE_CLOCK_JUMP_SECONDS": HARDWARE_CLOCK_JUMP_SECONDS,
+    }
+    for key, value in values.items():
+        if not math.isfinite(value) or value <= 0:
+            raise RuntimeError(f"{key} must be finite and positive")
+    if HARDWARE_POLL_SECONDS >= min(HARDWARE_BUFFER_SECONDS, HARDWARE_NO_DATA_SECONDS):
+        raise RuntimeError("Hardware polling interval must be below buffer and no-data durations")
+
 
 # ---------------------------------------------------------------------------
 # LSL — chunk sizes (samples pulled per pull_chunk call per modality)
