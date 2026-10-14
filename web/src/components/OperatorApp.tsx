@@ -5,7 +5,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { createApiClient, type ApiResult, type SessionSummary } from "@/lib/api-client";
 import { COLD_START_STATE, loadCapabilityState, type CapabilityState } from "@/lib/capabilities";
@@ -13,6 +13,11 @@ import { BUILT_AGAINST_CONTRACT_VERSION, contractVersionBanner } from "@/lib/err
 import type { AgentUnavailable } from "@/lib/agent-core";
 import { OperatorShell, type ChatTurn } from "@/components/OperatorShell";
 import type { ChatItem } from "@/components/ToolResultCard";
+import {
+  EMPTY_FILTER_FORM,
+  toApiFilters,
+  type SessionFilterForm,
+} from "@/lib/session-filter-form";
 
 // Browser requests go to the Next.js server, which rewrites /backend/* to
 // API_BASE_URL (next.config.mjs), so the FastAPI surface needs no CORS policy.
@@ -57,9 +62,13 @@ export function OperatorApp(): JSX.Element {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [pending, setPending] = useState(false);
   const [focusSessionId, setFocusSessionId] = useState<string | null>(null);
+  const [filterForm, setFilterForm] = useState<SessionFilterForm>(EMPTY_FILTER_FORM);
+  // The filters the list was last requested with; refreshes reuse them.
+  const filtersRef = useRef(toApiFilters(EMPTY_FILTER_FORM).filters);
+  const { problems: filterProblems } = toApiFilters(filterForm);
 
   const refreshSessions = useCallback(async () => {
-    const res = await client.listSessions();
+    const res = await client.listSessions(filtersRef.current);
     if (res.ok) {
       setSessions(res.data.sessions ?? []);
       setSessionsError(null);
@@ -89,6 +98,23 @@ export function OperatorApp(): JSX.Element {
     });
     void checkAgent();
   }, [client, refreshSessions, checkAgent]);
+
+  // Re-query when the filters change (SQ-006), after typing pauses, and only
+  // once every filter is complete and valid.
+  const firstFilterRun = useRef(true);
+  useEffect(() => {
+    if (firstFilterRun.current) {
+      firstFilterRun.current = false;
+      return;
+    }
+    const { filters, problems } = toApiFilters(filterForm);
+    if (Object.keys(problems).length > 0) return;
+    const timer = setTimeout(() => {
+      filtersRef.current = filters;
+      void refreshSessions();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [filterForm, refreshSessions]);
 
   async function send(text: string) {
     const operatorTurn: ChatTurn = { id: Date.now(), role: "operator", text, at: now() };
@@ -150,6 +176,9 @@ export function OperatorApp(): JSX.Element {
       banner={banner?.text ?? null}
       onSessionCreated={() => void refreshSessions()}
       focusSessionId={focusSessionId}
+      filterForm={filterForm}
+      filterProblems={filterProblems}
+      onFilterFormChange={setFilterForm}
     />
   );
 }

@@ -342,3 +342,18 @@
   contracts are unchanged. Native buffers are bounded, group failures clean up
   all resources, and restarts are explicit with new LSL source identities.
 - **Date:** 2026-10-13
+
+## Session list filters without new response fields
+
+- **Decision:** `GET /sessions` takes optional filters (session ID prefix,
+  participant UUID, status, compound, creation date range, limit) as bound
+  parameters behind typed `IS NULL OR` guards in one constant read query.
+  `participant_id` is accepted as a filter but never returned.
+- **Rationale:** Operators need to find sessions by date and identifier. The
+  operator-ui response allowlist (INV-003/INV-005) excludes `participant_id`,
+  and the read-SQL rules (PAT-003, INV-002) forbid building SQL from input, so
+  the filters narrow rows without widening what the API exposes.
+- **Code impact:** `api/session_filters.py`, `api/sessions.py`, `api/app.py`,
+  web client, `list_sessions` tool schema and dispatcher, session list filter
+  controls; spec `.correctless/specs/session-query.md`.
+- **Date:** 2026-10-14

@@ -84,6 +84,23 @@ const sessionIdOnlySchema = z.object({ session_id: sessionIdSchema }).strict();
 
 const emptySchema = z.object({}).strict();
 
+// The session_status enum (migration 002).
+export const SESSION_STATUSES = ["initializing", "active", "closing", "closed", "failed"] as const;
+
+// list_sessions filters (session-query SQ-005). session_id here is a prefix
+// filter, not a path parameter; participant_id must be a full UUID.
+const listSessionsSchema = z
+  .object({
+    session_id: z.string().regex(/^[0-9a-fA-F-]{1,36}$/, "session_id must be a UUID prefix").optional(),
+    participant_id: sessionIdSchema.optional(),
+    status: z.enum(SESSION_STATUSES).optional(),
+    compound: freeText().optional(),
+    created_from: z.string().max(40).optional(),
+    created_before: z.string().max(40).optional(),
+    limit: z.number().int().min(1).max(500).optional(),
+  })
+  .strict();
+
 const logMarkerSchema = z
   .object({
     session_id: sessionIdSchema,
@@ -93,7 +110,7 @@ const logMarkerSchema = z
   .strict();
 
 export const TOOL_REGISTRY: Record<string, ToolDef> = {
-  list_sessions: { name: "list_sessions", method: "GET", endpoint: "/sessions", capability: "list_sessions", schema: emptySchema },
+  list_sessions: { name: "list_sessions", method: "GET", endpoint: "/sessions", capability: "list_sessions", schema: listSessionsSchema },
   session_status: { name: "session_status", method: "GET", endpoint: "/sessions/{session_id}/status", capability: "session_status", schema: sessionIdOnlySchema },
   create_session: { name: "create_session", method: "POST", endpoint: "/sessions", capability: "create_session", schema: createSessionSchema },
   view_live_signals: { name: "view_live_signals", method: "GET", endpoint: "/capabilities", capability: "live_signals", schema: emptySchema },

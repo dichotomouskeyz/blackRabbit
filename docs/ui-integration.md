@@ -40,7 +40,7 @@ at runtime. Hiding buttons/tools in the UI is **insufficient**.
 | Health | `GET /health` | implemented |
 | Capabilities discovery | `GET /capabilities` | implemented |
 | Vocab | `GET /vocab` | implemented |
-| List sessions | `GET /sessions` | implemented (read-only query) |
+| List sessions | `GET /sessions` | implemented (read-only query; optional filters, see below) |
 | Session status | `GET /sessions/{id}/status` | implemented |
 | Create session | `POST /sessions` | implemented (wraps `create_session`) |
 | Live biosignal tab | `WS /sessions/{id}/stream` | scaffolded (WS upgrade refused; tab placeholder) |
@@ -50,6 +50,14 @@ at runtime. Hiding buttons/tools in the UI is **insufficient**.
 | Marker publish | `POST /sessions/{id}/markers` | **blocked** (409) |
 | Close session | `POST /sessions/{id}/close` | **blocked** (409) |
 | ARC run | `arc:run` | **blocked** (409) |
+
+**Session list filters** (`.correctless/specs/session-query.md`). `GET /sessions`
+accepts optional `session_id` (UUID prefix), `participant_id` (full UUID),
+`status`, `compound`, `created_from` (inclusive) and `created_before` (exclusive,
+ISO 8601 dates or datetimes with a UTC offset) and `limit` (1 to 500, default
+200). Filters combine with AND inside the sponsor and site scope. Invalid values
+return the structured 422 before any database work. The response fields do not
+change: `participant_id` is never returned.
 
 **M1 entry gates** (M0 stays read/scaffold-only; no write/exec capability is
 enabled until its gate is specified):

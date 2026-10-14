@@ -21,6 +21,13 @@ import { CapabilityControl } from "@/components/CapabilityControl";
 import { OutcomeMessage } from "@/components/OutcomeMessage";
 import { InFlight } from "@/components/InFlight";
 import { ToolResultCard, type ChatItem } from "@/components/ToolResultCard";
+import { SessionFilterPanel } from "@/components/SessionFilterPanel";
+import {
+  activeFilterCount,
+  EMPTY_FILTER_FORM,
+  type FilterProblems,
+  type SessionFilterForm,
+} from "@/lib/session-filter-form";
 
 export interface ChatTurn {
   id: number;
@@ -67,6 +74,11 @@ export interface OperatorShellProps {
   onSessionCreated?: (sessionId: string) => void;
   // A session to open in the context panel, e.g. one the agent just created.
   focusSessionId?: string | null;
+  // Session list filters (session-query SQ-006). The controls render only when
+  // onFilterFormChange is supplied.
+  filterForm?: SessionFilterForm;
+  filterProblems?: FilterProblems;
+  onFilterFormChange?: (form: SessionFilterForm) => void;
 }
 
 // Matrix rows that describe the API itself rather than an operator action.
@@ -108,11 +120,16 @@ export function OperatorShell({
   banner,
   onSessionCreated,
   focusSessionId,
+  filterForm = EMPTY_FILTER_FORM,
+  filterProblems = {},
+  onFilterFormChange,
 }: OperatorShellProps): JSX.Element {
   const chatDisabled = Boolean(agentUnavailable);
   const [client] = useState<ApiClient>(() => apiClient ?? createApiClient());
   const [draft, setDraft] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterCount = activeFilterCount(filterForm);
   const [detail, setDetail] = useState<ApiResult<unknown> | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const threadEnd = useRef<HTMLDivElement>(null);
@@ -240,22 +257,55 @@ export function OperatorShell({
         </div>
 
         {/* Durable session list — unaffected by an unavailable model. */}
-        <section className="rail-section rail-sessions" data-testid="session-list" aria-label="sessions">
+        <section
+          className={`rail-section rail-sessions${filtersOpen ? " has-filters" : ""}`}
+          data-testid="session-list"
+          aria-label="sessions"
+        >
           <header className="rail-head">
             <h2>Sessions</h2>
             <span className="count">{sessions.length}</span>
-            <button type="button" className="icon-btn" aria-label="New session" onClick={() => setSelected(null)}>
+            {onFilterFormChange ? (
+              <button
+                type="button"
+                className={`icon-btn icon-btn-push${filterCount > 0 ? " is-active" : ""}`}
+                aria-label="Filter sessions"
+                aria-expanded={filtersOpen}
+                onClick={() => setFiltersOpen((open) => !open)}
+              >
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M3.5 5h13M6 10h8M8.5 15h3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+                {filterCount > 0 ? <span className="filter-count">{filterCount}</span> : null}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className={`icon-btn${onFilterFormChange ? "" : " icon-btn-push"}`}
+              aria-label="New session"
+              onClick={() => setSelected(null)}
+            >
               <svg viewBox="0 0 20 20" aria-hidden="true">
                 <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
               </svg>
             </button>
           </header>
+          {onFilterFormChange && filtersOpen ? (
+            <SessionFilterPanel
+              form={filterForm}
+              problems={filterProblems}
+              compounds={vocab?.compounds ?? []}
+              onChange={onFilterFormChange}
+            />
+          ) : null}
           {sessionsError ? (
             <div className="rail-note">
               <OutcomeMessage result={sessionsError} />
             </div>
           ) : sessions.length === 0 ? (
-            <p className="rail-note">No sessions yet. Create one to get started.</p>
+            <p className="rail-note">
+              {filterCount > 0 ? "No sessions match these filters." : "No sessions yet. Create one to get started."}
+            </p>
           ) : (
             <ul className="session-list">
               {sessions.map((s) => (

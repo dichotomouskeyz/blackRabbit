@@ -27,6 +27,11 @@ from the product version.
 - A Generate button in the operator console's create form fills a random
   pseudonymous participant ID. Participant names stay in the lab's own
   enrollment key; blackRabbit stores only the UUID.
+- `GET /sessions` filters by session ID prefix, participant ID, status,
+  compound and creation date range, with a row limit. Invalid filters return a
+  structured 422 before any database work; the response fields are unchanged.
+- The operator console's session list has filter controls, and the agent's
+  `list_sessions` tool accepts the same filters.
 
 ## [0.3.1] - 2026-10-13
 

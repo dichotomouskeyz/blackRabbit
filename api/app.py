@@ -34,7 +34,7 @@ from pydantic import BaseModel, ConfigDict
 # so test patches on `api.deps` (e.g. monkeypatching get_readonly_connection /
 # get_tenant_context) bind at call time. `from api.deps import X` would bind the
 # name at import and leave the patch dead.
-from api import arc, capabilities, deps, investigation, sessions, vocab
+from api import arc, capabilities, deps, investigation, session_filters, sessions, vocab
 from api.deps import TenantContext
 
 CONTRACT_VERSION = "0"
@@ -205,14 +205,36 @@ def create_app() -> FastAPI:
         return vocab.get_vocab()
 
     @app.get("/sessions", response_model=SessionsList)
-    def _list_sessions(tenant: TenantContext = Depends(deps.get_tenant_context)):
-        # INV-001 fail-closed (no input to validate first): enforce non-null
-        # tenancy before opening any DB connection.
+    def _list_sessions(
+        tenant: TenantContext = Depends(deps.get_tenant_context),
+        session_id: str | None = None,
+        participant_id: str | None = None,
+        status: str | None = None,
+        compound: str | None = None,
+        created_from: str | None = None,
+        created_before: str | None = None,
+        limit: str | None = None,
+    ):
+        # SQ-002: validate every filter before tenancy or DB work.
+        try:
+            filters = session_filters.parse_session_filters(
+                session_id=session_id,
+                participant_id=participant_id,
+                status=status,
+                compound=compound,
+                created_from=created_from,
+                created_before=created_before,
+                limit=limit,
+            )
+        except session_filters.FilterError as exc:
+            return _structured_422(exc.field, exc.message, exc.valid_choices)
+        # INV-001 fail-closed: enforce non-null tenancy before opening any DB
+        # connection.
         validated_tenant = deps.require_tenant(tenant)
         conn = deps.get_readonly_connection()
         try:
             return sessions.list_sessions(
-                conn, validated_tenant.sponsor_id, validated_tenant.site_id
+                conn, validated_tenant.sponsor_id, validated_tenant.site_id, filters
             )
         finally:
             conn.rollback()

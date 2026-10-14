@@ -2,7 +2,7 @@
 // STUB:TDD — runs execute(toolName, args) against the mapped fixed endpoint via
 // the real client; never synthesizes success for a gated capability.
 
-import type { ApiClient } from "@/lib/api-client";
+import { sessionFilterQuery, type ApiClient, type SessionFilters } from "@/lib/api-client";
 import type { CapabilityState } from "@/lib/capabilities";
 import { TOOL_REGISTRY, BANNED_ARG_KEYS } from "@/lib/tool-registry";
 
@@ -66,10 +66,16 @@ export function createDispatcher(
       const sessionId = typeof record.session_id === "string" ? record.session_id : "";
       const path = def.endpoint.replace("{session_id}", encodeURIComponent(sessionId));
 
-      const result =
-        def.method.toUpperCase() === "GET"
-          ? await client.call(def.method, path)
-          : await client.call(def.method, path, sanitizeBody(record));
+      // A GET without a path parameter takes its validated arguments as query
+      // filters on the fixed path (session-query SQ-005).
+      const isGet = def.method.toUpperCase() === "GET";
+      const query =
+        isGet && !def.endpoint.includes("{session_id}")
+          ? sessionFilterQuery(record as SessionFilters)
+          : "";
+      const result = isGet
+        ? await client.call(def.method, path + query)
+        : await client.call(def.method, path, sanitizeBody(record));
 
       return {
         toolName,
