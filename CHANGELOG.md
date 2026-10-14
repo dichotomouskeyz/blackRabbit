@@ -13,6 +13,12 @@ from the product version.
 
 ## [Unreleased]
 
+### Added
+
+- `docs/data-handling.md` and a README section: what blackRabbit stores, where
+  identifying information can still appear, and that the deploying lab owns
+  HIPAA, GDPR, IRB and Part 11 obligations.
+
 ## [0.3.0] - 2026-10-13
 
 Operator console release and repository cleanup.
