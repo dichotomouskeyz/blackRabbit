@@ -85,7 +85,7 @@ const sessionIdOnlySchema = z.object({ session_id: sessionIdSchema }).strict();
 const emptySchema = z.object({}).strict();
 
 // The session_status enum (migration 002).
-export const SESSION_STATUSES = ["initializing", "active", "closing", "closed", "failed"] as const;
+export const SESSION_STATUSES = ["initializing", "active", "closing", "closed", "failed", "voided"] as const;
 
 // list_sessions filters (session-query SQ-005). session_id here is a prefix
 // filter, not a path parameter; participant_id must be a full UUID.

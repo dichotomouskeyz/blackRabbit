@@ -47,6 +47,9 @@ function capabilityUnavailableText(body: Record<string, unknown>): string {
   return `This action (${subject}) is currently unavailable in this build.`;
 }
 
+// 409 bodies about the session's own state rather than a gated capability.
+const SESSION_CONFLICTS = new Set(["already_voided", "session_not_voidable", "session_busy", "session_voided"]);
+
 // Map any API result to an operator-facing message.
 export function messageForResult(result: ApiResult<unknown>): OperatorMessage {
   if (result.ok) {
@@ -58,6 +61,14 @@ export function messageForResult(result: ApiResult<unknown>): OperatorMessage {
 
   switch (result.status) {
     case 409:
+      // Session-state conflicts carry their own operator copy (session-void).
+      if (errorCode && SESSION_CONFLICTS.has(errorCode)) {
+        return {
+          text: asString(body.message) ?? "The session is not in a state that allows this.",
+          severity: "warning",
+          kind: "capability_unavailable",
+        };
+      }
       return {
         text: capabilityUnavailableText(body),
         severity: "warning",

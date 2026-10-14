@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { JSX, KeyboardEvent } from "react";
-import type { CapabilityState } from "@/lib/capabilities";
+import { isCapabilityEnabled, type CapabilityState } from "@/lib/capabilities";
 import type { AgentUnavailable } from "@/lib/agent-core";
 import type { ApiClient, ApiResult, SessionSummary } from "@/lib/api-client";
 import { createApiClient } from "@/lib/api-client";
@@ -22,6 +22,7 @@ import { OutcomeMessage } from "@/components/OutcomeMessage";
 import { InFlight } from "@/components/InFlight";
 import { ToolResultCard, type ChatItem } from "@/components/ToolResultCard";
 import { SessionFilterPanel } from "@/components/SessionFilterPanel";
+import { VoidSessionForm } from "@/components/VoidSessionForm";
 import {
   activeFilterCount,
   EMPTY_FILTER_FORM,
@@ -79,6 +80,9 @@ export interface OperatorShellProps {
   filterForm?: SessionFilterForm;
   filterProblems?: FilterProblems;
   onFilterFormChange?: (form: SessionFilterForm) => void;
+  // Called after a session's state changes in the panel (for example a void),
+  // so the app can refresh the list.
+  onSessionsChanged?: () => void;
 }
 
 // Matrix rows that describe the API itself rather than an operator action.
@@ -123,6 +127,7 @@ export function OperatorShell({
   filterForm = EMPTY_FILTER_FORM,
   filterProblems = {},
   onFilterFormChange,
+  onSessionsChanged,
 }: OperatorShellProps): JSX.Element {
   const chatDisabled = Boolean(agentUnavailable);
   const [client] = useState<ApiClient>(() => apiClient ?? createApiClient());
@@ -131,6 +136,8 @@ export function OperatorShell({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filterCount = activeFilterCount(filterForm);
   const [detail, setDetail] = useState<ApiResult<unknown> | null>(null);
+  const [detailVersion, setDetailVersion] = useState(0);
+  const canVoid = isCapabilityEnabled(capabilities, "void_session");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const threadEnd = useRef<HTMLDivElement>(null);
 
@@ -161,7 +168,7 @@ export function OperatorShell({
     return () => {
       live = false;
     };
-  }, [selected, client]);
+  }, [selected, client, detailVersion]);
 
   async function handleCreate(
     body: Record<string, unknown>,
@@ -454,7 +461,19 @@ export function OperatorShell({
             {detail === null ? (
               <InFlight phase="awaiting" label="session_status" />
             ) : detail.ok ? (
-              <SessionDetail body={detail.data} />
+              <>
+                <SessionDetail body={detail.data} />
+                {canVoid && isVoidable(detail.data) ? (
+                  <VoidSessionForm
+                    key={selected}
+                    onSubmit={(reason) => client.voidSession(selected, reason)}
+                    onVoided={() => {
+                      setDetailVersion((v) => v + 1);
+                      onSessionsChanged?.();
+                    }}
+                  />
+                ) : null}
+              </>
             ) : (
               <OutcomeMessage result={detail} />
             )}
@@ -471,6 +490,12 @@ export function OperatorShell({
       </aside>
     </div>
   );
+}
+
+// Only closed or failed sessions can be voided (session-void SV-002).
+function isVoidable(body: unknown): boolean {
+  const status = body !== null && typeof body === "object" ? (body as { status?: unknown }).status : null;
+  return status === "closed" || status === "failed";
 }
 
 const DETAIL_LABELS: Record<string, string> = {
