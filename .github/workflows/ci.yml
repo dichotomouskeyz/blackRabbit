@@ -22,6 +22,12 @@ jobs:
     name: Unit tests
     runs-on: ubuntu-latest
     needs: lint
+    # Unit tests run without a database. Settings still validate at import, so
+    # give them a complete configuration that points at nothing.
+    env:
+      PYTHON_DOTENV_DISABLED: "1"
+      CAPTURE_SOURCE: simulated
+      DATABASE_URL: postgresql://ci:unused@127.0.0.1:1/blackrabbit_unit # pragma: allowlist secret
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
