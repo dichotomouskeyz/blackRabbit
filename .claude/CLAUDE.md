@@ -65,14 +65,14 @@ specification remain unfinished.
    stream.
 4. `capture.watchdog` can run the forwarder as a supervised subprocess.
 5. `capture.session_close` reconciles XDF counts against DB counts, backfills
-   gaps where possible, closes or fails the session, and invokes ARC
-   post-session processing.
+   gaps where possible, and closes or fails the session. ARC runs afterwards
+   as an explicit step (`python -m batch.arc`).
 
 ## MVP Roadmap
 
-Phase 2 capture components and structural refactors are present, but Phase 2 is
-not complete. The open exit findings are tracked in `docs/2R/state.md` and
-`docs/2R/backlog.md`.
+Release state is tracked in `CHANGELOG.md`, `docs/release-audit-2026-10-13.md`
+and `docs/backend-handoff.md`. The `docs/2R` audits describe the previous
+implementation.
 
 Phase 3b is baseline-in-batch: compute reproducible baseline records from the
 complete post-session dataset rather than live monitoring. Phase 3b also
@@ -85,18 +85,22 @@ Phase 5b is ARC batch core: ECHO anchor filtering/clustering, APEX window
 queries, baseline comparisons, convergence event contracts, and durable ARC
 outputs.
 
-Phase 4b is a thin user surface: CLI/notebook workflows for researchers. A full
-web app is deferred — see `docs/ui-integration.md` for the UI↔backend contract.
+Operator surface: capture and analysis run from the CLI. `web/` holds an
+agent-first Next.js console for session reads, session creation and
+capability-gated actions through a local model (contract:
+`.correctless/specs/frontend-shell.md`; API contract: `docs/ui-integration.md`).
 
-Deferred from the MVP: live safety monitor, WebSocket coordinator UI, React
-frontend, broad FastAPI app, MNE/Neurokit2 feature jobs, BLE/UWB hardware,
+Deferred from the MVP: live safety monitor, live signal and ARC review screens
+in `web/`, broad FastAPI app, MNE/Neurokit2 feature jobs, BLE/UWB hardware,
 cloud infrastructure, Kafka/Flink, and full regulatory workflows.
 
 ## Where To Look
 
-- Current branch state / what's sound: `docs/2R/state.md`
-- Open work, debt, deferred items: `docs/2R/backlog.md`
-- Database deep-dive audit: `docs/2R/db-health.md`
+- Release state and history: `CHANGELOG.md`, `docs/release-audit-2026-10-13.md`,
+  `docs/backend-handoff.md`
+- Operator UI: `web/` (agent-first Next.js console); contract in
+  `.correctless/specs/frontend-shell.md`
+- Historical audits of the previous implementation: `docs/2R/`
 - Architecture: `docs/architecture.md`, `.correctless/ARCHITECTURE.md`
 - Decisions log (authoritative): `docs/decisions.md`
 - UI ↔ backend contract: `docs/ui-integration.md`

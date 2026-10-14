@@ -1,52 +1,46 @@
 # Phase 3b Baseline Playbook
 
-Use this playbook for baseline-in-batch tasks.
+Use for local research baseline-in-batch work. Release authority is
+`.correctless/specs/arc-batch-release.md`, approved through the release-contract
+corrections on 2026-10-13. See the corresponding decision in `docs/decisions.md`.
 
 ## Goal
 
-Compute and persist reproducible baseline values after capture has completed.
-This is batch work, not live monitoring.
+Compute reproducible baseline distributions from verified captured samples, using
+exactly the feature extraction employed by response windows.
 
 ## Build Rules
 
-- Read complete post-session APEX records.
-- Write baseline artifacts to `session_baselines`.
-- Preserve raw biosignal rows unchanged.
-- Determine active signals from session metadata plus samples in the relevant
-  window.
-- Keep config in `config/settings.py` or TOML loader modules.
-- Use Alembic for schema changes.
+- Require canonical session/sponsor/site identity, closed status, verified
+  watermark and the session lock before batch input reads.
+- Preserve all raw APEX and ECHO rows. Derived quality findings belong in the
+  analysis artifact, never in a raw-row update.
+- Use complete fixed-duration feature epochs with valid-sample and channel
+  coverage checks. Record component units and extraction/config/input provenance.
+- Determine usable modalities from metadata, samples and baseline coverage.
+  Represent missing components explicitly; respect configured modality minimums.
+- Use settings/TOML for configuration and owning Alembic files for schema changes.
 
-## Do Not Build
+## Release Gate Criteria
 
-- live safety monitor semantics
-- live SQI monitor semantics
-- participant intervention thresholds
-- broad API/UI surfaces
+- Baseline and response features share `batch/arc/features.py`; analytic sinusoid
+  and RR tests prove the named feature calculations and units.
+- First-N-seconds baseline selection works with at least two valid feature epochs.
+- Every persisted baseline includes analysis ID, source/config hashes, extractor
+  version, unit, raw sample count and valid epoch count.
+- A rerun with identical inputs/config yields identical artifacts; changed
+  provenance preserves a separate run instead of overwriting baseline rows.
+- Derived quality exclusions handle flags, invalid values/timestamps, inadequate
+  epoch coverage and missing EEG channels. No raw samples are modified.
+- A configured data-excursion review records signal/time/value/unit/deviation and
+  algorithm provenance, skips unavailable epochs, and makes no clinical claim.
+- DB-backed checks use `@pytest.mark.integration` plus isolated TEST_DATABASE_URL.
 
-## Verification
+## Explicitly Deferred Gates
 
-Run focused tests for deterministic baseline values, missing modality handling,
-DB persistence shape, and no direct writes to `audit_events`.
-
-## Gate Criteria
-
-Salvaged from the retired Notion "testing strategy phase x phase" page and
-translated to current naming. These are what Phase 3b must prove before Phase 5b.
-Components not yet built are marked (TODO).
-
-- `session_baselines` has one row per signal component (`hrv_rmssd`, `eda_mean`,
-  `eeg_alpha_power`, …) after a simulated session.
-- Signal-component extraction is deterministic for known input, and baseline
-  computation and ARC use the *same* extraction code (no inline reimplementation
-  that can diverge). (Shared `batch/arc` signal-features module — TODO.)
-- Baseline window determination works for the chosen mode (first-N-minutes
-  config and/or `baseline_start`/`baseline_end` ECHO markers).
-- (TODO) Batch SQI gate runs against stored data and writes `sqi_flag` on flagged
-  samples; `sqi_flag` exists on all four biosignal hypertables.
-- (TODO) Batch safety scan runs against stored data, skips `sqi_flag = true`
-  samples, fires an `alert_events` row on an injected cardiac anomaly, and writes
-  `algorithm_name`/`algorithm_version`/`algorithm_parameters` on every alert.
-- Integration: the batch chain runs in order baseline → SQI → safety, each step
-  reading the previous step's output for the same session.
-- DB-backed gates use `@pytest.mark.integration` + `TEST_DATABASE_URL`.
+The previous playbook required writing raw `sqi_flag` fields and producing cardiac
+safety alerts. Those requirements are superseded for the local research release:
+raw data remains immutable, quality findings are derived, and clinical safety
+assessment is not performed. No validated clinical threshold contract exists here.
+Existing safety alerts are preserved in analysis reports. Marker-selected baseline
+windows, live SQI/safety semantics and participant intervention remain deferred.

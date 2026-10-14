@@ -4,13 +4,13 @@ Revision ID: 014_consent_log
 Revises: 013_compression_policy
 Create Date: 2026-04-27
 
-WHY THIS IS A HARD REQUIREMENT BEFORE UCSF:
+WHY THIS IS A HARD REQUIREMENT BEFORE CLINICAL USE:
   21 CFR Part 11 and FDA Good Clinical Practice (GCP) guidelines
   require that informed consent is documented BEFORE any research
   procedures begin. "Research procedures" includes biosignal capture.
 
   If untitledplatform_1a collects ANY biosignal data from a human participant
-  at UCSF — even in a demo context — there must be a documented
+  at a clinical site — even in a demo context — there must be a documented
   consent record tied to that participant's pseudonymous ID.
 
   Without this table, the system is non-compliant for any human
@@ -32,7 +32,7 @@ WHY STANDALONE TABLE (NOT PART OF SESSIONS):
   independent of how many sessions that participant has.
 
 WHY CONSENT_VERSION:
-  IRB-approved consent forms have version numbers. If UCSF updates
+  IRB-approved consent forms have version numbers. If the site updates
   their consent form, all subsequent consents use the new version.
   Participants who consented under an older version may need to
   re-consent. consent_version is what lets you query:

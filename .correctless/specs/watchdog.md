@@ -9,7 +9,16 @@
 
 ## What
 
-`capture/watchdog` spawns `capture.lsl_forwarder` as a managed subprocess and keeps it alive during a session. On unexpected forwarder exit, the watchdog logs a `process_restart` alert, waits an exponentially-backed-off delay, and restarts the forwarder. After `MAX_RESTARTS = 5` consecutive crashes it stops restarting, sets session status to `'failed'`, and exits. On SIGTERM, the watchdog signals the forwarder to stop cleanly, waits for it, sets session status to `'closing'`, and exits — leaving `session_close` to run next.
+`capture/watchdog` supervises one `capture.lsl_forwarder` subprocess. The local
+MVP uses `MAX_RESTARTS = 0`: safe multi-segment resume is deferred, so unexpected
+exit records the existing `process_restart` alert type, persists failure, and
+returns nonzero without resetting sample indices. On requested shutdown, only
+an exit code of zero may transition capture to `closing`. A requested shutdown
+with a failed or killed child remains failed. Database terminal-state errors
+propagate rather than reporting successful shutdown.
+
+This release correction was approved on 2026-10-13. Backoff helpers remain compatibility
+utilities; the release does not perform automatic restarts.
 
 ## Rules
 
@@ -33,13 +42,17 @@
 
 ### Watchdog loop — unit tests (mock subprocess + DB)
 
-- **R-007** [unit]: When `state.clean_shutdown` is `True` immediately after forwarder exit, `run_watchdog_loop` calls `handle_clean_shutdown` and does not increment `restart_count`.
+- **R-007** [unit]: A requested clean shutdown with child exit code zero calls `handle_clean_shutdown` without incrementing `restart_count`. A failed child is never marked closing.
 
 - **R-008** [unit]: When the forwarder exits unexpectedly, `run_watchdog_loop` increments `restart_count` by 1 and calls `record_unexpected_exit` with the correct exit code and uptime.
 
 - **R-009** [unit]: When `restart_count` exceeds `MAX_RESTARTS` after an unexpected exit, `run_watchdog_loop` calls `mark_session_failed` and exits the loop without further restarts.
 
 - **R-010** [unit]: Every unexpected forwarder exit — including the exit that tips `restart_count` over `MAX_RESTARTS` — triggers a `log_restart` call. No crashes are silently skipped.
+
+- **R-016** [unit]: `run_watchdog_loop` returns 0 only after persisted clean
+  shutdown; unexpected child exit returns 1 and failed terminal persistence
+  raises. The CLI propagates this outcome as its exit status.
 
 ### Database writes — integration tests
 
@@ -51,7 +64,7 @@
 
 - **R-014** [integration]: `mark_session_failed` sets session status to `'failed'` and sets `closed_at` when status is `'active'` or `'closing'`.
 
-- **R-015** [integration]: `log_restart` failure (DB connection error or missing session) is non-fatal — the watchdog loop continues to the next restart despite the failure. (Note: this currently fails due to BUG-003 — `psycopg2.connect` and `lookup_compound` are outside the `try/except` block in `log_restart`.)
+- **R-015** [integration]: An alert-write failure is logged and does not prevent the watchdog from attempting to persist terminal session failure. Failure to persist that terminal state propagates; no restart is attempted.
 
 ## Won't Do
 
@@ -61,8 +74,7 @@
 
 ## Risks
 
-- **BUG-003** — `log_restart` in `capture/watchdog/db.py` calls `psycopg2.connect` and `lookup_compound` outside the `try/except` block (lines 51-52). A DB unavailability or missing session raises an unhandled exception that crashes the entire watchdog loop. `mark_session_closing` and `mark_session_failed` correctly put their connect calls inside the try — `log_restart` should match that pattern.
-- **`log_restart`, `mark_session_closing`, `mark_session_failed` DB failures are non-fatal by design** — if the DB is unavailable when the forwarder crashes, the watchdog restarts the forwarder anyway. The unlogged restarts are acceptable loss; keeping the session alive takes priority.
+- If the database is unavailable, neither the failure alert nor terminal state can be guaranteed. Terminal-state errors propagate to the caller.
 - **`mark_session_closing` 0-row UPDATE on already-`'closing'` session is silent** — accepted; the downstream `session_close` is already set up to handle idempotent calls.
 
 ## Open Questions

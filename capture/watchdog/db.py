@@ -79,7 +79,7 @@ def log_restart(
                     models.WATCHDOG_ALGORITHM_VERSION,
                     params,
                     f"lsl_forwarder exited with code {exit_code}, "
-                    f"restarting (attempt {restart_count}/{models.MAX_RESTARTS})",
+                    f"capture stopped (failure {restart_count}; automatic resume disabled)",
                     pylsl.local_clock(),
                 ),
             )
@@ -121,6 +121,7 @@ def mark_session_closing(session_id: str, sponsor_id: str) -> None:
             "failed to set session to closing",
             extra={"error": str(exc), "session_id": session_id, "sponsor_id": sponsor_id},
         )
+        raise RuntimeError("could not persist the closing session state") from exc
 
 
 def mark_session_failed(session_id: str, sponsor_id: str) -> None:
@@ -146,3 +147,4 @@ def mark_session_failed(session_id: str, sponsor_id: str) -> None:
             "failed to mark session as failed",
             extra={"error": str(exc), "session_id": session_id, "sponsor_id": sponsor_id},
         )
+        raise RuntimeError("could not persist the failed session state") from exc

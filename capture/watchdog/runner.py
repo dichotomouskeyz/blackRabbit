@@ -1,42 +1,19 @@
-"""untitledplatform_1a process watchdog.
+"""Supervise one forwarder and persist its terminal capture state.
 
-Spawns lsl_forwarder as a subprocess, monitors it, and restarts it on
-unexpected exit. Every restart is written to alert_events — the audit
-trigger fires automatically, producing an audit_events entry.
+Automatic restart is disabled until safe segmented recording is implemented.
+An unexpected exit records an alert and marks capture failed. A requested stop
+transitions to closing only after the child exits successfully. Closeout is a
+separate command, run after the watchdog exits:
 
-Session lifecycle handoff
--------------------------
-The watchdog owns two session state transitions:
+    python -m capture.session_close --session-id <sid> --sponsor-id <sponsor> \
+        --xdf-path <path>
 
-  active → closing   (clean shutdown)
-    Send SIGTERM to the watchdog process. The watchdog forwards SIGTERM
-    to lsl_forwarder, waits for it to flush buffers and close the XDF
-    file, then sets session status = 'closing'. Only after the watchdog
-    exits should the coordinator run session_close.py. Running
-    session_close while the forwarder is still writing will produce an
-    incomplete XDF and a false reconciliation failure.
-
-    Correct sequence:
-      1. kill -TERM <watchdog_pid>
-      2. wait for watchdog to exit (poll or join)
-      3. python -m capture.session_close --session-id <sid> --xdf-path <path>
-
-  active → failed   (max restarts exhausted)
-    If lsl_forwarder crashes more than MAX_RESTARTS times the watchdog
-    sets session status = 'failed'. The sessions_watermark_trigger fires
-    and writes watermark_failed to audit_events, permanently blocking
-    post-session batch processing for this session. The coordinator is
-    responsible for reviewing alert_events and deciding next steps.
-
-Usage (matches lsl_forwarder args exactly):
-    python -m capture.watchdog \\
-        --session-id  <uuid> \\
-        --participant-id <pseudonymous-token> \\
-        --site-id     <site-code> \\
-        --sponsor-id  <sponsor-code>
+Database audit triggers record lifecycle changes. Terminal persistence errors
+propagate to the caller.
 """
 
 import signal
+import sys
 import time
 
 from capture.logger import get_logger, set_session_id
@@ -58,8 +35,9 @@ def install_signal_handlers(state: models.WatchdogState, args: models.WatchdogAr
             stop_forwarder(process, args.session_id)
 
     signal.signal(signal.SIGTERM, _handle_sigterm)
-    if hasattr(signal, "SIGBREAK"):
-        signal.signal(signal.SIGBREAK, _handle_sigterm)
+    break_signal = getattr(signal, "SIGBREAK", None)
+    if break_signal is not None:
+        signal.signal(break_signal, _handle_sigterm)
 
 
 def handle_clean_shutdown(args: models.WatchdogArgs) -> None:
@@ -111,7 +89,7 @@ def run_watchdog_loop(
     args: models.WatchdogArgs,
     forwarder_cmd: list[str],
     state: models.WatchdogState,
-) -> None:
+) -> int:
     while state.restart_count <= models.MAX_RESTARTS:
         log.info(
             "starting lsl_forwarder",
@@ -122,9 +100,9 @@ def run_watchdog_loop(
         exit_code = wait_for_forwarder(state.process)
         uptime_s = time.monotonic() - start_time
 
-        if state.clean_shutdown:
+        if state.clean_shutdown and exit_code == 0:
             handle_clean_shutdown(args)
-            break
+            return 0
 
         state.restart_count += 1
         record_unexpected_exit(args, exit_code, state.restart_count, uptime_s)
@@ -135,11 +113,12 @@ def run_watchdog_loop(
                 extra={"max_restarts": models.MAX_RESTARTS, "session_id": args.session_id},
             )
             mark_session_failed(args.session_id, args.sponsor_id)
-            break
+            return 1
 
         delay = restart_delay_s(state.restart_count)
         log.info("waiting before restart", extra={"delay_s": delay})
         time.sleep(delay)
+    return 1
 
 
 def main() -> None:
@@ -149,4 +128,4 @@ def main() -> None:
 
     state = models.WatchdogState()
     install_signal_handlers(state, args)
-    run_watchdog_loop(args, build_forwarder_cmd(args), state)
+    sys.exit(run_watchdog_loop(args, build_forwarder_cmd(args), state))

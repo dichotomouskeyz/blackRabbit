@@ -199,10 +199,12 @@ ECHO proximity state events from LSL Marker Stream (manual in 1a).
 ## ARC Tables (027-028)
 
 ### `session_baselines`
-Persisted baseline values for ARC. One row per signal component per session.
+Persisted baseline values for ARC. One row per signal component per analysis
+run, preserving earlier results when configuration or input changes.
 
 | Column | Type | Notes |
 |--------|------|-------|
+| `analysis_id` | `UUID NOT NULL` | FK to `analysis_runs.id`, added by migration 028 |
 | `session_id` | `UUID NOT NULL` | |
 | `participant_id` | `UUID NOT NULL` | Pseudonymous participant token |
 | `site_id` | `UUID NOT NULL` | |
@@ -214,19 +216,27 @@ Persisted baseline values for ARC. One row per signal component per session.
 | `baseline_window_start` | `DOUBLE PRECISION NOT NULL` | LSL timestamp |
 | `baseline_window_end` | `DOUBLE PRECISION NOT NULL` | LSL timestamp; must be after start |
 | `sample_count` | `INTEGER NOT NULL` | Must be > 0 |
+| `epoch_count` | `INTEGER NOT NULL` | Must be >= 2 |
+| `units` | `TEXT NOT NULL` | Physical feature units |
+| `extractor_version` | `TEXT NOT NULL` | Shared feature implementation version |
+| `config_version` | `TEXT NOT NULL` | Configuration version |
+| `config_sha256` | `TEXT NOT NULL` | 64-character configuration digest |
+| `input_sha256` | `TEXT NOT NULL` | 64-character input snapshot digest |
 | `created_at` | `TIMESTAMPTZ NOT NULL` | |
-| **PK** | `(session_id, modality, signal_component)` | |
+| **PK** | `(analysis_id, modality, signal_component)` | |
 
 **Indexes:** `session_id`, `(sponsor_id, site_id, session_id)`, `(modality, signal_component)`
 
 ### `event_composite_profiles`
-Post-session ARC output table. One row per ECHO event per session that passes FDR, storing the full three-window Event Composite Profile without collapsing by interpretation mode.
+Post-session ARC output table. One row per ECHO event per analysis run that
+passes FDR, storing the full three-window Event Composite Profile.
 
 ARC reads validated ECHO + APEX records after the session watermark is verified. It does not write during capture and does not replace the raw modality tables.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | `UUID` PK | `gen_random_uuid()` |
+| `analysis_id` | `UUID NOT NULL` | FK to `analysis_runs.id` |
 | `session_id` | `UUID NOT NULL` | |
 | `participant_id` | `UUID NOT NULL` | Pseudonymous participant token |
 | `site_id` | `UUID NOT NULL` | |
@@ -249,13 +259,36 @@ ARC reads validated ECHO + APEX records after the session watermark is verified.
 | `arc_config_sha256` | `TEXT NOT NULL` | SHA-256 of the ARC config content used for the profile |
 | `created_at` | `TIMESTAMPTZ NOT NULL` | |
 
-**Constraints:** `passed_fdr IS TRUE`, unique `(session_id, echo_event_id)`
+**Constraints:** `passed_fdr IS TRUE`, unique `(analysis_id, echo_event_id)`
 
 **Permissions:** `REVOKE UPDATE, DELETE FROM PUBLIC`
 
 **Triggers:** `event_composite_profiles_audit_trigger` uses `audit_trigger_full_func()`
 
 **Indexes:** `(session_id, created_at DESC)`, `echo_event_id`, `(sponsor_id, site_id, session_id)`, `arc_config_version`
+
+### `analysis_runs`
+
+One completed analysis artifact per content-derived UUID. The application inserts
+new runs and reuses an existing identical run without overwriting it. The JSON
+artifact contains passing, excluded and untestable events, feature provenance,
+and the explicit clinical-safety limitation.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `UUID` PK | Derived from algorithm, configuration and input identity |
+| `session_id` | `UUID NOT NULL` | FK to `sessions.id` |
+| `participant_id`, `site_id`, `sponsor_id` | `UUID NOT NULL` | Canonical session identity |
+| `algorithm_version` | `TEXT NOT NULL` | Analysis implementation version |
+| `config_sha256`, `input_sha256`, `artifact_sha256` | `TEXT NOT NULL` | 64-character digests |
+| `artifact` | `JSONB NOT NULL` | Complete report; must be a JSON object |
+| `created_at` | `TIMESTAMPTZ NOT NULL` | Insert time |
+
+**Index:** `(sponsor_id, site_id, session_id, created_at)`.
+**Permissions:** `REVOKE UPDATE, DELETE FROM PUBLIC`.
+**Trigger:** `arc_analysis_complete_trigger` writes `arc_batch_complete` and
+`arc_interpretation_complete` audit events on insertion. Application code never
+writes `audit_events` directly.
 
 ---
 

@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from html import escape
 
@@ -10,6 +11,9 @@ def _stream_header_xml(
     participant_id: str,
     site_id: str,
     sponsor_id: str,
+    *,
+    eeg_channel_names: tuple[str, ...] | None = None,
+    device_id: str | None = None,
 ) -> str:
     n_ch = _CHANNEL_COUNTS[stream_name]
     rate = _SAMPLE_RATES[stream_name]
@@ -17,6 +21,12 @@ def _stream_header_xml(
     stream_type = "Markers" if stream_name == "ECHO" else stream_name
     source_id = f"untitledplatform_1a-{stream_name.lower()}"
     created_at = datetime.now(timezone.utc).isoformat()
+    channel_metadata = (
+        f"<eeg_channel_names>{escape(json.dumps(list(eeg_channel_names)))}</eeg_channel_names>"
+        if stream_name == "EEG" and eeg_channel_names is not None
+        else ""
+    )
+    device_metadata = f"<device_id>{escape(device_id)}</device_id>" if device_id else ""
     return (
         '<?xml version="1.0"?><info>'
         f"<name>{escape(stream_name)}</name>"
@@ -30,6 +40,8 @@ def _stream_header_xml(
         f"<site_id>{escape(site_id)}</site_id>"
         f"<sponsor_id>{escape(sponsor_id)}</sponsor_id>"
         f"<created_at>{escape(created_at)}</created_at>"
+        "<blackrabbit_xdf_format>1.0</blackrabbit_xdf_format>"
+        f"{channel_metadata}{device_metadata}"
         "</info>"
     )
 

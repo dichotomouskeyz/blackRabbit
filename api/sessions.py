@@ -3,7 +3,7 @@
 Read SQL lives as module-level constants (PAT-003), each matching ^(SELECT|WITH)
 with no write token (INV-002), with IDs bound as %(name)s params (PRH-003). All
 reads run on the read-only connection (INV-002) and filter by the server
-sponsor (INV-001). Creates wrap `capture.session_init.workflow.create_session`
+sponsor and site (INV-001). Creates wrap `capture.session_init.workflow.create_session`
 via module-attribute access so test monkeypatches bind.
 """
 
@@ -19,13 +19,13 @@ from api import arc
 SESSIONS_LIST_SQL = (
     "SELECT id::text, status::text, compound, started_at, closed_at, created_at "
     "FROM sessions "
-    "WHERE sponsor_id = %(sponsor_id)s "
+    "WHERE sponsor_id = %(sponsor_id)s AND site_id = %(site_id)s "
     "ORDER BY created_at DESC"
 )
 SESSION_STATUS_SQL = (
     "SELECT id::text, status::text, started_at, closed_at "
     "FROM sessions "
-    "WHERE id = %(session_id)s AND sponsor_id = %(sponsor_id)s"
+    "WHERE id = %(session_id)s AND sponsor_id = %(sponsor_id)s AND site_id = %(site_id)s"
 )
 
 
@@ -34,16 +34,16 @@ def _iso(value):
     return value.isoformat() if value is not None else None
 
 
-def list_sessions(conn, sponsor_id: str) -> dict:
+def list_sessions(conn, sponsor_id: str, site_id: str) -> dict:
     """Tenancy-scoped session list (INV-001).
 
     Returns {sessions: [{id, status, compound, started_at, closed_at,
-    created_at}]} filtered by the server sponsor.
+    created_at}]} filtered by the server sponsor and site.
     """
-    if sponsor_id is None:
-        raise ValueError("list_sessions requires a non-null sponsor_id (INV-001)")
+    if not sponsor_id or not site_id:
+        raise ValueError("list_sessions requires sponsor_id and site_id (INV-001)")
     with conn.cursor() as cur:
-        cur.execute(SESSIONS_LIST_SQL, {"sponsor_id": sponsor_id})
+        cur.execute(SESSIONS_LIST_SQL, {"sponsor_id": sponsor_id, "site_id": site_id})
         rows = cur.fetchall()
     sessions = [
         {
@@ -59,24 +59,24 @@ def list_sessions(conn, sponsor_id: str) -> dict:
     return {"sessions": sessions}
 
 
-def session_status(conn, session_id: str, sponsor_id: str) -> dict | None:
+def session_status(conn, session_id: str, sponsor_id: str, site_id: str) -> dict | None:
     """Tenancy-scoped status + derived watermark_state (RS-016).
 
     Returns the status payload, or None when the session is not visible under
-    the server sponsor (caller maps None -> 404). watermark_state is the closed
+    the server sponsor/site (caller maps None -> 404). watermark_state is the closed
     enum derived in api/ (never a {verified, failed} bool pair).
     """
-    if sponsor_id is None:
-        raise ValueError("session_status requires a non-null sponsor_id (INV-001)")
+    if not sponsor_id or not site_id:
+        raise ValueError("session_status requires sponsor_id and site_id (INV-001)")
     with conn.cursor() as cur:
         cur.execute(
             SESSION_STATUS_SQL,
-            {"session_id": session_id, "sponsor_id": sponsor_id},
+            {"session_id": session_id, "sponsor_id": sponsor_id, "site_id": site_id},
         )
         row = cur.fetchone()
     if row is None:
         return None
-    watermark_state = arc.derive_watermark_state(conn, session_id, sponsor_id)
+    watermark_state = arc.derive_watermark_state(conn, session_id, sponsor_id, site_id)
     return {
         "id": row[0],
         "status": row[1],

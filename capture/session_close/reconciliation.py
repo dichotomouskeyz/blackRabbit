@@ -29,9 +29,17 @@ def read_xdf_counts_or_none(xdf_path: Path) -> dict | None:
         return None
 
 
-def reconcile_session(conn, session_id: str, xdf_path: Path, xdf_counts: dict):
-    db_counts = query_db_counts(conn, session_id)
-    max_clock_drift_s = query_max_clock_drift_s(conn, session_id)
+def reconcile_session(
+    conn,
+    session_id: str,
+    xdf_path: Path,
+    xdf_counts: dict,
+    *,
+    sponsor_id: str,
+    legacy=False,
+):
+    db_counts = query_db_counts(conn, session_id, sponsor_id=sponsor_id)
+    max_clock_drift_s = query_max_clock_drift_s(conn, session_id, sponsor_id=sponsor_id)
     report = build_report(
         session_id,
         xdf_path,
@@ -41,16 +49,22 @@ def reconcile_session(conn, session_id: str, xdf_path: Path, xdf_counts: dict):
     )
 
     log.info("initial reconciliation", extra=report.as_dict())
-    meta = fetch_session_meta(conn, session_id)
+    meta = fetch_session_meta(conn, session_id, sponsor_id=sponsor_id)
 
     if not report.is_reconciled:
         any_positive_gap = any(row.gap > 0 for row in report.streams.values())
         if any_positive_gap:
-            rows_backfilled = run_backfill(conn, report, meta=meta)
+            rows_backfilled = run_backfill(
+                conn,
+                report,
+                meta=meta,
+                sponsor_id=sponsor_id,
+                legacy=legacy,
+            )
             log.info("backfill finished", extra={"rows_backfilled": rows_backfilled})
 
-            db_counts_after = query_db_counts(conn, session_id)
-            max_clock_drift_s = query_max_clock_drift_s(conn, session_id)
+            db_counts_after = query_db_counts(conn, session_id, sponsor_id=sponsor_id)
+            max_clock_drift_s = query_max_clock_drift_s(conn, session_id, sponsor_id=sponsor_id)
             report = build_report(
                 session_id,
                 xdf_path,
@@ -61,7 +75,7 @@ def reconcile_session(conn, session_id: str, xdf_path: Path, xdf_counts: dict):
             log.info("post-backfill reconciliation", extra=report.as_dict())
 
     # Module-attribute call: keeps the binding late so it can be swapped/patched.
-    reconciliation_db.write_reconciliation_log(conn, report, meta)
+    reconciliation_db.write_reconciliation_log(conn, report, meta, sponsor_id=sponsor_id)
     return report
 
 

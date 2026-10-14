@@ -71,7 +71,7 @@ A study artifact + living tracker. Each section pairs an abstract database conce
 
 | § | Concept | Status | Last verified | One-line |
 |---|---|---|---|---|
-| 5.1 | DB role / privilege architecture | ❌ | 2026-05-31 | Single superuser today. CLAUDE.md known issue #1 — required before UCSF deployment. |
+| 5.1 | DB role / privilege architecture | ❌ | 2026-05-31 | Single superuser today. CLAUDE.md known issue #1 — required before clinical deployment. |
 
 ### Tier 6 — Spec-vs-implementation compliance (findings from spec-driven TDD, 2026-06-09)
 
@@ -665,13 +665,13 @@ Why 1 hour:
 
 - Today: a single superuser role is used everywhere. The `DATABASE_URL` in `.env.example` connects as a single user (`untitled`) that has full permissions including DROP on audit tables.
 - `audit_events` is "append-only" in the sense that application code doesn't write to it (only triggers do — see §3.1). But there's no DB-side enforcement preventing the application user from issuing `DELETE FROM audit_events`. A buggy script or malicious actor with the credentials could erase the audit trail.
-- The proposed Phase 4 role layout (from CLAUDE.md "Working roles required before UCSF"):
+- The proposed Phase 4 role layout (from CLAUDE.md "Working roles required before clinical use"):
   - `app_role`: INSERT only on audit tables, INSERT/UPDATE on session + event tables, no DELETE anywhere.
   - `coordinator_role`: INSERT on session and event tables; no access to `system_users` or `data_access_log`.
   - `readonly_role`: SELECT-only for reporting and dashboards.
   - Superuser credentials vaulted; never used in production code paths.
 
-**Status.** ❌ Single superuser today. CLAUDE.md known issue #1 — required before any real UCSF session.
+**Status.** ❌ Single superuser today. CLAUDE.md known issue #1 — required before any real clinical session.
 
 **Open.**
 - Implement Phase 4 role layout: write the migration that creates the roles + grants, update `.env.example` to show the new `DATABASE_URL` per role, document the deployment workflow.
@@ -734,7 +734,7 @@ Why 1 hour:
 **Open.**
 - Add a cron / systemd-timer that runs `pg_dump` nightly to a separate filesystem.
 - Document the restore procedure for both scenarios: (a) DB lost, biosignal sessions recoverable via XDF backfill; (b) DB lost AND session-level metadata (sessions, audit) lost — what's the RPO?
-- Test the restore procedure end-to-end at least once before any real UCSF session.
+- Test the restore procedure end-to-end at least once before any real clinical session.
 
 ---
 
@@ -783,7 +783,7 @@ Why 1 hour:
 **Status.** ⚠️ Process + DB + DB-connection failure handled. Disk + watchdog-of-the-watchdog deferred.
 
 **Open.**
-- Document each recovery procedure as a runnable runbook (commands the operator would type) before any real UCSF session.
+- Document each recovery procedure as a runnable runbook (commands the operator would type) before any real clinical session.
 - For watchdog supervision: in the MVP just check that the watchdog is running via a cron heartbeat. In Phase 4 the deployment runs the watchdog under systemd / Docker `restart: always`.
 
 ---
@@ -957,11 +957,11 @@ capture-source fields. That revision was removed rather than adopted.
 | 18 | `biosignal_integrity_log` UNIQUE for idempotent reconciliation | Constraint coverage | this doc §1.5 | 📝 new |
 | 19 | EXPLAIN ANALYZE spot-check on real session data | Index validation | this doc §1.6 | 🔍 pending |
 | 20 | Retention policy for old session chunks | Operational doc | this doc §4.4 | 📝 deferred (MVP scope) |
-| 21 | DB role / privilege architecture | Security / deployment | CLAUDE.md known issue #1 / this doc §5.1 | ❌ required before UCSF |
+| 21 | DB role / privilege architecture | Security / deployment | CLAUDE.md known issue #1 / this doc §5.1 | ❌ required before clinical use |
 | 22 | TLS in transit — `sslmode=` not set in DSN | Security / deployment | this doc §5.2 | ⚠️ document for prod |
 | 23 | `pg_dump` automation + DR procedure | Operational / DR | this doc §5.4 | ⚠️ deferred to Phase 4 |
 | 24 | Disk capacity monitoring + alerting | Operational | this doc §5.5 | ⚠️ deferred |
-| 25 | Failure recovery runbooks documented | Operational | this doc §5.6 | 📝 needed before UCSF |
+| 25 | Failure recovery runbooks documented | Operational | this doc §5.6 | 📝 needed before clinical use |
 | 26 | `schema_version_log` is never populated by app code | Bug | this doc §5.8 | ⚠️ implementation added 2026-06-07; tests still needed |
 | 27 | Startup-time check that live Alembic head matches expected | Operational safety | this doc §5.8 | 📝 new |
 | 28 | Continuous aggregates evaluated when ARC batch becomes latency-bound | Performance / future | this doc §4.3 | 📝 deferred |
@@ -1045,7 +1045,7 @@ Use this to jump to whichever concern you're studying.
 | Compression | 4 | §4.2 (auto-compress at 1-day age, segmentby + orderby per table) |
 | Continuous aggregates | 4 | §4.3 (not used; documented as deliberate non-use) |
 | Retention policy | 4 | §4.4 (deferred for MVP scope) |
-| DB roles / privileges | 5 | §5.1 (single superuser today — required before UCSF) |
+| DB roles / privileges | 5 | §5.1 (single superuser today — required before clinical use) |
 | TLS in transit | 5 | §5.2 (no `sslmode=` in DSN; deployment-side gap) |
 | Secrets management | 5 | §5.3 (.env + python-dotenv + pre-commit no-env-files hook) |
 | Backup / DR | 5 | §5.4 (XDF parallel backup; no DB-level backup, no PITR) |

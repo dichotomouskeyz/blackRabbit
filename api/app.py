@@ -14,12 +14,13 @@ Documented endpoint set (spec Endpoint contract):
   GET  /sessions/{session_id}/status
   POST /sessions
   WS   /sessions/{session_id}/stream            (scaffolded: upgrade refused)
-  GET  /sessions/{session_id}/arc               (scaffolded: 409)
+  GET  /sessions/{session_id}/arc               (persisted report; watermark gated)
   POST /sessions/{session_id}/markers           (blocked: 409)
   POST /sessions/{session_id}/capture:start     (blocked: 409)
   POST /sessions/{session_id}/capture:stop      (blocked: 409)
   POST /sessions/{session_id}/close             (blocked: 409)
   POST /sessions/{session_id}/arc:run           (blocked: 409)
+  POST /agent/chat                             (optional investigation agent)
 """
 
 import json
@@ -33,7 +34,7 @@ from pydantic import BaseModel, ConfigDict
 # so test patches on `api.deps` (e.g. monkeypatching get_readonly_connection /
 # get_tenant_context) bind at call time. `from api.deps import X` would bind the
 # name at import and leave the patch dead.
-from api import capabilities, deps, sessions, vocab
+from api import arc, capabilities, deps, investigation, sessions, vocab
 from api.deps import TenantContext
 
 CONTRACT_VERSION = "0"
@@ -96,6 +97,23 @@ class CreateSessionResponse(BaseModel):
     session_id: str
 
 
+class ARCProvenance(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    algorithm_version: str
+    config_sha256: str
+    input_sha256: str
+    artifact_sha256: str
+
+
+class ARCReviewResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    session_id: str
+    analysis_id: str
+    created_at: str
+    provenance: ARCProvenance
+    artifact: dict
+
+
 # --- Create request body: closed allow-list (RS-004 / INV-004) ---------------
 # extra='forbid' makes unknown keys (incl. site_id/sponsor_id) a 422 at FastAPI
 # validation before the route body runs — no DB call. The named electrode kwargs
@@ -127,7 +145,7 @@ def _capability_409(endpoint_label: str) -> JSONResponse:
 
 
 def _structured_422(field: str, message: str, valid_choices=None) -> JSONResponse:
-    content = {"field": field, "message": message}
+    content: dict[str, str | list[str]] = {"field": field, "message": message}
     if valid_choices is not None:
         content["valid_choices"] = list(valid_choices)
     return JSONResponse(status_code=422, content=content)
@@ -136,6 +154,7 @@ def _structured_422(field: str, message: str, valid_choices=None) -> JSONRespons
 def create_app() -> FastAPI:
     """Build the operator API app (M0)."""
     app = FastAPI(title="blackRabbit operator API")
+    investigation.install(app)
 
     # --- app-level fail-closed handlers (INV-014 / QA-001 / QA-004) ----------
     # Every DB-touching route inherits these: a backend-down condition or a
@@ -189,10 +208,12 @@ def create_app() -> FastAPI:
     def _list_sessions(tenant: TenantContext = Depends(deps.get_tenant_context)):
         # INV-001 fail-closed (no input to validate first): enforce non-null
         # tenancy before opening any DB connection.
-        deps.require_tenant(tenant)
+        validated_tenant = deps.require_tenant(tenant)
         conn = deps.get_readonly_connection()
         try:
-            return sessions.list_sessions(conn, tenant.sponsor_id)
+            return sessions.list_sessions(
+                conn, validated_tenant.sponsor_id, validated_tenant.site_id
+            )
         finally:
             conn.rollback()
             conn.close()
@@ -203,10 +224,12 @@ def create_app() -> FastAPI:
         if not sessions.is_uuid(session_id):
             return _structured_422("session_id", "session_id must be a valid UUID")
         # INV-001 fail-closed: enforce non-null tenancy before any DB call.
-        deps.require_tenant(tenant)
+        validated_tenant = deps.require_tenant(tenant)
         conn = deps.get_readonly_connection()
         try:
-            payload = sessions.session_status(conn, session_id, tenant.sponsor_id)
+            payload = sessions.session_status(
+                conn, session_id, validated_tenant.sponsor_id, validated_tenant.site_id
+            )
         finally:
             conn.rollback()
             conn.close()
@@ -226,14 +249,14 @@ def create_app() -> FastAPI:
         if not sessions.is_uuid(body.participant_id):
             return _structured_422("participant_id", "participant_id must be a valid UUID")
         # INV-001 fail-closed: enforce non-null tenancy before the wrapped call.
-        deps.require_tenant(tenant)
+        validated_tenant = deps.require_tenant(tenant)
         try:
             session_id = sessions.create_session(
                 compound=body.compound,
                 capture_source=body.capture_source,
                 participant_id=body.participant_id,
-                sponsor_id=tenant.sponsor_id,
-                site_id=tenant.site_id,
+                sponsor_id=validated_tenant.sponsor_id,
+                site_id=validated_tenant.site_id,
                 compound_dose=body.compound_dose,
                 compound_dose_unit=body.compound_dose_unit,
                 protocol_arm=body.protocol_arm,
@@ -251,10 +274,42 @@ def create_app() -> FastAPI:
             return _map_create_value_error(exc)
         return {"session_id": session_id}
 
-    # --- scaffolded: ARC read (409 capability-status, first) -----------------
-    @app.get("/sessions/{session_id}/arc")
-    def _arc_read(session_id: str):
-        return _capability_409("GET /sessions/{id}/arc")
+    @app.get("/sessions/{session_id}/arc", response_model=ARCReviewResponse)
+    def _arc_read(session_id: str, tenant: TenantContext = Depends(deps.get_tenant_context)):
+        if not sessions.is_uuid(session_id):
+            return _structured_422("session_id", "session_id must be a valid UUID")
+        validated_tenant = deps.require_tenant(tenant)
+        conn = deps.get_readonly_connection()
+        try:
+            payload = arc.latest_artifact(
+                conn, session_id, validated_tenant.sponsor_id, validated_tenant.site_id
+            )
+        except arc.SessionNotFound:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "not_found", "message": "session not found"},
+            )
+        except arc.WatermarkNotVerified as exc:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error": "watermark_not_verified",
+                    "message": str(exc),
+                    "watermark_state": exc.watermark_state,
+                },
+            )
+        finally:
+            conn.rollback()
+            conn.close()
+        if payload is None:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "error": "analysis_not_found",
+                    "message": "no persisted ARC analysis is available for this session",
+                },
+            )
+        return payload
 
     # --- blocked capabilities (409 capability-status, first) -----------------
     @app.post("/sessions/{session_id}/markers")

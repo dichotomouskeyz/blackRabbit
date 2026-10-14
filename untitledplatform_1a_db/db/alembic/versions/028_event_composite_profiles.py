@@ -26,8 +26,45 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.execute("""
+        CREATE TABLE analysis_runs (
+            id UUID PRIMARY KEY,
+            session_id UUID NOT NULL REFERENCES sessions(id),
+            participant_id UUID NOT NULL,
+            sponsor_id UUID NOT NULL,
+            site_id UUID NOT NULL,
+            config_sha256 TEXT NOT NULL CHECK (length(config_sha256)=64),
+            input_sha256 TEXT NOT NULL CHECK (length(input_sha256)=64),
+            algorithm_version TEXT NOT NULL,
+            artifact_sha256 TEXT NOT NULL CHECK (length(artifact_sha256)=64),
+            artifact JSONB NOT NULL CHECK (jsonb_typeof(artifact)='object'),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX analysis_runs_tenant_session_idx
+            ON analysis_runs(sponsor_id, site_id, session_id, created_at);
+        ALTER TABLE session_baselines ADD CONSTRAINT session_baselines_analysis_fk
+            FOREIGN KEY (analysis_id) REFERENCES analysis_runs(id);
+        CREATE FUNCTION arc_analysis_complete_func() RETURNS TRIGGER AS $$
+        BEGIN
+            INSERT INTO audit_events(session_id, event_type, table_name, record_id,
+                                     payload, event_timestamp)
+            VALUES(NEW.session_id, 'arc_batch_complete', 'analysis_runs', NEW.id::text,
+                   jsonb_build_object('analysis_id', NEW.id, 'artifact_sha256', NEW.artifact_sha256,
+                                      'config_sha256', NEW.config_sha256), NOW());
+            INSERT INTO audit_events(session_id, event_type, table_name, record_id,
+                                     payload, event_timestamp)
+            VALUES(NEW.session_id, 'arc_interpretation_complete', 'analysis_runs', NEW.id::text,
+                   jsonb_build_object('analysis_id', NEW.id, 'artifact_sha256', NEW.artifact_sha256), NOW());
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+        CREATE TRIGGER arc_analysis_complete_trigger AFTER INSERT ON analysis_runs
+            FOR EACH ROW EXECUTE FUNCTION arc_analysis_complete_func();
+        REVOKE UPDATE, DELETE ON analysis_runs FROM PUBLIC;
+    """)
+    op.execute("""
         CREATE TABLE event_composite_profiles (
             id                          UUID             PRIMARY KEY DEFAULT gen_random_uuid(),
+            analysis_id                 UUID             NOT NULL REFERENCES analysis_runs(id),
             session_id                  UUID             NOT NULL,
             participant_id              UUID             NOT NULL,
             site_id                     UUID             NOT NULL,
@@ -69,7 +106,7 @@ def upgrade() -> None:
             created_at                  TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
 
             CONSTRAINT event_composite_profiles_session_echo_event_unique
-                UNIQUE (session_id, echo_event_id)
+                UNIQUE (analysis_id, echo_event_id)
         );
     """)
 
@@ -105,3 +142,6 @@ def downgrade() -> None:
         ON event_composite_profiles;
     """)
     op.execute("DROP TABLE IF EXISTS event_composite_profiles;")
+    op.execute("ALTER TABLE session_baselines DROP CONSTRAINT session_baselines_analysis_fk;")
+    op.execute("DROP TABLE IF EXISTS analysis_runs;")
+    op.execute("DROP FUNCTION IF EXISTS arc_analysis_complete_func();")

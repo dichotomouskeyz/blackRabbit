@@ -17,11 +17,14 @@ import signal
 import threading
 import time
 
+import psycopg2
+
 from capture.control import clear_stop_request, stop_requested
 from capture.forwarder.models import PAYLOAD_SCHEMA_VERSION, SessionConfig
-from capture.forwarder.preflight import run_preflight
+from capture.forwarder.preflight import load_session_config, verify_session_ready
 from capture.forwarder.stream_thread.streams import build_stream_threads
 from capture.logger import get_logger, set_session_id
+from capture.session_lock import acquire_session_lock
 from capture.xdf.writer import XDFWriter
 from config import settings
 
@@ -36,12 +39,16 @@ class ForwarderEngine:
         self.stop_event = threading.Event()
         self.xdf: XDFWriter | None = None
         self.threads: list[threading.Thread] = []
+        self.session_conn = None
 
     def prepare(self) -> None:
         """Validate the session and load config — no streams are touched."""
         set_session_id(self.cfg.session_id)
+        self.session_conn = psycopg2.connect(settings.DATABASE_URL)
+        acquire_session_lock(self.session_conn, self.cfg.session_id)
+        verify_session_ready(self.cfg, self.session_conn)
+        self.cfg = load_session_config(self.cfg, self.session_conn)
         clear_stop_request(self.cfg.session_id)
-        self.cfg = run_preflight(self.cfg)
 
         log.info(
             "forwarder starting",
@@ -63,11 +70,13 @@ class ForwarderEngine:
             participant_id=self.cfg.participant_id,
             site_id=self.cfg.site_id,
             sponsor_id=self.cfg.sponsor_id,
+            eeg_channel_names=self.cfg.eeg_channel_names,
         )
 
         signal.signal(signal.SIGTERM, lambda sig, frame: self.stop_event.set())
-        if hasattr(signal, "SIGBREAK"):
-            signal.signal(signal.SIGBREAK, lambda sig, frame: self.stop_event.set())
+        break_signal = getattr(signal, "SIGBREAK", None)
+        if break_signal is not None:
+            signal.signal(break_signal, lambda sig, frame: self.stop_event.set())
 
         self.threads = build_stream_threads(self.cfg, self.stop_event, self.xdf)
         for thread in self.threads:
@@ -82,6 +91,10 @@ class ForwarderEngine:
                     log.info("stop request file detected - flushing buffers")
                     self.stop_event.set()
                     break
+                required = [thread for thread in self.threads if thread.name != "fwd_echo"]
+                if any(not thread.is_alive() for thread in required):
+                    self.stop_event.set()
+                    raise RuntimeError("required capture worker exited unexpectedly")
                 time.sleep(1)
         except KeyboardInterrupt:
             log.info("shutdown requested - flushing buffers")
@@ -92,23 +105,30 @@ class ForwarderEngine:
         self.stop_event.set()
         try:
             join_threads(self.threads)
-        finally:
             if self.xdf is not None:
                 self.xdf.close()
+        finally:
+            if self.session_conn is not None:
+                self.session_conn.close()
+                self.session_conn = None
         raise_if_thread_failed(self.threads)
         log.info("forwarder stopped")
 
 
 def run_forwarder(cfg: SessionConfig) -> None:
     engine = ForwarderEngine(cfg)
-    engine.prepare()
-    engine.start()
-    engine.run_until_stopped()
-    engine.stop()
+    try:
+        engine.prepare()
+        engine.start()
+        engine.run_until_stopped()
+    finally:
+        engine.stop()
 
 
 def join_threads(threads: list[threading.Thread], timeout_s: float = 10.0) -> None:
     for thread in threads:
+        if thread.ident is None:
+            continue
         thread.join(timeout=timeout_s)
         if thread.is_alive():
             log.error(
@@ -118,6 +138,7 @@ def join_threads(threads: list[threading.Thread], timeout_s: float = 10.0) -> No
                     "join_timeout_s": timeout_s,
                 },
             )
+            raise RuntimeError(f"capture worker {thread.name} did not stop")
 
 
 def raise_if_thread_failed(threads: list[threading.Thread]) -> None:

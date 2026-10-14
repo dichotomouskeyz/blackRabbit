@@ -36,7 +36,7 @@ class StreamThreadState:
     sample_index: int = 0
     chunk_count: int = 0
     last_drift_ts: float = 0.0
-    fatal_error: RuntimeError | None = None
+    fatal_error: Exception | None = None
 
 
 class StreamThread(threading.Thread):
@@ -170,7 +170,7 @@ class StreamThread(threading.Thread):
         self.state.last_drift_ts = value
 
     @property
-    def fatal_error(self) -> RuntimeError | None:
+    def fatal_error(self) -> Exception | None:
         return self.state.fatal_error
 
     def advance_sample_index(self) -> None:
@@ -182,7 +182,7 @@ class StreamThread(threading.Thread):
     def mark_drift_recorded(self, now: float) -> None:
         self.state.last_drift_ts = now
 
-    def set_fatal_error(self, exc: RuntimeError) -> None:
+    def set_fatal_error(self, exc: Exception) -> None:
         self.state.fatal_error = exc
 
     # -- actions --------------------------------------------------------------

@@ -1,6 +1,6 @@
 # Architecture
 
-Untitled Biometric Platform 1a is a local research capture and post-session
+blackRabbit 1a is a local research capture and post-session
 analysis system.
 
 ## Runtime Shape

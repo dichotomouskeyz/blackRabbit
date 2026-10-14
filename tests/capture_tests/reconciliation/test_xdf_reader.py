@@ -130,3 +130,125 @@ class TestStreamXdfSamples:
         rows = list(stream_xdf_samples(path, "EEG"))
         indices = [sample_index for sample_index, _, _ in rows]
         assert indices == [0, 1, 2, 3]
+
+
+# Approved 2026-10-13 release reader rules. These fixtures intentionally corrupt
+# complete files, exercising validation independently of writer success paths.
+
+
+def test_standard_reader_rejects_width_two():
+    with pytest.raises(XDFReadError, match="legacy"):
+        _read_chunk_length(io.BytesIO(b"\x02\x00\x01"))
+    assert _read_chunk_length(io.BytesIO(b"\x02\x00\x01"), legacy=True) == 256
+
+
+def test_truncated_length_is_not_clean_eof():
+    with pytest.raises(XDFTruncatedError):
+        _read_chunk_length(io.BytesIO(b"\x04\x01"))
+
+
+def test_every_stream_needs_a_footer(valid_xdf):
+    path, _ = valid_xdf
+    data = path.read_bytes()
+    # Cut the final footer. Four intact footers must not establish closure.
+    pos, last = 4, 4
+    while pos < len(data):
+        last = pos
+        width = data[pos]
+        length = int.from_bytes(data[pos + 1 : pos + 1 + width], "little")
+        pos += 1 + width + length
+    path.write_bytes(data[:last])
+    with pytest.raises(XDFTruncatedError, match="footers"):
+        read_xdf_counts(path)
+
+
+def test_footer_counts_must_equal_decoded_samples(valid_xdf):
+    path, _ = valid_xdf
+    path.write_bytes(path.read_bytes().replace(b"<sample_count>4</", b"<sample_count>5</", 1))
+    with pytest.raises(XDFReadError, match="count"):
+        read_xdf_counts(path)
+
+
+def test_malformed_footer_is_rejected(valid_xdf):
+    path, _ = valid_xdf
+    path.write_bytes(path.read_bytes().replace(b"<sample_count>4</", b"<sample_count>x</", 1))
+    with pytest.raises(XDFReadError):
+        read_xdf_counts(path)
+
+
+def test_trailing_partial_chunk_is_rejected(valid_xdf):
+    path, _ = valid_xdf
+    path.write_bytes(path.read_bytes() + b"\x04\x00")
+    with pytest.raises(XDFTruncatedError):
+        read_xdf_counts(path)
+
+
+def test_identity_validates_all_expected_fields(valid_xdf):
+    from batch.reconciliation.xdf import inspect_xdf, validate_xdf_identity
+
+    path, _ = valid_xdf
+    counts = validate_xdf_identity(path, SESSION_ID, SPONSOR_ID, PARTICIPANT_ID, SITE_ID)
+    assert counts["EEG"] == 4
+    metadata = inspect_xdf(path)
+    assert metadata.identity["sponsor_id"] == SPONSOR_ID
+    assert metadata.format == "xdf-1.0"
+    for field in ("session_id", "sponsor_id", "participant_id", "site_id"):
+        expected = dict(
+            session_id=SESSION_ID,
+            sponsor_id=SPONSOR_ID,
+            participant_id=PARTICIPANT_ID,
+            site_id=SITE_ID,
+        )
+        expected[field] = "00000000-0000-4000-8000-000000000099"
+        with pytest.raises(XDFReadError, match=field):
+            validate_xdf_identity(path, **expected)
+
+
+def test_cross_stream_identity_disagreement_is_rejected(valid_xdf):
+    path, _ = valid_xdf
+    path.write_bytes(
+        path.read_bytes().replace(SPONSOR_ID.encode(), b"00000000-0000-4000-8000-000000000099", 1)
+    )
+    with pytest.raises(XDFReadError, match="identity"):
+        read_xdf_counts(path)
+
+
+def test_standard_file_cannot_be_labeled_legacy(valid_xdf):
+    path, _ = valid_xdf
+    with pytest.raises(XDFReadError, match="standard"):
+        read_xdf_counts(path, legacy=True)
+
+
+def test_explicit_legacy_recovery_preserves_original_file(tmp_path):
+    import struct
+
+    from batch.reconciliation.xdf import inspect_xdf
+
+    # Historical writer layout, constructed independently of new encoder.
+    def old_varlen(number):
+        return b"\x01" + bytes([number]) if number <= 255 else b"\x02" + struct.pack("<H", number)
+
+    def chunk(tag, content):
+        body = struct.pack("<H", tag) + content
+        return old_varlen(len(body)) + body
+
+    header = (
+        "<info><name>EEG</name><channel_count>1</channel_count>"
+        "<nominal_srate>256</nominal_srate><channel_format>float32</channel_format>"
+        f"<session_id>{SESSION_ID}</session_id><participant_id>{PARTICIPANT_ID}</participant_id>"
+        f"<site_id>{SITE_ID}</site_id><sponsor_id>{SPONSOR_ID}</sponsor_id></info>"
+    ).encode()
+    original = b"XDF:" + chunk(1, b"<info><version>1.0</version></info>")
+    original += chunk(2, struct.pack("<I", 1) + header)
+    original += chunk(
+        3, struct.pack("<Id", 1, 1000000.0) + b"\x01\x01" + struct.pack("<df", 12.5, 7.0)
+    )
+    original += chunk(6, struct.pack("<I", 1) + b"<info><sample_count>1</sample_count></info>")
+    path = tmp_path / "legacy.xdf"
+    path.write_bytes(original)
+    with pytest.raises(XDFReadError):
+        read_xdf_counts(path)
+    assert read_xdf_counts(path, legacy=True) == {"EEG": 1}
+    assert list(stream_xdf_samples(path, "EEG", legacy=True)) == [(0, 12.5, [7.0])]
+    assert inspect_xdf(path, legacy=True).format == "blackrabbit-legacy"
+    assert path.read_bytes() == original

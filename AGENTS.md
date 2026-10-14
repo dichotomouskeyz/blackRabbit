@@ -38,9 +38,11 @@ Regulated/clinical deployments are a deferred 1b concern, not the 1a scope.
 
 ## Where To Look
 
-- Current branch state / what's sound: `docs/2R/state.md`
-- Open work, debt, deferred items: `docs/2R/backlog.md`
-- Database deep-dive audit: `docs/2R/db-health.md`
+- Release state and history: `CHANGELOG.md`, `docs/release-audit-2026-10-13.md`,
+  `docs/backend-handoff.md`
+- Operator UI: `web/` (agent-first Next.js console); contract in
+  `.correctless/specs/frontend-shell.md`
+- Historical audits of the previous implementation: `docs/2R/`
 - Architecture (prose / component map): `docs/architecture.md`,
   `.correctless/ARCHITECTURE.md`
 - Decisions log (authoritative): `docs/decisions.md`
@@ -124,6 +126,7 @@ is live data at go-live.
 
 Read the relevant module and tests before editing. Prefer small, direct changes
 over broad refactors. Keep deferred systems deferred unless the user explicitly
-reintroduces them: live safety/SQI semantics, broad FastAPI service, React UI,
+reintroduces them: live safety/SQI semantics, broad FastAPI service, live
+signal and ARC review screens in `web/`,
 BLE/UWB hardware, cloud infrastructure, Kafka/Flink, and heavyweight external
 signal-processing stacks.

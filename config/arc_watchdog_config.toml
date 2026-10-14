@@ -1,4 +1,4 @@
-config_version = "demo-002"
+config_version = "research-003"
 config_role = "arc_watchdog"
 
 [baseline]
@@ -31,14 +31,14 @@ alpha = 0.05
 family_scope = "session"
 
 [null_model]
-method = "permutation"
+method = "circular_shift"
 permutation_count = 1000
 random_seed = 20260512
 
 [signal_components]
 eeg = ["eeg_alpha_power", "eeg_theta_power", "eeg_beta_power"]
 hrv = ["hrv_rmssd", "hrv_sdnn", "heart_rate_bpm"]
-eda = ["eda_mean", "eda_scr_count", "eda_phasic_amplitude"]
+eda = ["eda_mean"]
 respiration = ["respiration_rate", "respiration_amplitude"]
 
 # Reserved config contract. The MVP does not run a separate live SAP layer;
@@ -67,3 +67,15 @@ zone_label = "environmental_note"
 [[anchor_events.include]]
 event_type = "zone_enter"
 zone_label = "arms_reach"
+
+[features]
+epoch_s = 10.0
+
+[quality]
+max_degraded_fraction = 0.5
+
+[participation]
+deviation_threshold = 2.0
+
+[review]
+deviation_threshold = 6.0

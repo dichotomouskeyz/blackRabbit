@@ -39,7 +39,17 @@ def _cfg():
 
 
 def _writer():
-    return ECHOWriter(_cfg())
+    return ECHOWriter()
+
+
+def _process_marker(xdf, conn, marker):
+    import threading
+
+    from capture.echo_handler.thread import ECHOThread
+
+    thread = ECHOThread(_cfg(), threading.Event(), xdf)
+    inlet = SimpleNamespace(pull_sample=lambda **kwargs: ([marker], LSL_TIMESTAMP))
+    return thread.process_next_sample(inlet, conn)
 
 
 class TestEchoIngestionPipeline:
@@ -81,28 +91,25 @@ class TestEchoIngestionPipeline:
             )
             assert cur.fetchone()[0] == "manual_logging"
 
-    def test_r018_xdf_write_before_db_write(self):
+    def test_r018_xdf_write_before_db_write(self, monkeypatch):
         events = []
         xdf = SimpleNamespace(write_marker=lambda *a, **k: events.append("xdf"))
-        conn = SimpleNamespace(
-            cursor=lambda: SimpleNamespace(
-                __enter__=lambda s: s,
-                __exit__=lambda s, *e: False,
-                execute=lambda *a, **k: events.append("db"),
-            )
-        )
-        from capture.echo_handler import runtime
+        from capture.echo_handler.thread import ECHOThread
 
-        runtime.process_marker(_cfg(), xdf, conn, _VALID_MARKER, LSL_TIMESTAMP)
+        conn = object()
+        monkeypatch.setattr(
+            ECHOThread,
+            "write_or_buffer",
+            lambda self, conn, row: (events.append("db"), conn)[1],
+        )
+        _process_marker(xdf, conn, _VALID_MARKER)
         assert events and events[0] == "xdf"
         assert "db" in events
 
     def test_r019_unrecognised_marker_no_db_no_xdf(self, db_conn, seeded_session):
         events = []
         xdf = SimpleNamespace(write_marker=lambda *a, **k: events.append("xdf"))
-        from capture.echo_handler import runtime
-
-        runtime.process_marker(_cfg(), xdf, db_conn, "GARBAGE|not|a|marker", LSL_TIMESTAMP)
+        _process_marker(xdf, db_conn, "GARBAGE|not|a|marker")
         assert events == []
         with db_conn.cursor() as cur:
             cur.execute(

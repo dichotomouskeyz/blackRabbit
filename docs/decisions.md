@@ -1,5 +1,25 @@
 # Decisions
 
+## Headless recording investigation agent
+
+- **Decision:** Use optional `pydantic-ai-slim[openai,anthropic,ui]==2.55.0`
+  for one Python recording-investigation agent. Keep six read-only tools
+  independent of the SDK. The selected recording, tenant, and saved analysis
+  are server-pinned; model output cites server-owned evidence. Window inspection
+  is exploratory and never changes ARC results.
+- **Rationale:** The existing FastAPI and numerical backend can expose typed
+  tools without a second calculation layer. Native OpenAI and Anthropic models
+  are explicitly configured server-side with no provider fallback. This replaces
+  the local-only model restriction for this new Python agent. The user requested
+  a headless portfolio demonstration and deferred credentials and frontend work;
+  a visibly scripted FunctionModel runs the real tool loop on synthetic recordings.
+- **Code impact:** `investigation/`, optional `/agent/chat`, bounded in-memory
+  conversations, CLI, synthetic investigation smoke, and spec-derived tests.
+  PydanticAI's SDK 7 adapter streams tools, chart data, and the structured report.
+  The existing SDK 4 frontend and its agent route remain unchanged; a later thin
+  client must migrate to SDK 7. Capture and ARC work without the optional extra.
+- **Date:** 2026-10-13
+
 ## Operator UI — Staged Agentic Surface
 
 - **Decision:** Build a researcher operator UI as a staged agentic surface:
@@ -223,3 +243,85 @@
   files such as `C:\Users\jahlo\.continue\config.yaml` and
   `C:\Users\jahlo\.claude\litellm\config.yaml` stay outside repo ownership.
 - **Date:** June 2026
+
+## Reproducible local ARC release contract
+
+- **Decision:** The approved 2026-10-13 release-contract corrections replace the
+  ARC prototype with a separately invoked, tenant-scoped post-session batch.
+  Require a closed session, verified watermark, and the common session advisory
+  lock before reading inputs. Persist content-addressed analysis runs, baseline
+  provenance, and FDR-passing ECP projections in one transaction. Identical reruns
+  reuse the same run and preserve prior results from changed configurations.
+- **Rationale:** Proxy features, pre-watermark processing, and mutable baseline
+  rows could not support reproducible research. Baseline and response calculations
+  now share fixed-duration feature extraction; successive configured windows have
+  one interpretation. The seeded modality circular-shift null preserves each
+  modality's temporal sequence and within-modality component relationships.
+  Surrogates require the observed component support; insufficient usable draws
+  make a result untestable. This remains exploratory association, subject to the
+  documented stationarity and BH dependence assumptions.
+- **Code impact:** `batch/arc/features.py`, `convergence.py`, `pipeline.py`,
+  `storage.py`, `processor.py`, `preflight.py`, and the explicit module CLI;
+  existing owning migrations 027/028; `arc-batch-release.md` and its regenerated
+  tests. NumPy supplies numerical operations; SciPy is a development reference
+  for independent BH agreement. EDA decomposition/SCR metrics are unsupported
+  rather than represented by proxies. Respiration rate requires recorded rate
+  values; amplitude inversion is forbidden.
+- **Scope adjustment:** Derived quality findings exclude flagged, invalid,
+  insufficiently covered, or incomplete-channel epochs without mutating raw
+  samples. A configurable post-session data-excursion review records values,
+  units, timestamps and algorithm provenance. It does not assess clinical safety
+  or generate cardiac diagnoses/alerts. Existing safety alerts are reproduced in
+  the report. Clinical safety scanning remains deferred, as do marker-selected
+  baselines and LLM interpretation. Deterministic interpretation cites only
+  FDR-passing event metrics. These replace the older raw-SQI-write and cardiac
+  safety phase gates for this local research release; they do not satisfy a
+  clinical deployment gate.
+- **Date:** 2026-10-13
+
+## Capture integrity and backend release boundary
+
+- **Decision:** Write standard XDF 1.0 with durable flush before each corresponding
+  database write, require canonical session identity, and serialize capture,
+  recovery and closeout with a shared advisory lock. Failed required workers
+  stop capture. Automatic restart is disabled until segmented resume can preserve
+  sample identity; an existing recording cannot restart at sample index zero.
+- **Rationale:** The previous custom binary format, swallowed storage errors,
+  unchecked file identities and restart counters could falsely imply complete
+  capture. Counts alone also missed partial EEG channel loss. Independent format
+  checks and per-channel recovery provide evidence the former tests lacked.
+- **Code impact:** Capture preflight/runtime, XDF writer/reader, reconciliation,
+  session close, watchdog, approved regenerated tests, and synthetic smoke scripts.
+  Capture closeout no longer invokes ARC or changes raw validity on analysis error.
+  Legacy XDF recovery is explicit and never rewrites existing recordings.
+- **Release boundary:** Local research backend only. Frontend changes are deferred
+  at Jahlon's request. The API remains localhost-only and process execution stays
+  on the CLI. MIT licensing and a backend source allowlist prepare publication
+  without exposing private repository history or local recording artifacts.
+- **Date:** 2026-10-13
+
+## Operator UI: agent-first shell (frontend-shell M0)
+
+- **Decision:** The operator UI is agent-first. `web/` mounts `OperatorShell`
+  from `page.tsx` with a left rail (sessions, runtime capability matrix), a chat
+  in the centre, and a context panel (manual create form or selected session).
+  The agent route runs a live OpenAI-compatible tool-calling turn
+  (`web/src/lib/model-turn.ts`) through `runAgentLoop`, so the per-turn cap
+  applies to the calls that reach the API. Styling is plain CSS with tokens
+  (resolves OQ-002). The browser reaches FastAPI through a Next rewrite
+  (`/backend/*` to `API_BASE_URL`).
+- **Rationale:** Jahlon asked on 2026-10-13 for the frontend to be built and to
+  work as an agent, superseding the same-day deferral in the backend release
+  boundary entry. The previous route sent an empty request to the model and never
+  parsed tool calls, the cap ran beside an uncapped dispatch (QA-011), a model
+  HTTP error read as an empty success (QA-012), and the shell was never mounted
+  (QA-013).
+- **Code impact:** `web/src` agent core, chat items, components, `globals.css`,
+  `next.config.mjs`; new tests for QA-011..014, the live turn, the page mount, and
+  a registry-versus-`api/app.py` route check. Contract fixes: registry endpoints
+  now match `capture:start`, `capture:stop`, `arc:run`; `create_session` fields
+  match `CreateSessionRequest` (`compound_dose`, `compound_dose_unit`, electrode
+  fields); the client's built-against contract version is `"0"` to match
+  `CONTRACT_VERSION`. Prose correction (QA-003/014) is keyed to the failed tool and
+  skips negated sentences.
+- **Date:** 2026-10-13

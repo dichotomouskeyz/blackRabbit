@@ -1,3 +1,8 @@
+> Release amendment (2026-10-13): `arc-batch-release.md` is authoritative for
+> lifecycle/tenant gating, real epoch features, versioned persistence, and successive
+> analysis windows. Prototype proxy/stateless persistence rules below are historical
+> where they conflict. Centered window utilities remain compatibility helpers only.
+
 # Spec: ARC Processor
 
 ## Metadata

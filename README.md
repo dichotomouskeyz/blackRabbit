@@ -39,8 +39,12 @@ and computes exploratory responses around recorded events.
 - **Recording investigator:** optional PydanticAI backend with six typed,
   read-only tools, cited findings, quality limitations, and signal-window data.
   A headless synthetic demonstration runs without model credentials.
+- **Operator console (`web/`):** an agent-first Next.js app. A local
+  OpenAI-compatible model (LiteLLM, Ollama) lists, inspects, and creates sessions
+  through the API; capability-gated actions return the server's reason instead
+  of running. Live signal and ARC review screens are not built yet.
 
-The frontend is separate work. This is an exploratory research tool; it does not
+This is an exploratory research tool; it does not
 perform clinical safety assessment or establish causation from marker responses.
 Quality exclusions and data excursions are included in analysis artifacts.
 
@@ -133,12 +137,29 @@ a new recording needs a new session so sample indices cannot be silently reused.
 Older blackRabbit custom-format recordings require explicit `--legacy-xdf`
 recovery; new files are standard XDF 1.0.
 
+### Operator console
+
+Requires Node.js 20+ and the operator API running locally. Set `AGENT_BASE_URL`
+and `AGENT_MODEL` in `.env.local` to a loopback or private OpenAI-compatible
+endpoint with tool calling, such as `http://localhost:11434/v1` for Ollama.
+
+```sh
+cd web
+corepack pnpm@9.15.9 install --frozen-lockfile
+cp .env.example .env.local
+corepack pnpm@9.15.9 dev
+```
+
+Without a model, the console still lists and creates sessions; the chat shows
+why it is unavailable.
+
 ## Verification
 
 ```sh
 uv run python -m ruff check .
 uv run python -m pyright capture batch api
 uv run python -m pytest -m "not integration"
+corepack pnpm@9.15.9 -C web test
 ```
 
 The complete suite requires an isolated migrated database. Set `DATABASE_URL`

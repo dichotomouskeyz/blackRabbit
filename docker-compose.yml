@@ -7,14 +7,14 @@
 
 services:
   timescaledb:
-    image: timescale/timescaledb:latest-pg16
+    image: timescale/timescaledb:2.27.1-pg16
     container_name: untitledproject-db-local
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "${DB_PORT:-5435}:5432"
+      - "127.0.0.1:${DB_PORT:-5435}:5432"
     volumes:
       - ts_data:/var/lib/postgresql/data
     healthcheck:
@@ -31,7 +31,7 @@ services:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
     ports:
-      - "${PGADMIN_PORT:-5051}:80"
+      - "127.0.0.1:${PGADMIN_PORT:-5051}:80"
     depends_on:
       timescaledb:
         condition: service_healthy
@@ -41,7 +41,7 @@ services:
     image: grafana/grafana:latest
     container_name: blackrabbit_grafana
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}

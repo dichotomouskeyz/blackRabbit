@@ -43,7 +43,7 @@ repos:
     hooks:
       - id: detect-secrets
         args: [--baseline, .secrets.baseline]
-        exclude: uv\.lock
+        exclude: (uv\.lock|^web/pnpm-lock\.yaml$|^web/node_modules/|^web/\.next/)
 
   - repo: local
     hooks:

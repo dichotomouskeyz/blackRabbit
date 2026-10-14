@@ -84,6 +84,13 @@ _ENDPOINT_ALLOWLIST = {
     ("GET", "/sessions"): _SESSIONS_ROW_ALLOWLIST,
     ("GET", "/sessions/{session_id}/status"): _STATUS_ALLOWLIST,
     ("GET", "/capabilities"): _CAPABILITY_ROW_ALLOWLIST,
+    ("GET", "/sessions/{session_id}/arc"): {
+        "session_id",
+        "analysis_id",
+        "created_at",
+        "provenance",
+        "artifact",
+    },
 }
 
 

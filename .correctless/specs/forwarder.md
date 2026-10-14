@@ -15,6 +15,22 @@ Each `StreamThread` owns its runtime resources: `thread.conn` (DB connection, `N
 
 ## Rules
 
+### Release integrity contract (approved 2026-10-13)
+
+- **R-021** [unit/integration]: Preflight loads canonical participant/site/sponsor
+  identity and rejects any caller mismatch before opening XDF or starting workers.
+- **R-022** [unit]: Missing required inlets, failed initial DB connection, and
+  every ordinary worker exception retain a fatal error and set shared stop.
+- **R-023** [unit]: An unexpectedly dead required worker or a join timeout makes
+  the process fail. XDF may be finalized only after all writers have stopped.
+- **R-024** [integration]: Capture owns the session advisory lock until all
+  workers stop. A second capture or closeout must fail before changing state.
+- **R-025** [integration]: Capture cannot resume a session that already has
+  signal/marker rows or an XDF recording. The local MVP does not silently reset
+  sample indices or append untracked capture segments; start a new session.
+- **R-026** [unit]: All startup and runtime exits release resources. XDF write
+  failures propagate before the corresponding DB write.
+
 ### Row builders — unit tests
 
 - **R-001** [unit]: `build_eeg_rows` returns exactly one dict per channel in the sample (len(sample) rows).

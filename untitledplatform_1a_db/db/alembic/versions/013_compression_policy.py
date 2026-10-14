@@ -28,7 +28,7 @@ WHY COMPRESS_AFTER = 1 DAY:
   compress during the session. The 1-day buffer ensures the session
   is always fully closed before compression touches its data.
 
-  For UCSF demos: a session runs, closes, and within 24 hours
+  For clinical site demos: a session runs, closes, and within 24 hours
   storage is reduced by ~80%. No manual intervention required.
 
 WHY THIS IS A SEPARATE MIGRATION FROM 012:

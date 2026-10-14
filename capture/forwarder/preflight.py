@@ -10,6 +10,7 @@ fatal-error handling keeps working) instead of bare RuntimeError.
 """
 
 import json
+from pathlib import Path
 
 import psycopg2
 
@@ -33,6 +34,10 @@ class MissingModalityError(PreflightError):
     """session_signal_metadata rows are missing for required modalities."""
 
 
+class SessionIdentityError(PreflightError):
+    """Caller identity disagrees with the canonical session."""
+
+
 def run_preflight(cfg: SessionConfig) -> SessionConfig:
     """Verify session readiness and load session config over one connection."""
     conn = psycopg2.connect(settings.DATABASE_URL)
@@ -47,7 +52,8 @@ def verify_session_ready(cfg: SessionConfig, conn) -> None:
     """Confirm the session can receive biosignal samples before capture starts."""
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT status FROM sessions WHERE id = %s AND sponsor_id = %s",
+            "SELECT status, participant_id, site_id FROM sessions "
+            "WHERE id = %s AND sponsor_id = %s",
             (cfg.session_id, cfg.sponsor_id),
         )
         row = cur.fetchone()
@@ -58,11 +64,27 @@ def verify_session_ready(cfg: SessionConfig, conn) -> None:
         )
 
     status = str(row[0])
+    if (str(row[1]), str(row[2])) != (cfg.participant_id, cfg.site_id):
+        raise SessionIdentityError("participant/site does not match the canonical session")
     if status != "active":
         raise SessionNotActiveError(
             f"Session {cfg.session_id!r} has status {status!r}, expected 'active' - "
             "session is not ready to receive samples"
         )
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT EXISTS (SELECT 1 FROM eeg_samples WHERE session_id = %s "
+            "UNION ALL SELECT 1 FROM hrv_samples WHERE session_id = %s "
+            "UNION ALL SELECT 1 FROM eda_samples WHERE session_id = %s "
+            "UNION ALL SELECT 1 FROM respiration_samples WHERE session_id = %s "
+            "UNION ALL SELECT 1 FROM echo_events WHERE session_id = %s)",
+            (cfg.session_id,) * 5,
+        )
+        if cur.fetchone()[0]:
+            raise PreflightError("session already has capture data; start a new session")
+    if any(Path(settings.XDF_BACKUP_DIR).glob(f"session_{cfg.session_id}_*.xdf")):
+        raise PreflightError("session already has an XDF recording; start a new session")
 
     with conn.cursor() as cur:
         cur.execute(

@@ -1,9 +1,11 @@
 [project]
 name = "untitled_biometric_platform_1a"
-version = "0.1.0"
-description = ""
+version = "0.3.0"
+description = "blackRabbit: local physiological capture and reproducible post-session analysis"
+readme = "README.md"
+license = "MIT"
 authors = [
-    {name = "dichotomouskeyz", email = "jakisnotbuddha@gmail.com"}
+    {name = "Jahlon Burruss"}
 ]
 requires-python = ">=3.12"
 dependencies = [
@@ -14,18 +16,37 @@ dependencies = [
     "pylsl>=1.18.2,<2.0.0",
     "pyyaml>=6.0.3,<7.0.0",
     "brainflow>=5.22.0",
-    "litellm>=1.84.0",
     "fastapi>=0.136.3",
     "uvicorn>=0.49.0",
     "websockets>=16.0",
+    "numpy>=2.0,<3",
 ]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[project.optional-dependencies]
+agent = ["pydantic-ai-slim[openai,anthropic,ui]==2.55.0"]
+
 [tool.hatch.build.targets.wheel]
-packages = ["api", "capture", "batch", "config", "ingestion", "storage", "untitledplatform_1a_db"]
+packages = ["api", "capture", "batch", "config", "ingestion", "investigation", "untitledplatform_1a_db"]
+
+[tool.hatch.build.targets.sdist]
+# A backend release excludes private agent history, local data and unfinished web work.
+include = [
+    "/api", "/capture", "/batch", "/config", "/ingestion", "/investigation",
+    "/untitledplatform_1a_db", "/tests", "/scripts",
+    "/.correctless/specs", "/README.md", "/LICENSE", "/.gitignore",
+    "/.github/workflows/backend.yml",
+    "/pyproject.toml", "/uv.lock", "/alembic.ini", "/.env.example",
+    "/docker-compose.yml", "/docs/backend-handoff.md", "/docs/release-audit-2026-10-13.md",
+    "/docs/recording-investigation.md",
+]
+exclude = [
+    "/tests/api_tests/test_web_toolchain_isolation.py",
+    "/untitledplatform_1a_db/db/alembic/optional_governance", "/scripts/sim.ps1",
+]
 
 [dependency-groups]
 dev = [
@@ -37,6 +58,8 @@ dev = [
     "ruff>=0.11.0",
     "pyright>=1.1.0",
     "httpx>=0.28.1",
+    "pyxdf>=1.17,<2",
+    "scipy>=1.13,<2",
 ]
 
 [tool.pytest.ini_options]
@@ -45,14 +68,18 @@ testpaths = ["tests"]
 markers = [
     "integration: tests that require a running database (TEST_DATABASE_URL must be set)",
 ]
-addopts = "--basetemp=.pytest_tmp --ignore=tests/_archive"
+addopts = "--basetemp=.pytest_tmp"
 
 [tool.coverage.report]
 fail_under = 60
 
 [tool.ruff]
 line-length = 100
-extend-exclude = ["tests/_archive"]
+extend-exclude = ["web"]
+# Honor the `web` exclude even when an explicit path under web/ is passed
+# (e.g. `ruff check web/foo.py`) so the Node tree never re-enters Python lint
+# scope (frontend-shell INV-010 clause 3 / PAT-013).
+force-exclude = true
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

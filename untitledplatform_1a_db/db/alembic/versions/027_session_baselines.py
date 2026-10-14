@@ -6,9 +6,8 @@ Create Date: 2026-05-12
 
 WHY THIS TABLE EXISTS:
   ARC needs persisted baseline values to interpret post-session signal
-  deviations. In the open-source 1a MVP this table defines the durable
-  shape of those values, but no ARC processor writes it yet. Future ARC
-  work should populate it only after the validated session record exists.
+  deviations. Each analysis run preserves its baseline estimates, units,
+  extractor version and configuration/input hashes after capture verification.
 """
 
 from typing import Sequence, Union
@@ -24,6 +23,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.execute("""
         CREATE TABLE session_baselines (
+            analysis_id                 UUID             NOT NULL,
             session_id                  UUID             NOT NULL,
             participant_id              UUID             NOT NULL,
             site_id                     UUID             NOT NULL,
@@ -35,9 +35,15 @@ def upgrade() -> None:
             baseline_window_start       DOUBLE PRECISION NOT NULL,
             baseline_window_end         DOUBLE PRECISION NOT NULL,
             sample_count                INTEGER          NOT NULL CHECK (sample_count > 0),
+            epoch_count                 INTEGER          NOT NULL CHECK (epoch_count >= 2),
+            units                       TEXT             NOT NULL,
+            extractor_version           TEXT             NOT NULL,
+            config_version              TEXT             NOT NULL,
+            config_sha256               TEXT             NOT NULL CHECK (length(config_sha256) = 64),
+            input_sha256                TEXT             NOT NULL CHECK (length(input_sha256) = 64),
             created_at                  TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
 
-            PRIMARY KEY (session_id, modality, signal_component),
+            PRIMARY KEY (analysis_id, modality, signal_component),
             CONSTRAINT session_baselines_modality_check
                 CHECK (modality IN ('eeg', 'hrv', 'eda', 'respiration')),
             CONSTRAINT session_baselines_window_order_check

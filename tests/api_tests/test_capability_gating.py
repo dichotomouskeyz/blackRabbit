@@ -20,14 +20,13 @@ from tests.api_tests.support import (
     is_capability_unavailable_body,
 )
 
-# (path, http method, expected capability status). arc read + WS handled separately.
+# (path, http method, expected capability status). WS is handled separately.
 _BLOCKED_OR_SCAFFOLDED = [
     ("/sessions/{id}/markers", "post", "blocked"),
     ("/sessions/{id}/capture:start", "post", "blocked"),
     ("/sessions/{id}/capture:stop", "post", "blocked"),
     ("/sessions/{id}/close", "post", "blocked"),
     ("/sessions/{id}/arc:run", "post", "blocked"),
-    ("/sessions/{id}/arc", "get", "scaffolded"),
 ]
 
 

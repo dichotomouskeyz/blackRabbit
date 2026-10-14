@@ -113,6 +113,18 @@
   (not the agent), asserting `409` + structured capability body + no DB connection +
   backend-not-called; the WS test asserts upgrade-refused with a capability reason
 
+### PAT-013: Foreign-Toolchain Subtree Isolation
+- **Pattern**: a non-Python toolchain subtree (the `web/` Node tree) coexists with the Python/`uv` repo without perturbing it
+- **Rule**: `web/node_modules`, `web/.next`, `web/.env.local` are gitignored; `web/` is excluded from the Python wheel (the `[tool.hatch.build.targets.wheel].packages` list stays **hardcoded** — never glob/auto-detect, AP-024) and from ruff (`extend-exclude` includes `web`); pre-commit never parses `web/` as Python; `uv run pytest` / `uv run ruff check .` stay green with `web/` present
+- **Violated when**: node artifacts are committed; `web/` enters the wheel or Python lint scope; or the Python gate breaks because of `web/`
+- **Test**: `git check-ignore web/node_modules web/.next`; wheel-content scan (no `web/` path); a planted `web/foo.py` with a ruff violation is not flagged (frontend-shell INV-010)
+
+### PAT-014: Runtime Capability Provider (client side)
+- **Pattern**: the client-side counterpart to PAT-011 — a UI sources capability state at runtime from `GET /capabilities` and never hardcodes the matrix
+- **Rule**: tool/control enabled state is derived from `/capabilities` at runtime; the client's disabled flag is **UX only** (the server `409` is the load-bearing control); a non-`implemented` invocation issues the real gated request and surfaces the `409`, never a fabricated success; cold start (matrix unreachable) fails closed to all-disabled
+- **Violated when**: enabled state is hardcoded; a blocked capability is short-circuited into a fake success client-side; or the UI fails open before the matrix loads
+- **Test**: mock `/capabilities` flipped/unreachable → assert control state follows (frontend-shell INV-001/INV-002a)
+
 ### PAT-012: Patchable Factories via Module-Attribute Access
 - **Pattern**: Injected/patchable factories are called through their owning
   module — `deps.get_readonly_connection()`, `sessions.create_session(...)` —
@@ -153,8 +165,18 @@
 
 ### TB-005: LSL → WS Read Tap → Browser
 - **Crosses**: live LSL streams → an independent FastAPI WebSocket inlet tap → browser (uPlot)
+- **M0 state (placeholder)**: in Milestone 0 the live-signal tab is a **placeholder** — the server refuses the WS upgrade with a capability-status close reason, and neither the tab nor any model-invoked client-nav tool (`view_live_signals`) initiates a WS upgrade or creates tap resources (frontend-shell INV-001/INV-008a STRIDE; operator-ui INV-008a). The live-tap invariants below apply when the tap milestone lands.
 - **Invariant**: The tap opens its **own** LSL inlets (never shares/mutates the forwarder's inlets or connection, never holds a `StreamThread` — composes with PAT-009) and closes them on disconnect. Frames use `lsl_timestamp` as the time axis (PAT-004), never `db_insert_time` or a server clock. A bounded buffer drops on backpressure (counted) rather than growing unbounded. Distinct from TB-002, which is the LSL→DB **write** path (XDF-first); this read tap carries none of TB-002's write/ordering invariants.
 - **Violated when**: the tap reuses forwarder resources, leaks inlets, emits a non-LSL time base, or buffers unbounded. Non-interference with the forwarder's clock-offset/chunk timing must be validated before this boundary goes live, not assumed.
+
+### TB-006: Agent route → local model (outbound, server-side)
+- **Crosses**: the Next.js server-side agent route (`web/`) → a local OpenAI-compatible model via a LiteLLM proxy (`AGENT_BASE_URL`)
+- **Identity assertion**: none in M0 (localhost, no auth); the route is the trusted initiator, the model endpoint is operator-configured
+- **Data sensitivity change**: session-derived text (zone_label, compound, metadata) leaves the app process toward the model; model output (tool-call JSON, prose) re-enters as **untrusted** input
+- **Invariant**: `AGENT_BASE_URL` is validated loopback/RFC-1918-private + http(s) scheme before any outbound call (no SSRF egress); `AGENT_*` secrets are server-route-only (never the browser bundle); session-derived text is fenced as data in the model context; model output is validated before forwarding to FastAPI and never rendered as a completed action without a backing API tool-result; the route has a bounded timeout and a per-turn tool-call cap
+- **Violated when**: the route POSTs to a non-loopback/non-private host; an `AGENT_*` value reaches the browser; a malformed/absent model emission crashes the stream or forwards invalid args; model prose renders as a completed state-change; the route hangs with no timeout; or one turn drives unbounded tool calls
+- **Enforced at**: `web/` agent route (frontend-shell INV-005b/007/009/012/013/014/015, BND-002/005)
+- **Test**: frontend-shell JS suite (Vitest/Playwright) — see those invariants
 
 ## Conventions
 
@@ -171,7 +193,9 @@
 
 - No live safety monitor in MVP (deferred)
 - No real-time SQI monitor in MVP (deferred)
-- Operator UI is API-only in M0 (`api/`, capability-gated); the Next.js visual
-  shell is deferred (see `docs/2R/backlog.md` "Operator UI — Deferred / Skipped
-  Register"); write/exec capabilities blocked pending OQ-001/OQ-004
+- Operator UI M0: `api/` (capability-gated) + a Next.js shell in `web/`
+  (`.correctless/specs/frontend-shell.md`) — chat GUI with live execution for the
+  three `implemented` capabilities, placeholder live/ARC tabs; write/exec
+  capabilities blocked pending OQ-001/OQ-004. The agent route runs server-side in
+  `web/` and routes to a local model via LiteLLM (TB-006)
 - `jq` required for workflow-advance.sh state machine but not installed by default on Windows

@@ -6,7 +6,8 @@ from dataclasses import dataclass
 WATCHDOG_ALGORITHM_NAME = "watchdog"
 WATCHDOG_ALGORITHM_VERSION = "1.0.0"
 
-MAX_RESTARTS = 5
+# Segmented resume is not supported by the local MVP. Never reset indices.
+MAX_RESTARTS = 0
 RESTART_DELAY_BASE_S = 5.0
 RESTART_DELAY_MAX_S = 60.0
 GRACEFUL_SHUTDOWN_TIMEOUT_S = 30.0

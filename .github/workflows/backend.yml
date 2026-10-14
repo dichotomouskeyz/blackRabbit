@@ -1,0 +1,61 @@
+name: Backend release checks
+
+on:
+  push:
+    branches: [main, "2R"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Python backend and isolated database
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      timescaledb:
+        image: timescale/timescaledb:2.27.1-pg16
+        env:
+          POSTGRES_DB: blackrabbit_ci_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-local-test-only # pragma: allowlist secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d blackrabbit_ci_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PYTHON_DOTENV_DISABLED: "1"
+      CAPTURE_SOURCE: simulated
+      DATABASE_URL: postgresql://postgres:ci-local-test-only@127.0.0.1:5432/blackrabbit_ci_test # pragma: allowlist secret
+      TEST_DATABASE_URL: postgresql://postgres:ci-local-test-only@127.0.0.1:5432/blackrabbit_ci_test # pragma: allowlist secret
+      API_READONLY_DATABASE_URL: postgresql://blackrabbit_ci_api_ro:ci-readonly-test-only@127.0.0.1:5432/blackrabbit_ci_test # pragma: allowlist secret
+      TEST_RESTRICTED_ROLE: blackrabbit_ci_restricted
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python 3.12 and uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install locked backend dependencies
+        run: uv sync --frozen --extra agent --group dev
+      - name: Migrate the disposable database
+        run: uv run --frozen --extra agent python -m alembic upgrade head
+      - name: Provision the SELECT-only API test role
+        run: uv run --frozen --extra agent python -m scripts.provision_test_roles
+      - name: Ruff
+        run: uv run --frozen --extra agent python -m ruff check .
+      - name: Pyright
+        run: uv run --frozen --extra agent python -m pyright capture batch api investigation scripts/provision_test_roles.py scripts/investigation_smoke.py
+      - name: Complete Python suite and coverage
+        run: uv run --frozen --extra agent python -m pytest --cov=capture --cov=batch --cov=api --cov=config --cov=investigation --cov-report=term-missing --cov-fail-under=60
+      - name: Offline capture and ARC replay smoke
+        run: uv run --frozen --extra agent python -m scripts.backend_smoke --output data/ci-backend-smoke
+      - name: Scripted recording investigation
+        run: uv run --frozen --extra agent python -m scripts.investigation_smoke --receipt data/ci-backend-smoke/receipt.json --output data/ci-investigation

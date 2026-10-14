@@ -102,14 +102,12 @@ def ensure_closing(conn, session_id: str, sponsor_id: str, status: str) -> None:
         return
 
     log.warning(
-        "session is still 'active' â€” watchdog may not have stopped the "
-        "forwarder; XDF may be incomplete if capture is still running. "
-        "Expected sequence: SIGTERM watchdog â†’ watchdog exits â†’ session_close.",
+        "closing an active session after capture lock and complete XDF verification",
         extra={"session_id": session_id},
     )
     set_closing(conn, session_id, sponsor_id)
     log.info(
-        "session status â†’ closing",
+        "session status changed to closing",
         extra={"session_id": session_id, "sponsor_id": sponsor_id},
     )
 

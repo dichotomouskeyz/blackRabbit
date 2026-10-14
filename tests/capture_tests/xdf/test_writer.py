@@ -1,184 +1,232 @@
-"""Spec-driven tests for XDFWriter lifecycle (xdf-writer.md R-014..R-026).
-
-Phase 2 — XDFWriter lifecycle and thread safety. Unit tests with a temp file.
-Assertions derive from the spec text only.
-
-NOTE (black-box): the XDFWriter constructor and method signatures below are
-inferred from the spec. Phase D resolves any mismatch in the `_writer` /
-call-site helpers only — assertion values are never adjusted.
-"""
+"""Approved XDF release-contract tests, regenerated 2026-10-13."""
 
 import threading
 
 import pytest
 
 import capture.xdf.writer as writer_mod
-from capture.xdf.constants import STREAM_IDS
-from capture.xdf.writer import XDFWriter
-from tests.capture_tests.xdf.support import (
-    PARTICIPANT_ID,
-    SESSION_ID,
-    SITE_ID,
-    SPONSOR_ID,
-)
-
-_TAG_STREAM_HEADER = 2
-_TAG_SAMPLES = 3
-_TAG_STREAM_FOOTER = 6
+from batch.reconciliation.xdf import read_xdf_counts
+from capture.xdf.constants import CHANNEL_COUNTS, STREAM_IDS
+from capture.xdf.writer import XDFWriteError, XDFWriter
+from tests.capture_tests.xdf.support import PARTICIPANT_ID, SESSION_ID, SITE_ID, SPONSOR_ID
 
 
-@pytest.fixture(autouse=True)
-def _xdf_dir(tmp_path, monkeypatch):
-    monkeypatch.setattr(writer_mod.settings, "XDF_BACKUP_DIR", str(tmp_path), raising=False)
-    return tmp_path
+@pytest.fixture
+def make_writer(tmp_path, monkeypatch):
+    monkeypatch.setattr(writer_mod.settings, "XDF_BACKUP_DIR", str(tmp_path))
+    writers = []
+
+    def create(**kwargs):
+        writer = XDFWriter(SESSION_ID, PARTICIPANT_ID, SITE_ID, SPONSOR_ID, **kwargs)
+        writers.append(writer)
+        return writer
+
+    yield create
+    for writer in writers:
+        try:
+            writer.close()
+        except XDFWriteError:
+            pass
 
 
-def _writer(tmp_path, name=None):
-    # XDFWriter derives its own output path under settings.XDF_BACKUP_DIR
-    # (patched to tmp_path by the autouse fixture); the path is exposed as ._path.
-    writer = XDFWriter(SESSION_ID, PARTICIPANT_ID, SITE_ID, SPONSOR_ID)
-    return writer, writer._path
+def eeg(value):
+    return [value] * CHANNEL_COUNTS["EEG"]
 
 
-def _iter_chunk_tags(data):
-    """Yield each chunk's 2-byte tag, skipping the 4-byte 'XDF:' magic.
-
-    Chunk layout per R-004: [numlenbytes][length][tag(2)][payload],
-    where length counts the tag bytes plus the payload.
-    """
-    i = 4  # skip magic
-    n = len(data)
-    while i < n:
-        prefix = data[i]
-        i += 1
-        length = int.from_bytes(data[i : i + prefix], "little")
-        i += prefix
-        chunk = data[i : i + length]
+def chunk_tags(data):
+    i = 4
+    while i < len(data):
+        width = data[i]
+        assert width in (1, 4, 8)
+        length = int.from_bytes(data[i + 1 : i + 1 + width], "little")
+        i += 1 + width
+        yield int.from_bytes(data[i : i + 2], "little")
         i += length
-        yield int.from_bytes(chunk[:2], "little")
+    assert i == len(data)
 
 
-def _tag_counts(path):
-    data = path.read_bytes()
-    counts = {}
-    for tag in _iter_chunk_tags(data):
-        counts[tag] = counts.get(tag, 0) + 1
-    return counts
+def test_r014_r015_headers_and_magic(make_writer):
+    writer = make_writer()
+    data = writer.path.read_bytes()
+    assert data[:4] == b"XDF:"
+    assert list(chunk_tags(data)).count(2) == len(STREAM_IDS) == 5
 
 
-class TestXDFWriterLifecycle:
-    """xdf-writer.md — XDFWriter lifecycle.
+def test_r016_empty_paired_input_is_noop(make_writer):
+    writer = make_writer()
+    before = writer.path.read_bytes()
+    writer.write_samples("EEG", [], [])
+    assert writer.path.read_bytes() == before
+    assert writer.sample_counts["EEG"] == 0
 
-    ASSERTION SOURCE: spec-only
-    Model used for assertions: Claude (Fable 5), implementation source withheld.
-    """
 
-    def test_r014_file_starts_with_magic(self, tmp_path):
-        _, path = _writer(tmp_path)
-        assert path.read_bytes()[:4] == b"XDF:"
+def test_r017_r018_counts_and_timestamps(make_writer):
+    writer = make_writer()
+    writer.write_samples("EEG", [eeg(1), eeg(2)], [0.0, 1.0])
+    writer.write_samples("EEG", [eeg(3)], [2.0])
+    assert writer.sample_counts["EEG"] == 3
+    assert writer._first_ts["EEG"] == 0.0
+    assert writer._last_ts["EEG"] == 2.0
 
-    def test_r015_five_stream_header_chunks_after_init(self, tmp_path):
-        _, path = _writer(tmp_path)
-        assert _tag_counts(path).get(_TAG_STREAM_HEADER) == 5
-        assert len(STREAM_IDS) == 5
 
-    def test_r016_empty_samples_is_noop(self, tmp_path):
-        writer, path = _writer(tmp_path)
-        before_size = path.stat().st_size
-        before_counts = dict(writer.sample_counts)
-        writer.write_samples("EEG", [], [])
-        assert path.stat().st_size == before_size
-        assert dict(writer.sample_counts) == before_counts
+@pytest.mark.parametrize("failure_point", ["write", "fsync", "flush"])
+def test_r019_failure_is_fatal_and_count_does_not_advance(make_writer, monkeypatch, failure_point):
+    writer = make_writer()
 
-    def test_r017_sample_counts_increase(self, tmp_path):
-        writer, _ = _writer(tmp_path)
-        before = writer.sample_counts.get("EEG", 0)
-        writer.write_samples("EEG", [[1.0], [2.0]], [1.0, 2.0])
-        assert writer.sample_counts["EEG"] == before + 2
+    def fail(*args, **kwargs):
+        raise OSError("injected storage failure")
 
-    def test_r018_first_and_last_ts_tracking(self, tmp_path):
-        writer, _ = _writer(tmp_path)
-        writer.write_samples("EEG", [[1.0], [2.0]], [1.0, 2.0])
-        writer.write_samples("EEG", [[3.0], [4.0]], [3.0, 4.0])
-        assert writer._first_ts["EEG"] == 1.0
-        assert writer._last_ts["EEG"] == 4.0
-
-    def test_r019_oserror_during_write_does_not_increment(self, tmp_path, monkeypatch):
-        writer, _ = _writer(tmp_path)
-        before = writer.sample_counts.get("EEG", 0)
-
-        def _boom(*args, **kwargs):
-            raise OSError("disk full")
-
-        monkeypatch.setattr(writer_mod, "write_chunk", _boom)
-        # Spec: write failures are logged and silently dropped, not raised.
-        writer.write_samples("EEG", [[1.0]], [1.0])
-        assert writer.sample_counts.get("EEG", 0) == before
-
-    def test_r020_write_marker_increments_echo(self, tmp_path):
-        writer, _ = _writer(tmp_path)
-        before = writer.sample_counts.get("ECHO", 0)
-        writer.write_marker("ECHO|manual_marker|a|therapist|z", 100.0)
-        assert writer.sample_counts["ECHO"] == before + 1
-
-    def test_r021_writes_are_noop_after_close(self, tmp_path):
-        writer, path = _writer(tmp_path)
+    if failure_point == "write":
+        monkeypatch.setattr(writer_mod, "write_chunk", fail)
+    elif failure_point == "fsync":
+        monkeypatch.setattr(writer_mod.os, "fsync", fail)
+    else:
+        monkeypatch.setattr(writer, "_sync", fail)
+    with pytest.raises(XDFWriteError):
+        writer.write_samples("EEG", [eeg(1)], [1.0])
+    assert writer.sample_counts["EEG"] == 0
+    assert writer._f.closed
+    with pytest.raises(XDFWriteError):
+        writer.write_marker("marker", 2.0)
+    with pytest.raises(XDFWriteError):
         writer.close()
-        size_after_close = path.stat().st_size
-        counts_after_close = dict(writer.sample_counts)
-        writer.write_samples("EEG", [[1.0]], [1.0])
-        writer.write_marker("ECHO|manual_marker|a|therapist|z", 100.0)
-        assert path.stat().st_size == size_after_close
-        assert dict(writer.sample_counts) == counts_after_close
+    assert not writer.is_closed
 
-    def test_r022_five_footer_chunks_after_close(self, tmp_path):
-        writer, path = _writer(tmp_path)
+
+def test_r020_marker_count(make_writer):
+    writer = make_writer()
+    writer.write_marker("marker", 100.0)
+    assert writer.sample_counts["ECHO"] == 1
+
+
+def test_r021_closed_writes_fail(make_writer):
+    writer = make_writer()
+    writer.close()
+    before = writer.path.read_bytes()
+    for operation in (
+        lambda: writer.write_samples("EEG", [eeg(1)], [1.0]),
+        lambda: writer.write_samples("EEG", [], []),
+        lambda: writer.write_marker("marker", 1.0),
+    ):
+        with pytest.raises(XDFWriteError):
+            operation()
+    assert writer.path.read_bytes() == before
+
+
+def test_r022_r023_r024_successful_close_is_idempotent(make_writer):
+    writer = make_writer()
+    assert not writer.is_closed
+    writer.close()
+    writer.close()
+    assert writer.is_closed
+    assert list(chunk_tags(writer.path.read_bytes())).count(6) == 5
+
+
+def test_r025_counts_are_a_copy(make_writer):
+    writer = make_writer()
+    counts = writer.sample_counts
+    counts["EEG"] = 999
+    assert writer.sample_counts["EEG"] == 0
+
+
+def test_r026_concurrent_stream_writes_remain_readable(make_writer):
+    writer = make_writer()
+    failures = []
+
+    def write(stream):
+        try:
+            for i in range(8):
+                writer.write_samples(stream, [[float(i)] * CHANNEL_COUNTS[stream]], [float(i)])
+        except Exception as exc:
+            failures.append(exc)
+
+    workers = [threading.Thread(target=write, args=(s,)) for s in CHANNEL_COUNTS if s != "ECHO"]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join()
+    assert not failures
+    writer.close()
+    assert read_xdf_counts(writer.path) == {
+        "EEG": 8,
+        "HRV": 8,
+        "EDA": 8,
+        "Respiration": 8,
+        "ECHO": 0,
+    }
+
+
+@pytest.mark.parametrize(
+    "samples,timestamps",
+    [
+        ([eeg(1)], []),
+        ([], [1.0]),
+        ([[1.0] * (CHANNEL_COUNTS["EEG"] + 1)], [1.0]),
+        ([eeg(1)], [float("nan")]),
+        ([eeg(1)], [float("inf")]),
+        ([eeg(float("nan"))], [1.0]),
+        ([eeg(float("inf"))], [1.0]),
+        ([eeg(1e100)], [1.0]),
+    ],
+)
+def test_r027_invalid_payload_leaves_file_unchanged(make_writer, samples, timestamps):
+    writer = make_writer()
+    before = writer.path.read_bytes()
+    with pytest.raises(ValueError):
+        writer.write_samples("EEG", samples, timestamps)
+    assert writer.path.read_bytes() == before
+    assert writer.sample_counts["EEG"] == 0
+
+
+@pytest.mark.parametrize("timestamp", [float("nan"), float("inf"), -float("inf")])
+def test_r027_invalid_marker_timestamp(make_writer, timestamp):
+    writer = make_writer()
+    before = writer.path.read_bytes()
+    with pytest.raises(ValueError):
+        writer.write_marker("marker", timestamp)
+    assert writer.path.read_bytes() == before
+
+
+@pytest.mark.parametrize("failure_point", ["write", "fsync"])
+def test_r028_failed_finalization_is_not_closed(make_writer, monkeypatch, failure_point):
+    writer = make_writer()
+
+    def fail(*args, **kwargs):
+        raise OSError("injected footer failure")
+
+    monkeypatch.setattr(
+        writer_mod if failure_point == "write" else writer_mod.os,
+        "write_chunk" if failure_point == "write" else "fsync",
+        fail,
+    )
+    with pytest.raises(XDFWriteError):
         writer.close()
-        assert _tag_counts(path).get(_TAG_STREAM_FOOTER) == 5
-
-    def test_r023_close_is_idempotent(self, tmp_path):
-        writer, path = _writer(tmp_path)
-        writer.close()
-        writer.close()
-        assert _tag_counts(path).get(_TAG_STREAM_FOOTER) == 5
-
-    def test_r024_is_closed_flag(self, tmp_path):
-        writer, _ = _writer(tmp_path)
-        assert writer.is_closed is False
-        writer.close()
-        assert writer.is_closed is True
-
-    def test_r025_sample_counts_returns_copy(self, tmp_path):
-        writer, _ = _writer(tmp_path)
-        returned = writer.sample_counts
-        returned["EEG"] = 999999
-        assert writer.sample_counts.get("EEG", 0) != 999999
-
-
-class TestThreadSafety:
-    """xdf-writer.md — thread safety.
-
-    ASSERTION SOURCE: spec-only
-    Model used for assertions: Claude (Fable 5), implementation source withheld.
-    """
-
-    def test_r026_concurrent_writes_non_interleaved(self, tmp_path):
-        writer, path = _writer(tmp_path)
-        n_per_thread = 20
-        streams = ["EEG", "HRV", "EDA", "Respiration"]
-
-        def _work(stream):
-            for i in range(n_per_thread):
-                writer.write_samples(stream, [[float(i)]], [float(i)])
-
-        threads = [threading.Thread(target=_work, args=(s,)) for s in streams]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+    assert not writer.is_closed
+    assert writer._f.closed
+    with pytest.raises(XDFWriteError):
         writer.close()
 
-        # If any chunk's bytes interleaved, the length-prefixed walk would
-        # desync and the Samples-chunk count would not match the writes.
-        counts = _tag_counts(path)
-        assert counts.get(_TAG_SAMPLES) == len(streams) * n_per_thread
+
+def test_r029_recordings_never_overwrite(make_writer):
+    first, second = make_writer(), make_writer()
+    first.write_samples("EEG", [eeg(12)], [1.0])
+    first.close()
+    before = first.path.read_bytes()
+    second.close()
+    assert first.path != second.path
+    assert first.path.read_bytes() == before
+
+
+def test_successful_chunk_is_fsynced_before_return(make_writer, monkeypatch):
+    writer = make_writer()
+    sync_counts = []
+    original = writer_mod.os.fsync
+
+    def sync(fd):
+        sync_counts.append(writer._sample_counts["EEG"])
+        return original(fd)
+
+    monkeypatch.setattr(writer_mod.os, "fsync", sync)
+    writer.write_samples("EEG", [eeg(1)], [1.0])
+    assert sync_counts == [0]
+    assert writer.sample_counts["EEG"] == 1

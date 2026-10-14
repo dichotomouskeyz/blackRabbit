@@ -18,15 +18,11 @@ import pytest
 
 from batch.arc.processor import (
     AnchorEventFilter,
-    ARCPostSessionError,
     EchoAnchorCluster,
     _anchor_filter_pairs,
     _build_baseline_row,
     cluster_echo_anchor_rows,
-    compute_session_baseline_rows,
     load_echo_anchor_rows,
-    run_arc_post_session,
-    upsert_session_baselines,
 )
 from tests.capture_tests.arc.support import (
     PARTICIPANT_ID,
@@ -205,65 +201,5 @@ class TestEchoAnchorLoading:
         assert len(rows) == arc_seeded_session["echo_count"]
 
 
-@pytest.mark.integration
-class TestBaselinePersistence:
-    """arc-processor.md — baseline persistence + orchestrator.
-
-    ASSERTION SOURCE: spec-only
-    Model used for assertions: Claude (Fable 5), implementation source withheld.
-    """
-
-    def test_r019_upsert_is_idempotent(self, db_conn, arc_seeded_session, arc_config):
-        rows = compute_session_baseline_rows(db_conn, SESSION_ID, SPONSOR_ID, arc_config)
-        upsert_session_baselines(db_conn, rows)
-        upsert_session_baselines(db_conn, rows)
-        db_conn.commit()
-        with db_conn.cursor() as cur:
-            cur.execute(
-                "SELECT COUNT(*) FROM session_baselines WHERE session_id = %s::uuid",
-                (SESSION_ID,),
-            )
-            count = cur.fetchone()[0]
-        with db_conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT COUNT(DISTINCT (modality, signal_component))
-                FROM session_baselines WHERE session_id = %s::uuid
-                """,
-                (SESSION_ID,),
-            )
-            distinct = cur.fetchone()[0]
-        assert count == distinct
-
-    def test_r020_upsert_empty_is_noop(self, db_conn):
-        # No SQL executed for an empty sequence — must not raise.
-        assert upsert_session_baselines(db_conn, []) is None
-
-    def test_r021_no_biosignal_data_returns_empty(self, db_conn, arc_config):
-        rows = compute_session_baseline_rows(db_conn, SESSION_ID, SPONSOR_ID, arc_config)
-        assert tuple(rows) == ()
-
-    def test_r022_too_few_samples_raises(self, db_conn, arc_sparse_session, arc_config):
-        with pytest.raises(RuntimeError):
-            compute_session_baseline_rows(db_conn, SESSION_ID, SPONSOR_ID, arc_config)
-
-    def test_r023_run_writes_baselines_and_counts(self, db_conn, arc_seeded_session, arc_config):
-        result = run_arc_post_session(db_conn, SESSION_ID, SPONSOR_ID, arc_config)
-        with db_conn.cursor() as cur:
-            cur.execute(
-                "SELECT COUNT(*) FROM session_baselines WHERE session_id = %s::uuid",
-                (SESSION_ID,),
-            )
-            written = cur.fetchone()[0]
-        assert result.baseline_row_count == written
-
-    def test_r024_errors_wrapped_as_arc_post_session_error(self, db_conn, arc_config):
-        # Unknown session → an unhandled error inside the pipeline must surface
-        # as ARCPostSessionError, not the original exception type.
-        with pytest.raises(ARCPostSessionError):
-            run_arc_post_session(
-                db_conn,
-                "00000000-0000-4000-8000-0000000000ff",
-                SPONSOR_ID,
-                arc_config,
-            )
+# Baseline persistence and orchestration rules were regenerated under the
+# approved arc-batch-release B-001/B-009 contract in test_arc_batch_release.py.
