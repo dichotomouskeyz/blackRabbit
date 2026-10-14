@@ -13,6 +13,40 @@ from the product version.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-13
+
+Operator console release and repository cleanup.
+
+### Added
+
+- Agent-first operator console in `web/` (Next.js 15): a sessions and
+  capability rail, a chat that drives the operator API through a local
+  OpenAI-compatible model with tool calling, tool cards backed by API
+  responses, and a manual create form that works without the model.
+- Server-side agent route that allows only loopback or private egress, bounds
+  each turn with a timeout, caps tool calls at the real dispatch, fences tool
+  output as untrusted data, and corrects success claims that a refused tool
+  contradicts.
+- Typed API client and a closed ten-tool registry whose endpoints are checked
+  against the routes in `api/app.py`.
+- Frontend test gate: Vitest and Testing Library suites plus a production build
+  scanned for server-only `AGENT_*` values.
+- Design mockups for the console in `docs/ui-mockups/`.
+
+### Changed
+
+- The README describes the console, and the agent context files point at the
+  current release documents.
+
+### Removed
+
+- Simulated XDF recordings are no longer tracked.
+- The root `package.json` for an unrelated tool, empty scaffolds (`src/`,
+  `storage/`, `models.config`, `db/SCHEMA.md`, `docs/migration_1a_to_1b.md`),
+  Poetry-era editor settings, the retired `tests/_archive` suite, and agent
+  prompts and the phase 0 decision log written under a retired project name.
+- Private partner names in comments and historical documents.
+
 ## [0.2.0] - 2026-10-13
 
 Backend release. Each entry below landed as its own commit.
@@ -94,6 +128,7 @@ First tagged release. It packages the 1a code last updated on 2026-06-12
 - The package and database names still use the placeholder
   `untitledplatform_1a`.
 
-[Unreleased]: https://github.com/dichotomouskeyz/blackRabbit/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/dichotomouskeyz/blackRabbit/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/dichotomouskeyz/blackRabbit/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/dichotomouskeyz/blackRabbit/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/dichotomouskeyz/blackRabbit/releases/tag/v0.1.0

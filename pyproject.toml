@@ -1,6 +1,6 @@
 [project]
 name = "untitled_biometric_platform_1a"
-version = "0.2.0"
+version = "0.3.0"
 description = "blackRabbit: local physiological capture and reproducible post-session analysis"
 readme = "README.md"
 license = "MIT"
@@ -28,6 +28,10 @@ build-backend = "hatchling.build"
 
 [project.optional-dependencies]
 agent = ["pydantic-ai-slim[openai,anthropic,ui]==2.55.0"]
+hardware = ["bleak>=3.0.1,<4", "pyserial>=3.5,<4"]
+
+[project.scripts]
+blackrabbit-discover = "capture.discovery.__main__:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["api", "capture", "batch", "config", "ingestion", "investigation", "untitledplatform_1a_db"]
@@ -41,7 +45,7 @@ include = [
     "/.github/workflows/backend.yml",
     "/pyproject.toml", "/uv.lock", "/alembic.ini", "/.env.example",
     "/docker-compose.yml", "/docs/backend-handoff.md", "/docs/release-audit-2026-10-13.md",
-    "/docs/recording-investigation.md",
+    "/docs/recording-investigation.md", "/docs/hardware-discovery.md",
 ]
 exclude = [
     "/tests/api_tests/test_web_toolchain_isolation.py",
