@@ -1,7 +1,7 @@
 """Tenant-scoped reads of persisted ARC artifacts, gated by capture verification."""
 
 SESSION_STATUS_FOR_ARC_SQL = (
-    "SELECT status::text FROM sessions WHERE id = %(session_id)s "
+    "SELECT status::text, voided_from::text FROM sessions WHERE id = %(session_id)s "
     "AND sponsor_id = %(sponsor_id)s AND site_id = %(site_id)s"
 )
 WATERMARK_EVENTS_FOR_ARC_SQL = (
@@ -31,6 +31,14 @@ class WatermarkNotVerified(Exception):
         )
 
 
+class SessionVoided(Exception):
+    """The session was voided; analysis is withheld (session-void SV-006). HTTP 409."""
+
+    def __init__(self, session_id: str) -> None:
+        self.session_id = session_id
+        super().__init__(f"session {session_id} is voided")
+
+
 class SessionNotFound(Exception):
     """The session is not visible under the server sponsor and site."""
 
@@ -53,7 +61,8 @@ def derive_watermark_state(conn, session_id: str, sponsor_id: str, site_id: str)
         row = cur.fetchone()
         if row is None:
             raise SessionNotFound(session_id)
-        status = row[0]
+        # A voided session reports the watermark of the lifecycle it replaced.
+        status = row[1] if row[0] == "voided" else row[0]
         cur.execute(WATERMARK_EVENTS_FOR_ARC_SQL, scope)
         events = {r[0] for r in cur.fetchall()}
 
@@ -69,8 +78,16 @@ def derive_watermark_state(conn, session_id: str, sponsor_id: str, site_id: str)
 
 
 def assert_session_arc_ready(conn, session_id: str, sponsor_id: str, site_id: str) -> None:
-    """Reject ARC reads unless the scoped capture has a verified watermark."""
+    """Reject ARC reads unless the scoped capture has a verified watermark and is not voided."""
     state = derive_watermark_state(conn, session_id, sponsor_id, site_id)
+    with conn.cursor() as cur:
+        cur.execute(
+            SESSION_STATUS_FOR_ARC_SQL,
+            {"session_id": session_id, "sponsor_id": sponsor_id, "site_id": site_id},
+        )
+        row = cur.fetchone()
+    if row is not None and row[0] == "voided":
+        raise SessionVoided(session_id)
     if state != "verified":
         raise WatermarkNotVerified(session_id, state)
 

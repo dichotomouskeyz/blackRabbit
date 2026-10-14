@@ -98,6 +98,13 @@ CAPABILITY_MATRIX: list[dict] = [
         "gate": "OQ-001",
     },
     {
+        "capability": "void_session",
+        "endpoint": "POST /sessions/{id}/void",
+        "status": "implemented",
+        "blocked_reason": None,
+        "gate": None,
+    },
+    {
         "capability": "arc_run",
         "endpoint": "POST /sessions/{id}/arc:run",
         "status": "blocked",

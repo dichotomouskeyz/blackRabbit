@@ -12,7 +12,7 @@ from datetime import UTC, date, datetime
 from capture.session_init.constants import VALID_COMPOUNDS
 
 # The session_status enum (migration 002).
-SESSION_STATUSES = ("initializing", "active", "closing", "closed", "failed")
+SESSION_STATUSES = ("initializing", "active", "closing", "closed", "failed", "voided")
 
 DEFAULT_LIMIT = 200
 MAX_LIMIT = 500

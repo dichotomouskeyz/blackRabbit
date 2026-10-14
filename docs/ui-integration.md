@@ -43,6 +43,7 @@ at runtime. Hiding buttons/tools in the UI is **insufficient**.
 | List sessions | `GET /sessions` | implemented (read-only query; optional filters, see below) |
 | Session status | `GET /sessions/{id}/status` | implemented |
 | Create session | `POST /sessions` | implemented (wraps `create_session`) |
+| Void session | `POST /sessions/{id}/void` | implemented (closed or failed sessions; reason required; see `.correctless/specs/session-void.md`) |
 | Live biosignal tab | `WS /sessions/{id}/stream` | scaffolded (WS upgrade refused; tab placeholder) |
 | ARC review tab | `GET /sessions/{id}/arc` | scaffolded (409 capability-status; tab placeholder) |
 | Agent tool execution | AI SDK tool registry | scaffolded (visible, execution disabled) |

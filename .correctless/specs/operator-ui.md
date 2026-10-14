@@ -99,6 +99,7 @@ and never hardcodes the matrix.
 | Agent tool execution | AI SDK tool registry | — | live for `implemented` capabilities (list/status/create); disabled for `scaffolded`/`blocked` (frontend-shell INV-008a, D-2) |
 | Capture start/stop | `capture:start` / `:stop` | watchdog / `ForwarderEngine` | blocked |
 | Marker publish | `POST /sessions/{id}/markers` | LSL marker outlet | blocked |
+| Void session | `POST /sessions/{id}/void` | `capture.session_void.void_session` | implemented (session-void spec) |
 | Close session | `POST /sessions/{id}/close` | `session_close.workflow.run` | blocked |
 | ARC run | `arc:run` | `batch.arc.processor.run_arc_post_session` | blocked |
 
@@ -115,11 +116,12 @@ scaffolded WebSocket refuses the upgrade with a capability-status close reason.
 | GET | `/health` | — | `{status:"ok", version, contract_version}` | — | live |
 | GET | `/capabilities` | — | `[{capability, endpoint, status, blocked_reason, gate}]` | — | live |
 | GET | `/vocab` | — | `{compounds:[...], dose_units:[...]}` | — | live |
-| GET | `/sessions` | — (tenancy server-side) | `{sessions:[{id, status, compound, started_at, closed_at, created_at}...]}` | 503 (DB down) | live |
+| GET | `/sessions` | optional filters (session-query spec) | `{sessions:[{id, status, compound, started_at, closed_at, created_at}...]}` | 422, 503 (DB down) | live |
 | GET | `/sessions/{id}/status` | path `id` | `{id, status, started_at, closed_at, watermark_state}` | 404, 422, 503 | live |
 | POST | `/sessions` | closed allow-list (below) | `{session_id}` | 422, 503 | live |
 | WS | `/sessions/{id}/stream` | path `id` | (deferred; contract below) | upgrade refused (capability close reason) in M0 | scaffolded |
-| GET | `/sessions/{id}/arc` | path `id` | persisted artifact envelope (below) | 404, 409 watermark, 422, 503 | live |
+| GET | `/sessions/{id}/arc` | path `id` | persisted artifact envelope (below) | 404, 409 watermark or voided, 422, 503 | live |
+| POST | `/sessions/{id}/void` | `{reason}` (3 to 500 characters) | `{session_id, status:"voided", voided_at}` | 404, 409 not voidable / already voided / busy, 422, 503 | live |
 | POST | `/sessions/{id}/markers` | — | — | 409 capability-status | blocked |
 | POST | `/sessions/{id}/capture:start` / `:stop` | — | — | 409 capability-status | blocked |
 | POST | `/sessions/{id}/close` | — | — | 409 capability-status | blocked |
