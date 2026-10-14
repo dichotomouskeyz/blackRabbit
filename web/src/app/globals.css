@@ -946,6 +946,44 @@ code,
   border-bottom: 1px solid var(--line);
 }
 
+.void {
+  margin-top: 20px;
+}
+
+.void-open {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius);
+}
+
+.void-note {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.field-hint {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+textarea.input {
+  resize: vertical;
+  font-family: var(--sans);
+}
+
+.btn-danger {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+}
+
 .confirm {
   margin: 6px 8px;
   padding: 10px;

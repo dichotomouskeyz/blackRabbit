@@ -111,7 +111,8 @@ def upgrade() -> None:
             'active',
             'closing',
             'closed',
-            'failed'
+            'failed',
+            'voided'
         );
     """)
 
@@ -139,7 +140,21 @@ def upgrade() -> None:
             started_at          TIMESTAMPTZ,
             closed_at           TIMESTAMPTZ,
             created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
-            updated_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+            updated_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            -- Void record (session-void SV-001): set together, and only when
+            -- status is 'voided'. Voiding hides a session from normal views;
+            -- it never deletes samples, events or files.
+            voided_at           TIMESTAMPTZ,
+            void_reason         TEXT,
+            voided_from         session_status,
+            CONSTRAINT sessions_void_record CHECK (
+                (status = 'voided') = (
+                    voided_at IS NOT NULL
+                    AND void_reason IS NOT NULL
+                    AND btrim(void_reason) <> ''
+                    AND voided_from IN ('closed', 'failed')
+                )
+            )
         );
 
         -- Trigger function: sets updated_at = NOW() on every UPDATE.

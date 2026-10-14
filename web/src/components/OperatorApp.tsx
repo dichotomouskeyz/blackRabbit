@@ -179,6 +179,7 @@ export function OperatorApp(): JSX.Element {
       filterForm={filterForm}
       filterProblems={filterProblems}
       onFilterFormChange={setFilterForm}
+      onSessionsChanged={() => void refreshSessions()}
     />
   );
 }

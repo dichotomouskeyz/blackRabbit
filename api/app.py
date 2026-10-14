@@ -15,6 +15,7 @@ Documented endpoint set (spec Endpoint contract):
   POST /sessions
   WS   /sessions/{session_id}/stream            (scaffolded: upgrade refused)
   GET  /sessions/{session_id}/arc               (persisted report; watermark gated)
+  POST /sessions/{session_id}/void              (closed or failed sessions only)
   POST /sessions/{session_id}/markers           (blocked: 409)
   POST /sessions/{session_id}/capture:start     (blocked: 409)
   POST /sessions/{session_id}/capture:stop      (blocked: 409)
@@ -34,6 +35,7 @@ from pydantic import BaseModel, ConfigDict
 # so test patches on `api.deps` (e.g. monkeypatching get_readonly_connection /
 # get_tenant_context) bind at call time. `from api.deps import X` would bind the
 # name at import and leave the patch dead.
+import capture.session_void as session_void
 from api import arc, capabilities, deps, investigation, session_filters, sessions, vocab
 from api.deps import TenantContext
 
@@ -118,6 +120,18 @@ class ARCReviewResponse(BaseModel):
 # extra='forbid' makes unknown keys (incl. site_id/sponsor_id) a 422 at FastAPI
 # validation before the route body runs — no DB call. The named electrode kwargs
 # mirror create_session's signature (sourced from session_signal_metadata).
+class VoidSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str | None = None
+
+
+class VoidSessionResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    session_id: str
+    status: str
+    voided_at: str
+
+
 class CreateSessionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -296,6 +310,54 @@ def create_app() -> FastAPI:
             return _map_create_value_error(exc)
         return {"session_id": session_id}
 
+    @app.post("/sessions/{session_id}/void", response_model=VoidSessionResponse)
+    def _void_session(
+        session_id: str,
+        body: VoidSessionRequest,
+        tenant: TenantContext = Depends(deps.get_tenant_context),
+    ):
+        # SV-004: validate the path and reason before tenancy or DB work.
+        if not sessions.is_uuid(session_id):
+            return _structured_422("session_id", "session_id must be a valid UUID")
+        try:
+            reason = session_void.clean_reason(body.reason)
+        except ValueError as exc:
+            return _structured_422("reason", str(exc))
+        validated_tenant = deps.require_tenant(tenant)
+        try:
+            return sessions.void_session(
+                session_id=session_id,
+                sponsor_id=validated_tenant.sponsor_id,
+                site_id=validated_tenant.site_id,
+                reason=reason,
+            )
+        except session_void.SessionNotFound:
+            return JSONResponse(
+                status_code=404, content={"error": "not_found", "message": "session not found"}
+            )
+        except session_void.SessionAlreadyVoided:
+            return JSONResponse(
+                status_code=409,
+                content={"error": "already_voided", "message": "session is already voided"},
+            )
+        except session_void.SessionNotVoidable as exc:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error": "session_not_voidable",
+                    "message": "only closed or failed sessions can be voided; end capture first",
+                    "status": exc.status,
+                },
+            )
+        except session_void.SessionBusy:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error": "session_busy",
+                    "message": "session is busy with capture, closeout, recovery or analysis",
+                },
+            )
+
     @app.get("/sessions/{session_id}/arc", response_model=ARCReviewResponse)
     def _arc_read(session_id: str, tenant: TenantContext = Depends(deps.get_tenant_context)):
         if not sessions.is_uuid(session_id):
@@ -310,6 +372,11 @@ def create_app() -> FastAPI:
             return JSONResponse(
                 status_code=404,
                 content={"error": "not_found", "message": "session not found"},
+            )
+        except arc.SessionVoided:
+            return JSONResponse(
+                status_code=409,
+                content={"error": "session_voided", "message": "session is voided"},
             )
         except arc.WatermarkNotVerified as exc:
             return JSONResponse(

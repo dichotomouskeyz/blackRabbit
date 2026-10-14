@@ -22,6 +22,7 @@ _EXPECTED_HTTP_ROUTES = {
     ("GET", "/sessions/{session_id}/status"),
     ("POST", "/sessions"),
     ("GET", "/sessions/{session_id}/arc"),
+    ("POST", "/sessions/{session_id}/void"),  # session-void spec
     ("POST", "/sessions/{session_id}/markers"),
     ("POST", "/sessions/{session_id}/capture:start"),
     ("POST", "/sessions/{session_id}/capture:stop"),

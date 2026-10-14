@@ -12,6 +12,7 @@ import uuid
 # IMPORTANT: module-attribute access (not `from ... import create_session`) so
 # tests that monkeypatch `workflow.create_session` bind at call time.
 import capture.session_init.workflow as session_init_workflow
+import capture.session_void as session_void_module
 from api import arc
 from api.session_filters import SessionFilters
 
@@ -27,6 +28,8 @@ SESSIONS_LIST_SQL = (
     "AND (%(session_prefix)s::text IS NULL OR id::text LIKE %(session_prefix)s || '%%') "
     "AND (%(participant_id)s::uuid IS NULL OR participant_id = %(participant_id)s::uuid) "
     "AND (%(status)s::text IS NULL OR status::text = %(status)s) "
+    # Voided sessions appear only when status=voided is requested (SV-006).
+    "AND (status <> 'voided' OR %(status)s::text = 'voided') "
     "AND (%(compound)s::text IS NULL OR compound = %(compound)s) "
     "AND (%(created_from)s::timestamptz IS NULL OR created_at >= %(created_from)s) "
     "AND (%(created_before)s::timestamptz IS NULL OR created_at < %(created_before)s) "
@@ -145,6 +148,19 @@ def create_session(*, compound, capture_source, participant_id, sponsor_id, site
         participant_id=participant_id,
         capture_source=capture_source,
         **forwarded,
+    )
+
+
+def void_session(*, session_id: str, sponsor_id: str, site_id: str, reason: str) -> dict:
+    """Wrap `capture.session_void.void_session` (PAT-010, session-void).
+
+    Tenancy comes from the server. Module-attribute access keeps test
+    monkeypatches effective.
+    """
+    if sponsor_id is None or site_id is None:
+        raise ValueError("void_session requires non-null tenancy (INV-001)")
+    return session_void_module.void_session(
+        session_id=session_id, sponsor_id=sponsor_id, site_id=site_id, reason=reason
     )
 
 

@@ -93,6 +93,10 @@ export interface ApiClient {
   listSessions(filters?: SessionFilters): Promise<ApiResult<{ sessions: SessionSummary[] }>>;
   getSessionStatus(sessionId: string): Promise<ApiResult<unknown>>;
   getVocab(): Promise<ApiResult<{ compounds: string[]; dose_units: string[] }>>;
+  voidSession(
+    sessionId: string,
+    reason: string,
+  ): Promise<ApiResult<{ session_id: string; status: string; voided_at: string }>>;
   createSession(fields: Record<string, unknown>): Promise<ApiResult<{ session_id: string }>>;
   // Generic call used by the dispatcher for gated tools — hits the fixed endpoint.
   call(method: string, path: string, body?: unknown): Promise<ApiResult<unknown>>;
@@ -215,6 +219,14 @@ export function createApiClient(opts?: { transport?: Transport; baseUrl?: string
 
     getSessionStatus(sessionId: string) {
       return request<unknown>("GET", `/sessions/${sessionId}/status`);
+    },
+
+    voidSession(sessionId: string, reason: string) {
+      return request<{ session_id: string; status: string; voided_at: string }>(
+        "POST",
+        `/sessions/${encodeURIComponent(sessionId)}/void`,
+        { reason },
+      );
     },
 
     getVocab() {

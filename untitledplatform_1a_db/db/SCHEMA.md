@@ -32,11 +32,16 @@ Primary clinical record. One row per recording session.
 | `compound_dose` | `DOUBLE PRECISION` | Numeric dose value |
 | `compound_dose_unit` | `TEXT` | `mg` \| `ug` \| `µg` \| `mg/kg` \| `ug/kg` \| `µg/kg` |
 | `therapist_id` | `TEXT` | Therapist identifier |
-| `status` | `session_status` NOT NULL | ENUM: `initializing` \| `active` \| `closing` \| `closed` \| `failed` |
+| `status` | `session_status` NOT NULL | ENUM: `initializing` \| `active` \| `closing` \| `closed` \| `failed` \| `voided` |
 | `started_at` | `TIMESTAMPTZ` | |
 | `closed_at` | `TIMESTAMPTZ` | Set on `closed` or `failed` |
 | `created_at` | `TIMESTAMPTZ NOT NULL` | `DEFAULT NOW()` |
 | `updated_at` | `TIMESTAMPTZ NOT NULL` | Auto-updated by `set_updated_at()` trigger |
+| `voided_at` | `TIMESTAMPTZ` | Set when the session is voided |
+| `void_reason` | `TEXT` | Operator's reason for voiding; required when voided |
+| `voided_from` | `session_status` | The status a void replaced (`closed` or `failed`) |
+
+**Constraint:** `sessions_void_record` keeps `voided_at`, a non-blank `void_reason` and `voided_from` set exactly when `status = 'voided'`. Voiding never deletes samples, events or files.
 
 **Triggers:** `sessions_set_updated_at` (BEFORE UPDATE), `sessions_watermark_trigger` (AFTER UPDATE — writes status transitions, plus terminal watermarks, to `audit_events`)
 
@@ -468,6 +473,7 @@ Structured correction record with approval fields for deployments that want a re
 |-------------------|---------------------|
 | any status change | `session_status_transition` — records old/new status |
 | any → `closed` | `session_status_transition` + `watermark_verified` — gates post-session batch processing |
+| `closed`/`failed` → `voided` | `session_status_transition` only; ARC requires `closed`, so voided sessions are not analyzed |
 | any → `failed` | `session_status_transition` + `watermark_failed` — blocks batch, alerts coordinator |
 
 ---

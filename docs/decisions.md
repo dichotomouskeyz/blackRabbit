@@ -357,3 +357,24 @@
   web client, `list_sessions` tool schema and dispatcher, session list filter
   controls; spec `.correctless/specs/session-query.md`.
 - **Date:** 2026-10-14
+
+## Void instead of delete
+
+- **Decision:** "Delete session" is implemented as void. A closed or failed
+  session moves to a `voided` status with `voided_at`, a required `void_reason`
+  and `voided_from`; nothing is deleted. The void runs under the shared session
+  lock, the existing status trigger audits it, voided sessions leave the default
+  list, and ARC refuses them. The console offers it as a confirmed human action;
+  the agent registry has no void tool. Permanent removal stays out of scope.
+- **Rationale:** `audit_events` is append-only and the platform's value is an
+  auditable record. A hard delete would conflict with both and with XDF
+  reconciliation, while a mistaken session still needs to leave normal views.
+  Representing voided as a status keeps the pinned list and status response
+  allowlists unchanged. Like create, the route is unauthenticated and relies on
+  the API staying bound to localhost.
+- **Code impact:** migration 002 (edited pre-go-live), `capture/session_void.py`,
+  `api/app.py`, `api/sessions.py`, `api/arc.py`, `api/capabilities.py`,
+  `api/session_filters.py`; the documented route set (operator-ui spec and
+  `tests/api_tests/test_endpoint_set.py`) gains `POST /sessions/{id}/void`;
+  console void form; spec `.correctless/specs/session-void.md`.
+- **Date:** 2026-10-14

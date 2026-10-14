@@ -32,6 +32,20 @@ from the product version.
   structured 422 before any database work; the response fields are unchanged.
 - The operator console's session list has filter controls, and the agent's
   `list_sessions` tool accepts the same filters.
+- Sessions can be voided. `POST /sessions/{id}/void` moves a closed or failed
+  session to the new `voided` status with a required reason. Voiding deletes
+  nothing: samples, markers, XDF files, analysis rows and the audit history
+  stay, and the status trigger audits the change. Voided sessions leave the
+  default list (`status=voided` shows them) and ARC refuses them. The console
+  offers it as a confirmed action on closed or failed sessions; the agent has
+  no void tool.
+
+### Changed
+
+- Migration 002 adds the `voided` status, the `voided_at`, `void_reason` and
+  `voided_from` columns, and a check that keeps them consistent. Per the
+  pre-go-live migration rule, drop and recreate local databases, then run
+  `alembic upgrade head`.
 
 ## [0.3.1] - 2026-10-13
 
