@@ -13,14 +13,25 @@ import uuid
 # tests that monkeypatch `workflow.create_session` bind at call time.
 import capture.session_init.workflow as session_init_workflow
 from api import arc
+from api.session_filters import SessionFilters
 
 # --- Read SQL (PAT-003 / INV-002) -------------------------------------------
 # Pinned columns per RS-019 (sessions table, migration 002/023).
+# Optional filters (session-query SQ-001/SQ-003): each is a bound parameter
+# behind a typed IS NULL guard, so an absent filter does not narrow the result
+# and no SQL text is ever built from input. `%%` is a literal % under psycopg2.
 SESSIONS_LIST_SQL = (
     "SELECT id::text, status::text, compound, started_at, closed_at, created_at "
     "FROM sessions "
     "WHERE sponsor_id = %(sponsor_id)s AND site_id = %(site_id)s "
-    "ORDER BY created_at DESC"
+    "AND (%(session_prefix)s::text IS NULL OR id::text LIKE %(session_prefix)s || '%%') "
+    "AND (%(participant_id)s::uuid IS NULL OR participant_id = %(participant_id)s::uuid) "
+    "AND (%(status)s::text IS NULL OR status::text = %(status)s) "
+    "AND (%(compound)s::text IS NULL OR compound = %(compound)s) "
+    "AND (%(created_from)s::timestamptz IS NULL OR created_at >= %(created_from)s) "
+    "AND (%(created_before)s::timestamptz IS NULL OR created_at < %(created_before)s) "
+    "ORDER BY created_at DESC "
+    "LIMIT %(limit)s"
 )
 SESSION_STATUS_SQL = (
     "SELECT id::text, status::text, started_at, closed_at "
@@ -34,16 +45,24 @@ def _iso(value):
     return value.isoformat() if value is not None else None
 
 
-def list_sessions(conn, sponsor_id: str, site_id: str) -> dict:
-    """Tenancy-scoped session list (INV-001).
+def list_sessions(
+    conn, sponsor_id: str, site_id: str, filters: SessionFilters | None = None
+) -> dict:
+    """Tenancy-scoped session list (INV-001), optionally filtered (SQ-001).
 
     Returns {sessions: [{id, status, compound, started_at, closed_at,
-    created_at}]} filtered by the server sponsor and site.
+    created_at}]} filtered by the server sponsor and site. Filters narrow the
+    rows but never add fields (SQ-004).
     """
     if not sponsor_id or not site_id:
         raise ValueError("list_sessions requires sponsor_id and site_id (INV-001)")
+    params = {
+        "sponsor_id": sponsor_id,
+        "site_id": site_id,
+        **(filters or SessionFilters()).as_params(),
+    }
     with conn.cursor() as cur:
-        cur.execute(SESSIONS_LIST_SQL, {"sponsor_id": sponsor_id, "site_id": site_id})
+        cur.execute(SESSIONS_LIST_SQL, params)
         rows = cur.fetchall()
     sessions = [
         {
