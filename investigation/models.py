@@ -52,7 +52,12 @@ class InvestigationReport(InvestigationDraft):
     mode: Literal["configured_model", "scripted_demo"] = "configured_model"
 
 
-def build_report(draft: InvestigationDraft, tools, *, mode="configured_model"):
+def build_report(
+    draft: InvestigationDraft,
+    tools,
+    *,
+    mode: Literal["configured_model", "scripted_demo"] = "configured_model",
+):
     """Hydrate cited evidence from the server registry, never from model values."""
     cited = list(dict.fromkeys(ref for finding in draft.findings for ref in finding.evidence_ids))
     unknown = [ref for ref in cited if ref not in tools.evidence]
