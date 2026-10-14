@@ -9,6 +9,7 @@ import { useState } from "react";
 import type { FormEvent, JSX } from "react";
 import type { ApiResult } from "@/lib/api-client";
 import { UUID_RE } from "@/lib/tool-registry";
+import { newParticipantId } from "@/lib/participant-id";
 import { OutcomeMessage } from "@/components/OutcomeMessage";
 
 export interface CreateSessionFormProps {
@@ -70,16 +71,28 @@ export function CreateSessionForm({ onSubmit, vocab }: CreateSessionFormProps): 
         <label htmlFor="participant_id">
           Participant <code>participant_id</code>
         </label>
-        <input
-          id="participant_id"
-          name="participant_id"
-          className="input mono"
-          placeholder="UUID"
-          autoComplete="off"
-          spellCheck={false}
-          value={participantId}
-          onChange={(e) => setParticipantId(e.target.value)}
-        />
+        <div className="input-row">
+          <input
+            id="participant_id"
+            name="participant_id"
+            className="input mono"
+            placeholder="UUID"
+            autoComplete="off"
+            spellCheck={false}
+            value={participantId}
+            onChange={(e) => setParticipantId(e.target.value)}
+          />
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => {
+              setParticipantId(newParticipantId());
+              setPidError(null);
+            }}
+          >
+            Generate
+          </button>
+        </div>
         {pidError ? (
           <p className="field-error" data-pid-error>
             {pidError}

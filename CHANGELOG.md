@@ -24,6 +24,9 @@ from the product version.
   units, timestamps and per-run source identities. Only BrainFlow's synthetic
   board ships as an executable profile; no physical device has been tested. The
   existing four-modality recorder, API and ARC are unchanged.
+- A Generate button in the operator console's create form fills a random
+  pseudonymous participant ID. Participant names stay in the lab's own
+  enrollment key; blackRabbit stores only the UUID.
 
 ## [0.3.1] - 2026-10-13
 
