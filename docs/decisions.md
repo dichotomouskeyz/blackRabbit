@@ -299,3 +299,29 @@
   on the CLI. MIT licensing and a backend source allowlist prepare publication
   without exposing private repository history or local recording artifacts.
 - **Date:** 2026-10-13
+
+## Operator UI: agent-first shell (frontend-shell M0)
+
+- **Decision:** The operator UI is agent-first. `web/` mounts `OperatorShell`
+  from `page.tsx` with a left rail (sessions, runtime capability matrix), a chat
+  in the centre, and a context panel (manual create form or selected session).
+  The agent route runs a live OpenAI-compatible tool-calling turn
+  (`web/src/lib/model-turn.ts`) through `runAgentLoop`, so the per-turn cap
+  applies to the calls that reach the API. Styling is plain CSS with tokens
+  (resolves OQ-002). The browser reaches FastAPI through a Next rewrite
+  (`/backend/*` to `API_BASE_URL`).
+- **Rationale:** Jahlon asked on 2026-10-13 for the frontend to be built and to
+  work as an agent, superseding the same-day deferral in the backend release
+  boundary entry. The previous route sent an empty request to the model and never
+  parsed tool calls, the cap ran beside an uncapped dispatch (QA-011), a model
+  HTTP error read as an empty success (QA-012), and the shell was never mounted
+  (QA-013).
+- **Code impact:** `web/src` agent core, chat items, components, `globals.css`,
+  `next.config.mjs`; new tests for QA-011..014, the live turn, the page mount, and
+  a registry-versus-`api/app.py` route check. Contract fixes: registry endpoints
+  now match `capture:start`, `capture:stop`, `arc:run`; `create_session` fields
+  match `CreateSessionRequest` (`compound_dose`, `compound_dose_unit`, electrode
+  fields); the client's built-against contract version is `"0"` to match
+  `CONTRACT_VERSION`. Prose correction (QA-003/014) is keyed to the failed tool and
+  skips negated sentences.
+- **Date:** 2026-10-13
