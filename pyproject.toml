@@ -30,12 +30,12 @@ build-backend = "hatchling.build"
 agent = ["pydantic-ai-slim[openai,anthropic,ui]==2.55.0"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["api", "capture", "batch", "config", "ingestion", "storage", "investigation", "untitledplatform_1a_db"]
+packages = ["api", "capture", "batch", "config", "ingestion", "investigation", "untitledplatform_1a_db"]
 
 [tool.hatch.build.targets.sdist]
 # A backend release excludes private agent history, local data and unfinished web work.
 include = [
-    "/api", "/capture", "/batch", "/config", "/ingestion", "/storage", "/investigation",
+    "/api", "/capture", "/batch", "/config", "/ingestion", "/investigation",
     "/untitledplatform_1a_db", "/tests", "/scripts",
     "/.correctless/specs", "/README.md", "/LICENSE", "/.gitignore",
     "/.github/workflows/backend.yml",
@@ -44,7 +44,7 @@ include = [
     "/docs/recording-investigation.md",
 ]
 exclude = [
-    "/tests/_archive", "/tests/api_tests/test_web_toolchain_isolation.py",
+    "/tests/api_tests/test_web_toolchain_isolation.py",
     "/untitledplatform_1a_db/db/alembic/optional_governance", "/scripts/sim.ps1",
 ]
 
@@ -68,14 +68,14 @@ testpaths = ["tests"]
 markers = [
     "integration: tests that require a running database (TEST_DATABASE_URL must be set)",
 ]
-addopts = "--basetemp=.pytest_tmp --ignore=tests/_archive"
+addopts = "--basetemp=.pytest_tmp"
 
 [tool.coverage.report]
 fail_under = 60
 
 [tool.ruff]
 line-length = 100
-extend-exclude = ["tests/_archive", "web"]
+extend-exclude = ["web"]
 # Honor the `web` exclude even when an explicit path under web/ is passed
 # (e.g. `ruff check web/foo.py`) so the Node tree never re-enters Python lint
 # scope (frontend-shell INV-010 clause 3 / PAT-013).

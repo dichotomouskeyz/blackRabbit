@@ -53,12 +53,9 @@ web/tsconfig.tsbuildinfo
 # Python
 *.pyd
 .Python
-# Environment
-# Logs
 # Node
 node_modules/
 npm-debug.log
-# Docker
 # OS
 Thumbs.db
 # IDE

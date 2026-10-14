@@ -10,9 +10,8 @@ const apiBaseUrl = (process.env.API_BASE_URL ?? "http://localhost:8000").replace
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Pin the workspace root to web/ — the Python repo root carries an unrelated
-  // package-lock.json (a dev tool), and Next would otherwise infer it as the
-  // root. Keeps the Node tree self-contained (PAT-013 / INV-010).
+  // Pin the workspace root to web/ so Next never infers the Python repo root
+  // as the workspace. Keeps the Node tree self-contained (PAT-013 / INV-010).
   outputFileTracingRoot: webRoot,
   // The operator UI is a local research tool; no telemetry.
   experimental: {},
