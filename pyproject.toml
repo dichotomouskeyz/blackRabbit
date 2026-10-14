@@ -1,6 +1,6 @@
 [project]
 name = "untitled_biometric_platform_1a"
-version = "0.3.0"
+version = "0.3.1"
 description = "blackRabbit: local physiological capture and reproducible post-session analysis"
 readme = "README.md"
 license = "MIT"
@@ -28,6 +28,10 @@ build-backend = "hatchling.build"
 
 [project.optional-dependencies]
 agent = ["pydantic-ai-slim[openai,anthropic,ui]==2.55.0"]
+hardware = ["bleak>=3.0.1,<4", "pyserial>=3.5,<4"]
+
+[project.scripts]
+blackrabbit-hardware = "capture.hardware.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["api", "capture", "batch", "config", "ingestion", "investigation", "untitledplatform_1a_db"]
@@ -42,6 +46,7 @@ include = [
     "/pyproject.toml", "/uv.lock", "/alembic.ini", "/.env.example",
     "/docker-compose.yml", "/docs/backend-handoff.md", "/docs/release-audit-2026-10-13.md",
     "/docs/recording-investigation.md",
+    "/docs/hardware-integration.md",
 ]
 exclude = [
     "/tests/api_tests/test_web_toolchain_isolation.py",
@@ -66,6 +71,7 @@ dev = [
 pythonpath = ["."]
 testpaths = ["tests"]
 markers = [
+    "lsl_smoke: opt-in native BrainFlow-to-LSL verification without a database",
     "integration: tests that require a running database (TEST_DATABASE_URL must be set)",
 ]
 addopts = "--basetemp=.pytest_tmp"

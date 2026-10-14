@@ -494,6 +494,20 @@ code,
   border-color: var(--line-strong);
 }
 
+.input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.input-row .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.input-row .btn {
+  flex: none;
+}
+
 .field-error {
   font-size: 12.5px;
   color: var(--accent);

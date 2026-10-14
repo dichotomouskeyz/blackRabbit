@@ -187,7 +187,6 @@ def upgrade() -> None:
         ON schema_version_log (recorded_at DESC);
     """)
 
-
     # --- session_signal_metadata ---
     op.execute("""
         CREATE INDEX idx_session_signal_metadata_tenancy

@@ -48,6 +48,8 @@ specification remain unfinished.
 
 - `capture/` — data acquisition: `session_init`, `forwarder` (+ `stream_thread`),
   `echo_handler`, `watchdog`, `session_close`, `xdf`, `logger`.
+- `capture/hardware/` — optional headless BrainFlow to LSL bridge
+  (`blackrabbit-hardware`); publishes device signals, records nothing.
 - `batch/` — everything post-capture: `batch/arc/` (ARC), `batch/reconciliation/`
   (XDF↔DB reconciliation + backfill), per-modality `batch/*_batch.py`.
 - `config/settings.py` — all runtime config, loaded from `.env`, validated at import.
@@ -91,8 +93,10 @@ capability-gated actions through a local model (contract:
 `.correctless/specs/frontend-shell.md`; API contract: `docs/ui-integration.md`).
 
 Deferred from the MVP: live safety monitor, live signal and ARC review screens
-in `web/`, broad FastAPI app, MNE/Neurokit2 feature jobs, BLE/UWB hardware,
-cloud infrastructure, Kafka/Flink, and full regulatory workflows.
+in `web/`, broad FastAPI app, MNE/Neurokit2 feature jobs, physical device
+profiles and UWB proximity hardware (the BrainFlow bridge in `capture/hardware/`
+ships only the synthetic profile), cloud infrastructure, Kafka/Flink, and full
+regulatory workflows.
 
 ## Where To Look
 

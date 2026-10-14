@@ -36,7 +36,7 @@ CLAUDE.local.md
 # pytest
 .pytest_cache/
 .pytest_tmp/
-.pytest_tmp_backend_ci/
+.pytest_tmp_*/
 .uv-cache/
 .ruff_cache/
 web/tsconfig.tsbuildinfo

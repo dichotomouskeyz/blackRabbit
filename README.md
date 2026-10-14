@@ -175,6 +175,7 @@ propagation, persisted analysis replay, and actual database permissions.
 ## Integration and scope
 
 See [backend handoff](docs/backend-handoff.md),
+[hardware bridge and frontend handoff](docs/hardware-integration.md),
 [release audit](docs/release-audit-2026-10-13.md), and the active contracts in
 [.correctless/specs](.correctless/specs). Historical `docs/2R` audits describe the
 previous implementation, not the current release state.
@@ -184,6 +185,17 @@ and capture-process ownership are implemented. Live clinical monitoring,
 intervention, cloud deployment, and hardware-specific validation remain outside
 this backend release. Legacy Python package/database identifiers are retained
 for compatibility; the product name is blackRabbit.
+
+## Data handling and compliance
+
+blackRabbit stores pseudonymous UUIDs, never names or other direct identifiers,
+but it is research software provided as is under the MIT license. It is not
+certified or validated for HIPAA, GDPR, 21 CFR Part 11 or any other regulatory
+regime. The lab or institution that deploys it decides which rules apply and is
+responsible for meeting them: access control, encryption, retention, consent,
+IRB or ethics approval, and agreements with any model provider it enables.
+[Data handling](docs/data-handling.md) lists what the software stores, where
+identifying information can still appear, and what a deploying team must cover.
 
 ## License
 
