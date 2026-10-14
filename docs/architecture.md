@@ -22,13 +22,13 @@ analysis system.
 
 ## Stub Packages
 
-- `ingestion/` and `storage/` are included in the packaged project but are not
-  part of the active capture pipeline.
-- `ingestion/` contains empty modality stubs plus local safety/SQI process
-  placeholders.
-- `storage/` contains empty DB/schema placeholders.
-- Active capture behavior remains under `capture/`; these stubs should not be
-  treated as alternative ingestion or persistence implementations.
+- `ingestion/` is packaged but is not part of the active capture pipeline. It
+  holds empty modality stubs plus the local safety/SQI process placeholders
+  (`ingestion/safety.py`, `ingestion/sqi.py`).
+- `storage/` was removed in 0.3.0; TimescaleDB access lives in the capture and
+  batch packages.
+- Active capture behavior remains under `capture/`; the stubs should not be
+  treated as an alternative ingestion implementation.
 
 ## Analysis
 
